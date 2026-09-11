@@ -1,7 +1,9 @@
-# Local explanation documents - context for this work, not part of the published repo.
+# Local explanation / survey documents - context for this work, kept out of the
+# published repo. README.md is the repo's own documentation and IS tracked.
 semantic-communication-roadmap.md
 semcom-roadmap-expansion.md
 semcom-walkthrough-for-ml-readers.md
+docs/
 
 results/
 data/
