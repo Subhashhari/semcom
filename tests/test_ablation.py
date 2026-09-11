@@ -177,3 +177,56 @@ def test_specialist_outside_the_eval_grid_raises_rather_than_reporting_a_vacuous
 
     with pytest.raises(RuntimeError, match="matched-point test cannot run"):
         analyse(results, off_grid)
+
+
+# ------------------------------------------------------ separation reference integration
+
+
+def test_separation_curve_drops_undelivered_points():
+    """Gaps must stay gaps. Imputing a PSNR where nothing arrived would erase the cliff."""
+    from scripts.run_ablation import separation_curve
+
+    sweep = {"by_snr": {0.0: {"psnr": None}, 5.0: {"psnr": 20.0}, 10.0: {"psnr": 22.0}}}
+    assert separation_curve(sweep) == {5.0: 20.0, 10.0: 22.0}
+    assert separation_curve(None) == {}
+
+
+def test_separation_reference_reports_both_modes_and_the_codec_floor():
+    from scripts.run_ablation import separation_reference
+
+    snrs = [float(s) for s in range(0, 21, 4)]
+    ref = separation_reference(k=512, snrs=snrs, n_images=4)
+
+    assert ref["codec_floor_bytes"] > 0
+    assert ref["ideal"]["mode"] == "ideal"
+    # At k=512 an MCS with an in-range cliff and a usable budget does exist.
+    assert ref["mcs"] is not None
+    assert ref["fixed_mcs"]["mode"] == "fixed_mcs"
+    assert min(snrs) < ref["mcs"]["threshold_db"] < max(snrs)
+
+
+def test_separation_reference_survives_a_rate_with_no_viable_mcs():
+    """At a tiny symbol budget no MCS works; that must be reported, not crash the run."""
+    from scripts.run_ablation import separation_reference
+
+    ref = separation_reference(k=8, snrs=[0.0, 10.0, 20.0], n_images=2)
+    assert ref["mcs"] is None
+    assert ref["fixed_mcs"] is None
+    assert ref["ideal"] is not None
+
+
+def test_plot_and_report_handle_the_separation_block(tmp_path, capsys):
+    """The figure and the printed report must both survive a real separation block."""
+    from scripts.run_ablation import analyse, plot, report, separation_reference
+
+    analysis = analyse(synthetic_results(), SNRS)
+    analysis["separation"] = separation_reference(k=512, snrs=SNRS, n_images=3)
+
+    out = tmp_path / "ablation.png"
+    plot(analysis, out)
+    assert out.exists() and out.stat().st_size > 0
+
+    report(analysis)
+    text = capsys.readouterr().out
+    assert "External reference" in text
+    assert "codec floor" in text

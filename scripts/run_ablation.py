@@ -28,6 +28,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from semcom.config import Config  # noqa: E402
 from semcom.evaluate import evaluate_run  # noqa: E402
+from semcom.separation import (  # noqa: E402
+    choose_fixed_mcs,
+    cifar_test_images,
+    evaluate_separation,
+    measure_codec_floor,
+)
 from semcom.train import train  # noqa: E402
 
 SPECIALIST_SNRS = [1.0, 4.0, 7.0, 13.0, 19.0]
@@ -147,6 +153,48 @@ def analyse(results: list[dict], snrs: list[float]) -> dict:
     }
 
 
+def separation_reference(k: int, snrs: list[float], n_images: int = 64) -> dict:
+    """The external reference point: classical source + channel coding, same symbol budget.
+
+    Without this the 2x2 is entirely self-referential — it can say whether conditioning
+    survives quantisation, but not whether any of it beats what a conventional radio
+    already does, and it cannot show the cliff at all.
+    """
+    images = cifar_test_images(n_images)
+    floor = measure_codec_floor(images)
+
+    ideal = evaluate_separation(images, k=k, snrs=snrs, mode="ideal")
+
+    mcs = choose_fixed_mcs(k, snrs, floor)
+    fixed = None
+    if mcs is not None:
+        fixed = evaluate_separation(
+            images, k=k, snrs=snrs, mode="fixed_mcs",
+            bits_per_symbol=mcs["bits_per_symbol"], code_rate=mcs["code_rate"],
+        )
+
+    return {"codec_floor_bytes": floor, "mcs": mcs, "ideal": ideal, "fixed_mcs": fixed}
+
+
+def separation_curve(sweep: dict | None, require_all: bool = True) -> dict[float, float]:
+    """Extract a plottable {snr: psnr} curve for the separation reference.
+
+    Drops SNRs where nothing was delivered, and by default also drops SNRs where only
+    *some* images could be encoded. That second filter matters more than it looks: when
+    the byte budget sits near the codec floor, the images that still fit are precisely
+    the most compressible ones, so a mean over that subset is biased upward. Plotting it
+    made the rate-distortion curve non-monotonic — quality appeared to *fall* as the
+    channel improved, purely because the harder images rejoined the average.
+    """
+    if not sweep:
+        return {}
+    return {
+        s: v["psnr"]
+        for s, v in sweep["by_snr"].items()
+        if v["psnr"] is not None and (not require_all or v.get("feasible_fraction", 1.0) == 1.0)
+    }
+
+
 def plot(analysis: dict, out_path: Path) -> None:
     try:
         import matplotlib
@@ -168,6 +216,24 @@ def plot(analysis: dict, out_path: Path) -> None:
     for label, curve in analysis["curves"].items():
         snrs = sorted(curve)
         ax.plot(snrs, [curve[s] for s in snrs], label=label, **styles.get(label, {}))
+
+    # The external reference, drawn with gaps rather than interpolation: where the
+    # separation scheme delivers nothing, the line should be absent, not imputed.
+    sep = analysis.get("separation")
+    if sep:
+        ideal = separation_curve(sep.get("ideal"))
+        if ideal:
+            xs = sorted(ideal)
+            ax.plot(xs, [ideal[s] for s in xs], color="#3f3f46", lw=1.6, ls=":",
+                    marker="^", ms=3, label="Separation (capacity bound, oracle AMC)")
+        fixed = separation_curve(sep.get("fixed_mcs"))
+        if fixed:
+            xs = sorted(fixed)
+            mcs = sep.get("mcs") or {}
+            ax.plot(xs, [fixed[s] for s in xs], color="#3f3f46", lw=2.0,
+                    label=f"Separation (fixed {mcs.get('label', 'MCS')}) — the cliff")
+            if mcs.get("threshold_db") is not None:
+                ax.axvline(mcs["threshold_db"], color="#3f3f46", lw=0.8, alpha=0.5)
 
     ax.set_xlabel("Test SNR (dB)")
     ax.set_ylabel("PSNR (dB)")
@@ -198,6 +264,28 @@ def report(analysis: dict) -> None:
     print(f"  analog   (ADJSCC   - BDJSCC)    : {q2['analog (ADJSCC - BDJSCC)']:+.3f} dB")
     print(f"  hypothesis holds: {q2['quantisation_amplifies_conditioning']}")
 
+    sep = analysis.get("separation")
+    if sep:
+        print("\n=== External reference: separation-based coding ===")
+        print(f"  CIFAR-10 codec floor: {sep['codec_floor_bytes']:.0f} bytes/image")
+        ideal = separation_curve(sep.get("ideal"))
+        if ideal:
+            lo, hi = min(ideal), max(ideal)
+            print(f"  capacity bound (oracle AMC): {ideal[lo]:.2f} dB @ {lo:g} dB"
+                  f"  ->  {ideal[hi]:.2f} dB @ {hi:g} dB")
+        blocked = [s for s, v in sep["ideal"]["by_snr"].items() if v["psnr"] is None]
+        if blocked:
+            print(f"  infeasible at or below {max(blocked):g} dB — the 32x32 codec"
+                  f" floor, not the channel")
+        mcs, fixed_sweep = sep.get("mcs"), sep.get("fixed_mcs")
+        if mcs and fixed_sweep:
+            fixed = separation_curve(fixed_sweep)
+            flat = next(iter(fixed.values())) if fixed else float("nan")
+            print(f"  fixed {mcs['label']}: cliff at {mcs['threshold_db']:.2f} dB,"
+                  f" flat {flat:.2f} dB above it (surplus SNR wasted)")
+        else:
+            print("  no MCS puts a cliff inside the swept range at this rate")
+
     q3 = analysis["q3_storage"]
     print("\n=== Q3: storage ===")
     print(f"{'strategy':>28} {'models':>7} {'MB':>9} {'mean PSNR':>11}")
@@ -215,6 +303,8 @@ def main() -> None:
     p.add_argument("--no-wandb", dest="wandb", action="store_false")
     p.add_argument("-M", "--modulation-order", type=int, default=None)
     p.add_argument("--epochs", type=int, default=None)
+    p.add_argument("--no-separation", action="store_true",
+                   help="skip the classical separation reference curves")
     args = p.parse_args()
 
     overrides = {"modulation_order": args.modulation_order, "epochs": args.epochs}
@@ -232,6 +322,10 @@ def main() -> None:
     results = [evaluate_run(cfg.run_dir, use_wandb=args.wandb) for cfg in runs]
 
     analysis = analyse(results, base.eval_snrs)
+    if not args.no_separation:
+        print("\ncomputing separation baseline ...")
+        analysis["separation"] = separation_reference(base.k, base.eval_snrs)
+
     out_dir = Path(base.out_dir)
     (out_dir / "ablation.json").write_text(
         json.dumps({"results": results, "analysis": analysis}, indent=2), encoding="utf-8"

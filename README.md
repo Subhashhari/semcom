@@ -48,6 +48,30 @@ model trained on SNR ~ U[0,20] dB, resampled *per example*.
 The digital arms add **zero trainable parameters** (the constellation is fixed) and the AF
 modules add well under 1%, so the comparison is controlled on capacity.
 
+## The separation baseline (external reference)
+
+The 2×2 on its own is self-referential: it can say whether conditioning survives
+quantisation, but not whether any of it beats a conventional radio — and it cannot show
+the cliff at all. `semcom/separation.py` adds classical source + channel coding at the
+**same symbol budget**, in two modes:
+
+- **Capacity bound (oracle AMC)** — source codec + a *capacity-achieving* channel code,
+  rate re-chosen per SNR. This is the construction the DeepJSCC literature uses, and it is
+  an **upper bound**: no real separation scheme beats capacity, and none gets an oracle.
+  Beat this curve and you beat every separation scheme, not just the one implemented here.
+- **Fixed MCS** — one (modulation, code rate) pair, as a real link would use. Flat above
+  the Shannon threshold, nothing below it. This is the cliff.
+
+Decoding success is adjudicated against Shannon capacity, which treats the channel code as
+ideal — deliberately generous, since a real 5G LDPC code sits ~1 dB worse.
+
+**A real limitation, reported rather than hidden.** Classical codecs carry a fixed header,
+and at 32×32 it dominates: the same JPEG2000 encoder that reaches 0.13 bpp on a 128×128
+image cannot go below ~2 bpp on a CIFAR tile. The measured floor is **~92 bytes/image**, so
+below roughly 4 dB the separation baseline is infeasible for *source-coding* reasons that
+have nothing to do with the channel. Results distinguish `channel_outage` from
+`codec_infeasible` rather than collapsing both into a blank PSNR cell.
+
 ## The hypothesis
 
 ADJSCC reports its largest margin at low bandwidth ratio — where the encoder is most
@@ -60,13 +84,14 @@ and is reported as one.
 
 ```bash
 pip install -r requirements.txt
-pytest tests/ -q                      # 142 tests, ~1 min on CPU
+pytest tests/ -q                      # 168 tests, ~1 min on CPU
 
 # one arm
 python -m semcom.train --config configs/cifar_r12.yaml --snr-adaptive --digital -M 16
 
 # the whole 2x2 (12 runs), then curves, tables and figure
 python scripts/run_ablation.py --config configs/cifar_r12.yaml
+#   add --no-separation to skip the classical reference curves
 
 # afterwards
 python -m semcom.evaluate results/r12/<run>       # full SNR sweep -> evaluation.json
@@ -110,7 +135,7 @@ Any non-monotonicity in M is a bug, not a finding.
 
 ## Testing
 
-142 tests. The suite is structured around the invariants that, if broken, would produce
+168 tests. The suite is structured around the invariants that, if broken, would produce
 *plausible but wrong* results rather than crashes:
 
 - `tests/test_constellation.py` — the alphabet invariant (transmitted values are bit-exact
@@ -125,14 +150,26 @@ Any non-monotonicity in M is a bug, not a finding.
   known by construction, including that a failed hypothesis is reported as failed.
 - `tests/test_integration.py` — train → checkpoint → reload → evaluate → analyse, on a
   small in-memory dataset, for every arm.
+- `tests/test_separation.py` — capacity/threshold arithmetic, that the baseline is never
+  shortchanged (it must actually spend its byte budget), that infeasibility is reported
+  rather than faked, and that the rate-distortion curve is **monotonic in SNR**.
 
-Three real bugs were caught this way before any training run:
+Six real bugs were caught this way before any training run:
 
 1. The straight-through splice emitted off-constellation values (float rounding).
 2. `Config.save()` wrote derived keys that `Config.from_yaml()` rejected — **no run
    directory could be reloaded**, so every evaluation would have failed *after* training.
 3. `analyse()` silently skipped specialists missing from the eval grid, and `all([])` is
    `True` — so it would report "adaptive wins everywhere" having made zero comparisons.
+4. The separation baseline picked its codec by **file size**, not quality. Across codecs
+   those differ: JPEG2000 becomes feasible around 270 bytes and emits a larger file than
+   WebP while reconstructing worse, so the capacity bound collapsed at exactly the SNR
+   where the budget crossed that floor.
+5. Its PSNR was averaged over **whichever images happened to fit**. Near the codec floor
+   those are the most compressible ones, so the mean was biased upward and quality
+   appeared to *fall* as the channel improved.
+6. The fixed-MCS sweep conflated "the link could not carry it" with "the codec could not
+   compress that small" — misattributing a source-coding limit to the channel.
 
 `evaluate.py` also re-asserts the constellation invariant on the *trained* model before
 reporting any number, and refuses to emit results if it fails. Training moves the
@@ -161,6 +198,7 @@ semcom/
   gdn.py             generalised divisive normalisation
   config.py          dataclass config + YAML
   data.py            CIFAR-10 loaders, PSNR, SNR sampling
+  separation.py      classical source+channel baseline (capacity bound, fixed MCS)
   train.py           training loop + wandb
   evaluate.py        SNR sweep + trained-model invariant check
   analyze_gates.py   AF gate statistics (ADJSCC patterns 1 and 2)
