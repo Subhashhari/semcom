@@ -1,0 +1,39 @@
+# Primary config: CIFAR-10, bandwidth ratio R = 1/12.
+#
+# R=1/12 is the primary sweep because ADJSCC reports its largest margin at low bandwidth
+# ratio - precisely where the encoder is most starved of dimensions and allocation
+# decisions matter most. That is also where quantisation bites hardest, which is what
+# makes it the sharpest test of whether the two mechanisms compose.
+
+name: adjscc-q-cifar-r12
+seed: 0
+out_dir: results/r12
+
+# k = (32/4)^2 * 8 / 2 = 256 complex symbols; R = 256 / 3072 = 1/12
+c_out: 8
+hidden: 256
+image_size: 32
+
+channel: awgn
+modulation_order: 16
+
+snr_train_min: 0.0
+snr_train_max: 20.0
+
+sigma_q_init: 5.0
+anneal_period: 10000
+kl_weight: 0.05
+
+lr: 0.0001
+batch_size: 128
+epochs: 1280
+patience: 50
+num_workers: 4
+amp: true
+
+eval_repeats: 10
+eval_every: 10
+
+wandb: true
+wandb_project: adjscc-q
+wandb_mode: online

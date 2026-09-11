@@ -1,0 +1,13 @@
+# Local explanation documents - context for this work, not part of the published repo.
+semantic-communication-roadmap.md
+semcom-roadmap-expansion.md
+semcom-walkthrough-for-ml-readers.md
+
+results/
+data/
+wandb/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+.claude/

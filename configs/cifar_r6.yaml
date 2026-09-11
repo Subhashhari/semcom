@@ -1,0 +1,39 @@
+# Secondary config: CIFAR-10, bandwidth ratio R = 1/6.
+#
+# ADJSCC reports its advantage against the high-SNR specialists largely closing at this
+# rate, where the encoder has twice the dimensions to work with. This config tests
+# whether the same narrowing happens once the channel input is quantised, or whether
+# quantisation keeps allocation decisions valuable even at the looser rate.
+
+name: adjscc-q-cifar-r6
+seed: 0
+out_dir: results/r6
+
+# k = (32/4)^2 * 16 / 2 = 512 complex symbols; R = 512 / 3072 = 1/6
+c_out: 16
+hidden: 256
+image_size: 32
+
+channel: awgn
+modulation_order: 16
+
+snr_train_min: 0.0
+snr_train_max: 20.0
+
+sigma_q_init: 5.0
+anneal_period: 10000
+kl_weight: 0.05
+
+lr: 0.0001
+batch_size: 128
+epochs: 1280
+patience: 50
+num_workers: 4
+amp: true
+
+eval_repeats: 10
+eval_every: 10
+
+wandb: true
+wandb_project: adjscc-q
+wandb_mode: online
