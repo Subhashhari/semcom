@@ -303,6 +303,15 @@ def main() -> None:
     p.add_argument("--no-wandb", dest="wandb", action="store_false")
     p.add_argument("-M", "--modulation-order", type=int, default=None)
     p.add_argument("--epochs", type=int, default=None)
+    p.add_argument(
+        "--specialist-snrs",
+        type=float,
+        nargs="+",
+        default=SPECIALIST_SNRS,
+        help="training SNRs for the fixed-SNR specialists (default: 1 4 7 13 19). Fewer "
+        "specialists cuts total cost proportionally, but the matched-point comparison is "
+        "then tested at fewer SNRs - report which were used.",
+    )
     p.add_argument("--no-separation", action="store_true",
                    help="skip the classical separation reference curves")
     args = p.parse_args()
@@ -311,9 +320,12 @@ def main() -> None:
     if not args.wandb:
         overrides["wandb"] = False
     base = Config.from_yaml(args.config, **overrides)
-    runs = arm_configs(base)
+    runs = arm_configs(base, sorted(args.specialist_snrs))
 
-    print(f"ablation: {len(runs)} runs at R={base.bandwidth_ratio:.4f}\n")
+    print(
+        f"ablation: {len(runs)} runs at R={base.bandwidth_ratio:.4f}, "
+        f"{base.epochs} epochs, specialists at {sorted(args.specialist_snrs)} dB\n"
+    )
     for i, cfg in enumerate(runs, 1):
         print(f"--- [{i}/{len(runs)}] {cfg.run_name}")
         if not args.skip_training:
