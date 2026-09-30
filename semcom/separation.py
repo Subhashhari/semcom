@@ -252,11 +252,18 @@ def evaluate_separation(
     }
 
 
-def cifar_test_images(n: int = 64, root: str = "data", seed: int = 0) -> np.ndarray:
-    """A deterministic subset of the CIFAR-10 test set as a uint8 array."""
+def cifar_test_images(
+    n: int = 64, root: str = "data", seed: int = 0, download: bool = True
+) -> np.ndarray:
+    """A deterministic subset of the CIFAR-10 test set as a uint8 array.
+
+    `download` defaults to True to match `cifar10_loaders`, so a fresh clone works without
+    having run training first. Tests pass `download=False` and skip when the data is
+    absent, keeping the suite hermetic rather than pulling 170 MB mid-run.
+    """
     from torchvision import datasets
 
-    ds = datasets.CIFAR10(root, train=False, download=False)
+    ds = datasets.CIFAR10(root, train=False, download=download)
     rng = np.random.default_rng(seed)
     idx = rng.choice(len(ds), size=min(n, len(ds)), replace=False)
     return np.stack([np.asarray(ds[int(i)][0]) for i in idx])

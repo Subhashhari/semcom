@@ -226,9 +226,10 @@ def test_codec_is_chosen_by_quality_not_file_size():
     the capacity-bound curve collapse at exactly the SNR where the budget crossed that
     floor.
     """
-    from semcom.separation import _psnr, cifar_test_images
+    from conftest import require_cifar
+    from semcom.separation import _psnr
 
-    for arr in cifar_test_images(6, seed=1):
+    for arr in require_cifar(6, seed=1):
         img = Image.fromarray(arr)
         for budget in (150, 280, 320, 500):
             chosen = compress_to_budget(img, budget)
@@ -252,10 +253,10 @@ def test_capacity_bound_is_monotonic_in_snr():
     from pathlib import Path
 
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+    from conftest import require_cifar
     from scripts.run_ablation import separation_curve
-    from semcom.separation import cifar_test_images
 
-    imgs = cifar_test_images(12, seed=2)
+    imgs = require_cifar(12, seed=2)
     sweep = evaluate_separation(imgs, k=512, snrs=[float(s) for s in range(0, 21)],
                                 mode="ideal")
     curve = separation_curve(sweep)

@@ -192,8 +192,10 @@ def test_separation_curve_drops_undelivered_points():
 
 
 def test_separation_reference_reports_both_modes_and_the_codec_floor():
+    from conftest import require_cifar
     from scripts.run_ablation import separation_reference
 
+    require_cifar(1)
     snrs = [float(s) for s in range(0, 21, 4)]
     ref = separation_reference(k=512, snrs=snrs, n_images=4)
 
@@ -207,7 +209,10 @@ def test_separation_reference_reports_both_modes_and_the_codec_floor():
 
 def test_separation_reference_survives_a_rate_with_no_viable_mcs():
     """At a tiny symbol budget no MCS works; that must be reported, not crash the run."""
+    from conftest import require_cifar
     from scripts.run_ablation import separation_reference
+
+    require_cifar(1)
 
     ref = separation_reference(k=8, snrs=[0.0, 10.0, 20.0], n_images=2)
     assert ref["mcs"] is None
@@ -217,8 +222,10 @@ def test_separation_reference_survives_a_rate_with_no_viable_mcs():
 
 def test_plot_and_report_handle_the_separation_block(tmp_path, capsys):
     """The figure and the printed report must both survive a real separation block."""
+    from conftest import require_cifar
     from scripts.run_ablation import analyse, plot, report, separation_reference
 
+    require_cifar(1)
     analysis = analyse(synthetic_results(), SNRS)
     analysis["separation"] = separation_reference(k=512, snrs=SNRS, n_images=3)
 
