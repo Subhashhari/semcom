@@ -39,7 +39,15 @@ def cifar10_loaders(
     train_set = torch.utils.data.Subset(train_full, list(train_idx))
     val_set = torch.utils.data.Subset(val_full, list(val_idx))
 
-    common = dict(num_workers=num_workers, pin_memory=torch.cuda.is_available())
+    # persistent_workers matters far more on Windows than on Linux: there is no fork, so
+    # every worker is a fresh process that re-imports torch. Without this the pool is torn
+    # down and respawned at the end of every epoch, for each loader - which on CIFAR-scale
+    # epochs (351 steps) can cost more than the loading it was meant to parallelise.
+    common = dict(
+        num_workers=num_workers,
+        pin_memory=torch.cuda.is_available(),
+        persistent_workers=num_workers > 0,
+    )
     return (
         DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, **common),
         DataLoader(val_set, batch_size=batch_size, shuffle=False, **common),

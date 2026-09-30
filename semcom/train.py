@@ -156,6 +156,7 @@ def train(cfg: Config) -> dict:
     history = []
     t0 = time.time()
     for epoch in range(start_epoch, cfg.epochs):
+        epoch_t0 = time.time()
         # Accumulated on-device. Calling .item() per step would sync the CPU to the GPU
         # four times per step just to build averages that are read once, at epoch end.
         running = {k: torch.zeros((), device=device) for k in ("loss", "mse", "kl", "psnr")}
@@ -203,10 +204,14 @@ def train(cfg: Config) -> dict:
                 log(wandb_run, entry, step=step)
 
         n = max(n_seen, 1)
+        # Recorded separately from the total so validation cost is attributable: the two
+        # are easy to confuse when only eval epochs print, and that misreads a slow run.
+        train_s = time.time() - epoch_t0
         epoch_stats = {
             "epoch": epoch,
             "train_loss": running["loss"].item() / n,
             "train_psnr": running["psnr"].item() / n,
+            "train_seconds": train_s,
         }
 
         if epoch % cfg.eval_every == 0 or epoch == cfg.epochs - 1:
@@ -233,10 +238,12 @@ def train(cfg: Config) -> dict:
                     run_dir / "best.pt",
                 )
 
+            epoch_stats["val_seconds"] = time.time() - epoch_t0 - train_s
             print(
                 f"epoch {epoch:4d}  train {epoch_stats['train_psnr']:6.3f} dB  "
                 f"val {mean_psnr:6.3f} dB{'  *' if improved else ''}  "
-                f"({time.time() - t0:.0f}s)"
+                f"[{train_s:.1f}s train + {epoch_stats['val_seconds']:.1f}s val, "
+                f"{time.time() - t0:.0f}s total]"
             )
 
             torch.save(
@@ -255,6 +262,9 @@ def train(cfg: Config) -> dict:
                 print(f"early stopping at epoch {epoch} (best {best_psnr:.3f} dB @ {best_epoch})")
                 history.append(epoch_stats)
                 break
+
+        else:
+            print(f"epoch {epoch:4d}  train {epoch_stats['train_psnr']:6.3f} dB  [{train_s:.1f}s]")
 
         history.append(epoch_stats)
 
