@@ -194,9 +194,21 @@ class JSCC(nn.Module):
         return z
 
     def forward(
-        self, x: torch.Tensor, snr_db: torch.Tensor, collect_gates: bool = False
+        self,
+        x: torch.Tensor,
+        snr_db: torch.Tensor,
+        collect_gates: bool = False,
+        erase_mask: torch.Tensor | None = None,
     ) -> dict:
         """Full end-to-end pass.
+
+        Args:
+            erase_mask: optional boolean (batch, k) or (k,) marking symbols the receiver
+                never gets. Masked symbols are zeroed *after* the channel, which is what
+                a lost packet looks like to the decoder: no observation at all, rather
+                than a noisy one. Used by `semcom.importance` to measure how much each
+                part of the latent actually contributes to the reconstruction. It changes
+                nothing when left as None, so training and evaluation are unaffected.
 
         Returns a dict with the reconstruction, the channel input, and (when digital) the
         KL-to-uniform term for the codebook-collapse regulariser.
@@ -217,6 +229,15 @@ class JSCC(nn.Module):
         # The receiver feeds equalised symbols straight into the decoder network. No
         # demapping to LLRs, no channel decoding, no CRC.
         y = self.channel_fn(z, snr_db, self.avg_power)
+
+        if erase_mask is not None:
+            # Erasure is applied at the receiver, so the transmitted signal - and hence
+            # the constellation invariant and the transmit power - are untouched.
+            mask = erase_mask.to(device=y.device, dtype=torch.bool)
+            if mask.dim() == 1:
+                mask = mask.unsqueeze(0).expand(y.shape[0], -1)
+            y = y.masked_fill(mask.unsqueeze(-1), 0.0)
+
         x_hat = self.decoder(self._from_symbols(y), snr_db)
 
         return {"x_hat": x_hat, "z": z, "kl": kl, "gates": gates}
