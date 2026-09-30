@@ -86,15 +86,17 @@ def evaluate(
     model.eval()
     results = {}
     for snr in snrs:
-        total, count = 0.0, 0
+        total, count = torch.zeros((), device=device), 0
         for x, _ in loader:
             x = x.to(device, non_blocking=True)
             snr_t = torch.full((x.shape[0],), float(snr), device=device)
             for _ in range(repeats):
                 x_hat = model(x, snr_t)["x_hat"]
-                total += psnr(x, x_hat).sum().item()
+                # Accumulated on-device: one sync per SNR instead of one per repeat
+                # per batch, which at eval_repeats=10 is ~790 stalls per SNR point.
+                total += psnr(x, x_hat.float()).sum()
                 count += x.shape[0]
-        results[float(snr)] = total / max(count, 1)
+        results[float(snr)] = total.item() / max(count, 1)
     model.train()
     return results
 
@@ -102,6 +104,15 @@ def evaluate(
 def train(cfg: Config) -> dict:
     torch.manual_seed(cfg.seed)
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+    if device.type == "cuda":
+        # Input shapes are fixed for the whole run (128x3x32x32), so the cuDNN autotuner
+        # pays its one-off cost back immediately. TF32 affects the 1x1/3x3 convs only;
+        # the quantiser's distance computation and the constellation check stay in fp32
+        # and float64 respectively, so the on-constellation invariant is untouched.
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cuda.matmul.allow_tf32 = True
+        torch.backends.cudnn.allow_tf32 = True
 
     run_dir = cfg.run_dir
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -145,7 +156,10 @@ def train(cfg: Config) -> dict:
     history = []
     t0 = time.time()
     for epoch in range(start_epoch, cfg.epochs):
-        running = {"loss": 0.0, "mse": 0.0, "kl": 0.0, "psnr": 0.0, "n": 0}
+        # Accumulated on-device. Calling .item() per step would sync the CPU to the GPU
+        # four times per step just to build averages that are read once, at epoch end.
+        running = {k: torch.zeros((), device=device) for k in ("loss", "mse", "kl", "psnr")}
+        n_seen = 0
 
         for x, _ in train_loader:
             x = x.to(device, non_blocking=True)
@@ -167,17 +181,20 @@ def train(cfg: Config) -> dict:
 
             step += 1
             bs = x.shape[0]
-            running["loss"] += loss.item() * bs
-            running["mse"] += mse.item() * bs
-            running["kl"] += out["kl"].detach().item() * bs
-            running["psnr"] += psnr(x, out["x_hat"].float()).sum().item()
-            running["n"] += bs
+            with torch.no_grad():
+                batch_psnr = psnr(x, out["x_hat"].detach().float())
+                running["loss"] += loss.detach() * bs
+                running["mse"] += mse.detach() * bs
+                running["kl"] += out["kl"].detach() * bs
+                running["psnr"] += batch_psnr.sum()
+            n_seen += bs
 
+            # The only place a sync is unavoidable, and it is throttled by log_every.
             if step % cfg.log_every == 0:
                 entry = {
                     "train/loss": loss.item(),
                     "train/mse": mse.item(),
-                    "train/psnr": psnr(x, out["x_hat"].float()).mean().item(),
+                    "train/psnr": batch_psnr.mean().item(),
                     "train/epoch": epoch,
                 }
                 if model.quantiser is not None:
@@ -185,11 +202,11 @@ def train(cfg: Config) -> dict:
                     entry["train/sigma_q"] = model.quantiser.sigma_q.item()
                 log(wandb_run, entry, step=step)
 
-        n = max(running["n"], 1)
+        n = max(n_seen, 1)
         epoch_stats = {
             "epoch": epoch,
-            "train_loss": running["loss"] / n,
-            "train_psnr": running["psnr"] / n,
+            "train_loss": running["loss"].item() / n,
+            "train_psnr": running["psnr"].item() / n,
         }
 
         if epoch % cfg.eval_every == 0 or epoch == cfg.epochs - 1:
