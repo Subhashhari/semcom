@@ -5,7 +5,22 @@ semcom-roadmap-expansion.md
 semcom-walkthrough-for-ml-readers.md
 docs/
 
-results/
+# Results: track the run records, never the weights. history.json / config.yaml /
+# ablation.json are a few KB each and are the provenance of every reported number, so
+# they belong in the repo. best.pt and checkpoint.pt are ~40 MB each and would add
+# ~650 MB per sweep, permanently, since git keeps every version forever.
+#
+# Written as "ignore the contents, then re-include by extension" rather than "results/":
+# once a directory itself is excluded git never descends into it, so a negation inside an
+# excluded directory has no effect. The "!results/**/" line is what lets git look inside.
+results/**
+!results/**/
+!results/**/*.json
+!results/**/*.yaml
+!results/**/*.png
+!results/**/*.pdf
+!results/**/*.csv
+
 data/
 wandb/
 __pycache__/
