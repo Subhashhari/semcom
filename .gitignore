@@ -28,3 +28,7 @@ __pycache__/
 .pytest_cache/
 
 .claude/
+
+# Stray editor/tool artifacts
+tea_debug.log
+*.log
