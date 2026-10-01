@@ -86,29 +86,39 @@ def analyse(results: list[dict], snrs: list[float]) -> dict:
 
     # Q1: the matched-point test. For each digital specialist, compare at the SNR it was
     # trained for - the specialist's home turf, and the sharpest version of the claim.
-    matched = []
-    for r in by_arm["DeepJSCC-Q"]:
-        snr = r["snr_train_fixed"]
-        if snr is None:
-            continue
-        if snr not in adjscc_q:
-            # Loudly, not silently. Skipping here would leave `matched` short or empty,
-            # and `all([])` is True - so a silent skip reports "adaptive wins everywhere"
-            # on zero comparisons, which is the most misleading answer available.
-            raise RuntimeError(
-                f"specialist trained at {snr} dB was not evaluated at that SNR "
-                f"(eval grid: {sorted(adjscc_q)}). The matched-point test cannot run."
+    #
+    # Run for the analog pair too. ADJSCC vs BDJSCC is the control: it is the published
+    # result being reproduced, so if the adaptive model loses matched-point in *both*
+    # regimes, the cause is something common to both (training budget, backbone, protocol)
+    # and not quantisation. Testing only the digital pair cannot tell those apart.
+    def matched_points(adaptive: dict, specialists: list[dict], label: str) -> list[dict]:
+        out = []
+        for r in specialists:
+            snr = r["snr_train_fixed"]
+            if snr is None:
+                continue
+            if snr not in adaptive:
+                # Loudly, not silently. Skipping here would leave the list short or empty,
+                # and `all([])` is True - so a silent skip reports "adaptive wins
+                # everywhere" on zero comparisons, the most misleading answer available.
+                raise RuntimeError(
+                    f"specialist trained at {snr} dB was not evaluated at that SNR "
+                    f"(eval grid: {sorted(adaptive)}). The matched-point test cannot run."
+                )
+            specialist = curve_of(r, [snr])[snr]
+            out.append(
+                {
+                    "snr_db": snr,
+                    "specialist_psnr": specialist,
+                    f"{label}_psnr": adaptive[snr],
+                    "adaptive_wins": adaptive[snr] > specialist,
+                    "margin_db": adaptive[snr] - specialist,
+                }
             )
-        specialist = curve_of(r, [snr])[snr]
-        matched.append(
-            {
-                "snr_db": snr,
-                "specialist_psnr": specialist,
-                "adjscc_q_psnr": adjscc_q[snr],
-                "adaptive_wins": adjscc_q[snr] > specialist,
-                "margin_db": adjscc_q[snr] - specialist,
-            }
-        )
+        return out
+
+    matched = matched_points(adjscc_q, by_arm["DeepJSCC-Q"], "adjscc_q")
+    matched_analog = matched_points(adjscc, by_arm["BDJSCC"], "adjscc")
 
     # Q2: does conditioning pay more once the channel input is quantised?
     digital_gain = sum(adjscc_q[s] - deepjscc_q_env[s] for s in snrs) / len(snrs)
@@ -136,10 +146,34 @@ def analyse(results: list[dict], snrs: list[float]) -> dict:
             "wins": sum(m["adaptive_wins"] for m in matched),
             "of": len(matched),
         },
+        "q1b_matched_point_analog_control": {
+            "per_snr": matched_analog,
+            "adaptive_wins_everywhere": bool(matched_analog)
+            and all(m["adaptive_wins"] for m in matched_analog),
+            "wins": sum(m["adaptive_wins"] for m in matched_analog),
+            "of": len(matched_analog),
+            "mean_margin_db": (
+                sum(m["margin_db"] for m in matched_analog) / len(matched_analog)
+                if matched_analog
+                else None
+            ),
+        },
         "q2_conditioning_gain_db": {
             "digital (ADJSCC-Q - DeepJSCC-Q)": digital_gain,
             "analog (ADJSCC - BDJSCC)": analog_gain,
-            "quantisation_amplifies_conditioning": digital_gain > analog_gain,
+            # Reported as two separate facts on purpose. A single "amplifies" boolean is
+            # `digital_gain > analog_gain`, which is satisfied just as well when both gains
+            # are negative - i.e. when conditioning loses to the oracle envelope in both
+            # cases and merely loses *less* under quantisation. Calling that
+            # "quantisation amplifies conditioning" states the opposite of what happened.
+            "digital_gain_exceeds_analog": digital_gain > analog_gain,
+            "conditioning_pays_at_all": digital_gain > 0 and analog_gain > 0,
+            "interpretation": (
+                "conditioning beats the oracle envelope in both regimes"
+                if digital_gain > 0 and analog_gain > 0
+                else "conditioning loses to the oracle specialist envelope; the comparison "
+                "is only about which regime loses less"
+            ),
         },
         "q3_storage": {
             "adaptive_models": 1,
@@ -258,11 +292,31 @@ def report(analysis: dict) -> None:
         )
     print(f"adaptive wins at {q1['wins']}/{q1['of']} matched points")
 
+    q1b = analysis.get("q1b_matched_point_analog_control")
+    if q1b:
+        print("\n--- Q1b: analog control (ADJSCC vs each BDJSCC specialist) ---")
+        for m in q1b["per_snr"]:
+            flag = "" if m["adaptive_wins"] else "   <- specialist wins"
+            print(
+                f"{m['snr_db']:6.1f} {m['specialist_psnr']:12.3f} "
+                f"{m['adjscc_psnr']:10.3f} {m['margin_db']:+9.3f}{flag}"
+            )
+        print(f"adaptive wins at {q1b['wins']}/{q1b['of']} matched points")
+        if q1b["of"] and q1b["wins"] == 0 and q1["wins"] == 0:
+            print(
+                "  NOTE: the adaptive model loses matched-point in BOTH regimes. The analog\n"
+                "  pair is the published ADJSCC result, so a loss there points at a cause\n"
+                "  common to both arms - most likely training budget - rather than at\n"
+                "  quantisation. Check epochs_trained and whether val PSNR had plateaued."
+            )
+
     q2 = analysis["q2_conditioning_gain_db"]
     print("\n=== Q2: does quantisation amplify the value of conditioning? ===")
     print(f"  digital  (ADJSCC-Q - DeepJSCC-Q): {q2['digital (ADJSCC-Q - DeepJSCC-Q)']:+.3f} dB")
     print(f"  analog   (ADJSCC   - BDJSCC)    : {q2['analog (ADJSCC - BDJSCC)']:+.3f} dB")
-    print(f"  hypothesis holds: {q2['quantisation_amplifies_conditioning']}")
+    print(f"  digital gain exceeds analog: {q2['digital_gain_exceeds_analog']}")
+    print(f"  conditioning pays at all:    {q2['conditioning_pays_at_all']}")
+    print(f"  -> {q2['interpretation']}")
 
     sep = analysis.get("separation")
     if sep:

@@ -131,13 +131,36 @@ def test_q2_reports_the_hypothesis_holding_when_the_digital_gap_is_larger():
     q2 = analyse(synthetic_results(2.0, 1.0), SNRS)["q2_conditioning_gain_db"]
     assert q2["digital (ADJSCC-Q - DeepJSCC-Q)"] == pytest.approx(2.0)
     assert q2["analog (ADJSCC - BDJSCC)"] == pytest.approx(1.0)
-    assert q2["quantisation_amplifies_conditioning"] is True
+    assert q2["digital_gain_exceeds_analog"] is True
+    assert q2["conditioning_pays_at_all"] is True
 
 
 def test_q2_reports_the_hypothesis_failing_when_it_fails():
     """A null result is a legitimate outcome and must not be silently flipped."""
     q2 = analyse(synthetic_results(0.5, 1.5), SNRS)["q2_conditioning_gain_db"]
-    assert q2["quantisation_amplifies_conditioning"] is False
+    assert q2["digital_gain_exceeds_analog"] is False
+
+
+def test_q2_does_not_claim_amplification_when_conditioning_loses_outright():
+    """Both gains negative: digital > analog is still True, but nothing is amplified.
+
+    This is the case the real R=1/12 run produced (-0.01 dB digital, -0.17 dB analog).
+    A single boolean named "quantisation_amplifies_conditioning" reads as the hypothesis
+    confirming, when in fact conditioning lost to the oracle envelope in both regimes and
+    merely lost less under quantisation.
+    """
+    q2 = analyse(synthetic_results(-0.01, -0.17), SNRS)["q2_conditioning_gain_db"]
+    assert q2["digital_gain_exceeds_analog"] is True
+    assert q2["conditioning_pays_at_all"] is False
+    assert "loses" in q2["interpretation"]
+
+
+def test_q1b_analog_control_runs_the_same_matched_point_test():
+    """Without the analog control a matched-point loss cannot be attributed."""
+    a = analyse(synthetic_results(), SNRS)
+    assert a["q1b_matched_point_analog_control"]["of"] == a["q1_matched_point"]["of"]
+    for m in a["q1b_matched_point_analog_control"]["per_snr"]:
+        assert "adjscc_psnr" in m and "margin_db" in m
 
 
 def test_q3_storage_compares_one_model_against_the_ensemble():
