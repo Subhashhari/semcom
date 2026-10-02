@@ -13,6 +13,20 @@ ADJSCC removes the fixed-SNR idealisation but keeps analog symbols. DeepJSCC-Q r
 analog-symbol debt but keeps per-SNR specialist models. ADJSCC-Q removes both: one set of
 weights, SNR-conditioned at inference, emitting legal M-QAM symbols.
 
+## Documents
+
+| | |
+|---|---|
+| [`docs/r12-results-analysis.md`](docs/r12-results-analysis.md) | What the first R=1/12 sweep established, with per-claim confidence and what would overturn each |
+| [`docs/future-work-plan.md`](docs/future-work-plan.md) | Forward plan: convergence, the modulation sweep, then the security work |
+| [`docs/semcom-security-research-programme.md`](docs/semcom-security-research-programme.md) | Threat taxonomy, adversarial audit of the SOTA, and the P1–P3 programme |
+| [`docs/semcom-sota-and-future-work.md`](docs/semcom-sota-and-future-work.md) | Survey of the field and the gaps that are actually open |
+| [`docs/ADJSCC-Q-EXPLAINED.md`](docs/ADJSCC-Q-EXPLAINED.md) | The model end to end, for readers new to it |
+| [`docs/semantic-communication-roadmap-complete.md`](docs/semantic-communication-roadmap-complete.md) | Background roadmap: how the field reached this point |
+
+**Start with the results analysis if you want to know what is actually established** — the
+headline matched-point claim is *not*, and the document says so.
+
 ## Prior art — read this before claiming novelty
 
 The **idea** is not novel. Framed honestly, this is a reproduction-and-composition study;

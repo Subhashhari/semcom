@@ -1,9 +1,9 @@
-# Local explanation / survey documents - context for this work, kept out of the
-# published repo. README.md is the repo's own documentation and IS tracked.
+# The three original source documents stay local. docs/ is now published: it holds the
+# results analysis, the forward plan, the security programme, the survey and the model
+# explainer. README.md is the repo's own documentation and IS tracked.
 semantic-communication-roadmap.md
 semcom-roadmap-expansion.md
 semcom-walkthrough-for-ml-readers.md
-docs/
 
 # Results: track the run records, never the weights. history.json / config.yaml /
 # ablation.json are a few KB each and are the provenance of every reported number, so
