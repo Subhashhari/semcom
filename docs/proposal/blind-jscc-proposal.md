@@ -45,8 +45,9 @@ while the constellation offers a better cue (the residual to the nearest point).
 or for digital QAM, use estimator Z; and if the decoder is small, it needs W extra width to stay
 blind."*
 
-**Cost.** Week 1: about 45–60 GPU-hours. Full study: about 9–10 weeks and 240–330 GPU-hours, most
-of it the 128×128 runs; parallel Kaggle sessions are assumed for those. The capacity-allocation map (RQ4) is a separable
+**Cost.** Week 1: about 45–60 GPU-hours. Full study: about 9–11 weeks and 180–260 GPU-hours, with
+the 128×128 runs warm-started from CIFAR checkpoints; parallel Kaggle sessions are assumed for those. Seed counts are set by
+the primary contrasts' power (§4.5), not by a fixed three per arm. The capacity-allocation map (RQ4) is a separable
 module: it reuses the same infrastructure and can be split into its own short paper if needed.
 
 ---
@@ -107,7 +108,7 @@ A mechanism that predicts the loss turns them into design rules.
 | Work | Finding | Limitation |
 |---|---|---|
 | DeepJSCC, slow Rayleigh fading | *"we do not assume channel state information either at the receiver or the transmitter, or consider the transmission of pilot signals"*; *"the network learns to estimate the channel state"* | Inferred from performance; mechanism not examined |
-| SIJSCC, [arXiv:2306.15183](https://arxiv.org/abs/2306.15183) | No SNR anywhere; matches or beats ADJSCC. Fig. 7: SNR at encoder+decoder / decoder only / none, same backbone. Uses an ACmix self-attention module at the encoder output and decoder input, described as *"global self-attention"* for *"long-range dependency relationships"*, so its decoder has a global path | Single run, no variance, analog. Fig. 4 compares different architectures |
+| SIJSCC, [arXiv:2306.15183](https://arxiv.org/abs/2306.15183) | No SNR anywhere; matches or beats ADJSCC. Fig. 7: SNR at encoder+decoder / decoder only / none, same backbone. Uses an ACmix self-attention module at the encoder output and decoder input, which the authors describe as *"global self-attention"* for *"long-range dependency relationships"*. The reference ACmix code, however, uses 7×7 local-window attention (`kernel_att=7`, `nn.Unfold`), so unless SIJSCC changed it, its decoder has no truly global path | Single run, no variance, analog. Fig. 4 compares different architectures |
 | CBJSCC, [*Sensors* 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11209452/) (same first author) | §4.4: ADJSCC's AF module in the same three settings, *"no method was significantly superior"*, attributed to *"the inherent unpredictability of deep learning models"* | No error bars; analog; 128×128 crops |
 | STARJSCC, [*Sci. Rep.* 2025](https://www.nature.com/articles/s41598-025-16753-4) | Table 2: SE / CBAM / CSA attention with and without SNR; SNR adds 0.26 dB to CSA | One operating point (CBR 1/6, 13 dB, Kodak) |
 
@@ -215,8 +216,9 @@ Readings:
   fixed: 41% failures at k = 256 and still 13% at k = 4,096. At low and mid SNR it is almost as good
   as analog. (RMS error would suggest otherwise, about 6 dB at 10 dB, but it is dominated by
   outliers.)
-- **16-PSK behaves like analog,** since every symbol has the same energy. That makes it the
-  constant-energy control (§4.3).
+- **16-PSK behaves like analog,** since every symbol has the same energy. It is not used as an arm,
+  because it also changes the lattice geometry; the genie-energy arm C+E is the clean energy control
+  (§4.1).
 - **DD is exact at high SNR and badly biased at low SNR.** Energy is the reverse. The two fail in
   regions that barely overlap.
 - **The hybrid repairs the 16-QAM energy cue only up to analog quality.** With correct decisions it
@@ -255,16 +257,28 @@ that carry them? §4.1 separates the two with architecture-matched controls.
 
 Each research question has **one primary contrast**, fixed in advance. Everything else is
 secondary and reported as such, so the many arms × SNR points × α values do not produce a
-"significant" difference by chance. Where two primary contrasts share a question (analog and
-16-QAM), Holm correction is applied.
+"significant" difference by chance. Where one primary contrast consists of two tests (RQ4), Holm
+correction is applied.
+
+**Analog is secondary throughout.** The analog arms B and C-att run with 3 seeds. With three seeds
+the 90% equivalence interval fits inside ±0.15 dB only if the seed σ of the paired difference is
+about 0.09 dB or less (§4.5), so analog results can support **"clearly nonzero"** claims but not
+**"no penalty"** claims. They are worded accordingly: an analog gap whose interval includes zero is
+reported as inconclusive, never as equivalence.
+
+**Primary SNR point: 18 dB, not 20 dB.** Every arm trains on 0–20 dB, so 20 dB is the edge of the
+training range. A blind decoder has learned that the SNR never exceeds 20 dB, so near the edge its
+implicit estimate is truncated and can only err downward (over-denoising). That edge effect is real
+but is not the estimation-noise mechanism under test. The primary contrasts are therefore at
+18 dB; 20 dB is reported as secondary.
 
 | | Question | Hypothesis | Primary contrast |
 |---|---|---|---|
-| **RQ1** | Is the matched blind penalty distinguishable from zero, and how does it compare with the penalty predicted for an energy-reading decoder? | **H1:** analog penalty near zero at low SNR, positive at high SNR for k = 256 | G = B − C-att at 20 dB, analog and 16-QAM |
-| **RQ2** | Which cue does the blind decoder follow when the cues disagree? | **H2a:** analog C-att follows energy. **H2b:** 16-QAM C-att follows a DD-like cue at high SNR | Which cue's predicted PSNR curve best fits C-att's across α ∈ {1.1, 1.2, 1.3} at a true 20 dB (16-QAM) |
-| **RQ3** | Does the blind penalty depend on decoder capacity? | **H3:** the penalty grows as decoder width shrinks | (B − C-att) at width 64 minus (B − C-att) at width 256, 16-QAM, 20 dB |
-| **RQ4** | How does the marginal value of encoder vs decoder capacity change with SNR? | **H4:** decoder capacity matters more at low SNR, encoder capacity more at high SNR | PSNR(64, 169) − PSNR(169, 64): sign at 0 dB vs sign at 20 dB |
-| **RQ5** | Can a digital model with no SNR anywhere match the genie-decoder model? | **H5:** self-conditioned SI-JSCC-Q is equivalent to B (§4.5) at every SNR, and beats its shuffled-statistics control | D vs B equivalence at 128×128, 20 dB; D − D-shuf at 128×128, 20 dB |
+| **RQ1** | Is the matched blind penalty distinguishable from zero, and how does it compare with the penalty predicted for an energy-reading decoder? | **H1:** in 16-QAM, the penalty is near zero at low SNR and positive at high SNR for k = 256 | G = B − C-att at **18 dB**, **16-QAM**: two-sided test and equivalence (§4.5). Analog is secondary (see below) |
+| **RQ2** | Which cue does the blind decoder follow when the cues disagree? | **H2b:** 16-QAM C-att follows a DD-like cue at high SNR. *H2a (analog C-att follows energy) is exploratory: the analog implied-SNR table can only be filled in after training* | The cue-fit decision rule of §4.3 across α ∈ {1.1, 1.2, 1.3} at a true **18 dB** (16-QAM) |
+| **RQ3** | Does the blind penalty depend on decoder capacity? | **H3:** the penalty grows as decoder width shrinks | (B − C-att) at width 64 minus (B − C-att) at width 256, 16-QAM, 18 dB; **one-sided superiority** (penalty larger at width 64) |
+| **RQ4** | How does the marginal value of encoder vs decoder capacity change with SNR? | **H4:** decoder capacity matters more at low SNR, encoder capacity more at high SNR | PSNR(64, 169) − PSNR(169, 64) at 0 dB (predicted > 0) and at 18 dB (predicted < 0); two one-sided tests |
+| **RQ5** | Can a digital model with no SNR anywhere match the genie-decoder model? | **H5:** self-conditioned SI-JSCC-Q beats its shuffled-statistics control where global information matters, and is equivalent to B at CIFAR scale | **D − D-shuf > 0 at 128×128, 18 dB (one-sided superiority).** Secondary: D vs B equivalence at CIFAR, 18 dB |
 | RQ6 *(below the cut line)* | How do non-stationary noise, unknown-gain fading and non-Gaussian noise break blindness? | Each breaks a specific cue (§7.3) | — |
 | RQ7 *(second paper)* | Shaping–estimability trade-off | See the archived proposal (commit 976db88) | — |
 
@@ -318,11 +332,16 @@ result**. D's structural advantage is explicit, precise statistics: the attentio
 average pooling sees the whole block, but only through learned features. Whether hand-computed
 statistics over the whole block beat that is the question, and it can only bite on large images.
 The decisive D vs C-att vs D-shuf comparison is therefore at **128×128 crops** (k = 4,096), inside
-the SI-JSCC-Q block (§7.1).
+the SI-JSCC-Q block (§7.1). Its primary test is **superiority, D − D-shuf > 0**, not D-vs-B
+equivalence. The 128×128 runs are warm-started from CIFAR checkpoints (§7.1), where D ≈ C-att by
+design, and a limited fine-tuning budget biases the arms toward looking alike. That bias works
+*against* a superiority claim, so a positive result stays trustworthy; it would work *for* an
+equivalence claim, which is why D vs B equivalence is not tested at 128×128.
 
 **Comparisons:**
 
-- DeepJSCC-Q specialists at 1, 7, 13 and 19 dB (envelope; budgeted in §7.1)
+- DeepJSCC-Q specialists at the two endpoints, 1 and 19 dB (envelope and storage comparison;
+  budgeted in §7.1)
 - ADJSCC-Q, arm A (genie SNR at both ends; needs feedback; budgeted)
 - arm B (genie decoder; the realistic ceiling)
 - C, C-att, D, D-shuf
@@ -349,13 +368,12 @@ evaluated over 0–20 dB.**
 |---|---|---|---|---|
 | **A** | true | yes | true SNR | ADJSCC / ADJSCC-Q reference |
 | **B** | — | yes | true SNR | Genie decoder; source of the sensitivity curve |
-| **C-att** | — | yes | nothing (constant) | **Primary blind arm**; matched to B |
-| **C** | — | no | — | Blind, no global pooling (local receptive field only). Digital C = plain SI-JSCC-Q |
+| **C-att** | — | yes | nothing (constant) | **Primary blind arm**; matched to B. Digital C-att = plain SI-JSCC-Q |
+| **C** | — | no | — | Blind, no global pooling (local receptive field only); the no-attention variant of plain SI-JSCC-Q |
 | **C+E** | — | yes | genie: true per-image transmitted energy ‖z̄‖² | 16-QAM energy control |
-| **C+E-shuf** | — | yes | another image's ‖z̄‖² | Confirms C+E's gain is the energy value, not the input path |
+| **C+E-shuf** | — | yes | another image's ‖z̄‖² | **Run only if C+E shows a gain:** confirms the gain is the energy value, not the input path |
 | **D** | — | yes | statistics vector (§3.6) | Self-conditioned SI-JSCC-Q (16-QAM) |
 | **D-shuf** | — | yes | another image's statistics | Information control for D |
-| **B-loop(energy)** | — | yes | energy estimate, also in training | Does an explicit energy statistic help? |
 
 **B and C-att differ only in what enters the SNR slot.** B vs C would not be matched: C has no
 attention modules, so that gap would mix "told the SNR" with "has attention and global pooling".
@@ -370,7 +388,7 @@ to the receptive field's ~1,000 symbols. At CIFAR scale the two coincide. At 128
 - **B vs C-att** isolates the SNR information at matched pooling;
 - **D vs C-att** and **D vs D-shuf** isolate the statistics' information at matched architecture.
 
-**What B-loop, C+E and D can and cannot show.** A decoder that sees y *and* a statistic can do
+**What C+E and D can and cannot show.** A decoder that sees y *and* a statistic can do
 anything C-att can, so these arms bound C-att from above, up to optimisation noise. They answer
 *"does handing the decoder this statistic help?"*. They cannot show which cue C-att uses, since it
 can compute the same statistic itself. The mechanism question is answered only by the cue-conflict
@@ -378,10 +396,14 @@ tests of §4.3. C+E's interpretation is one-directional: if C+E barely beats C-a
 blind decoder was not limited by the degraded energy cue. A large gain shows energy matters to the
 decoder, not that it uses nothing else.
 
-**Modulations.** Analog and 16-QAM throughout. **16-PSK** (B and C-att) is a secondary
-constant-energy check only. Its minimum distance at unit power is 2·sin(π/16) ≈ 0.39, against
-2/√10 ≈ 0.63 for 16-QAM (about 4.2 dB worse), so it changes geometry as well as the energy cue.
-PSK and QAM are therefore compared at matched symbol-error rate. QPSK is optional.
+**No analog C+E.** In analog, per-image transmitted energy is exactly k by construction, so a
+genie-energy arm would carry no information; C+E exists only for 16-QAM.
+
+**Modulations.** Analog and 16-QAM only. A constant-energy constellation such as 16-PSK is not
+used: its minimum distance at unit power is 2·sin(π/16) ≈ 0.39, against 2/√10 ≈ 0.63 for 16-QAM
+(about 4.2 dB worse), so it would change geometry as well as the energy cue. C+E is the clean
+control. (An explicit energy-estimate arm is also omitted: D, whose statistics include energy, and
+C+E answer the same question.)
 
 **Why U[0, 20] dB and not a wider range.** Widening every arm's training range (say to −5–25 dB)
 would let B's input range cover estimation errors, but it has a cost: under an MSE loss the lowest-SNR samples carry the largest
@@ -400,7 +422,9 @@ and the published baselines. The price is clipping in the sensitivity curve, whi
    Failures (noise estimate ≤ 0) are floored at 20 dB, and the failure rate is reported. **P is an
    upper bound.** B was trained on the true SNR and overreacts to estimation error, so P overstates
    what an energy-reading decoder trained under its own uncertainty would lose. There is no clean
-   energy-*limited* reference, since any decoder that sees y can learn implicit estimation.
+   energy-*limited* reference, since any decoder that sees y can learn implicit estimation. Clipping
+   biases P further near the top of the range: at a true 18–20 dB most of the positive-Δ half of the
+   sensitivity curve is clipped to 20 dB, so P there mainly captures the over-denoising side.
 3. **Matched gaps:** B − C-att (primary), B − C and every other arm against B, as PSNR vs SNR over
    0–20 dB, 10k test images × 10 channel realisations, with **paired** noise across arms.
 4. **Cue-conflict tests** (§4.3).
@@ -410,7 +434,10 @@ and the published baselines. The price is clipping in the sensitivity curve, whi
    the probes' training distribution, so the probes are **calibrated first**: readout error on
    held-out natural data at matched SNR, and readout under mild perturbations whose effect on each
    cue is known (small α, partial shuffles). A shift is attributed to a change in the internal
-   estimate only if it exceeds the calibration error.
+   estimate only if it exceeds the calibration error. **Layers, fixed in advance:** the output of
+   each of the four decoder FL modules (after the attention module where present). The **primary**
+   readout is the first decoder module, the earliest point at which the whole received block has
+   been pooled; the other three are secondary.
 6. **Usage statistics** (digital): histogram, entropy and kurtosis, overall and per image.
 
 ### 4.3 Cue-conflict tests (inference only)
@@ -420,42 +447,69 @@ blind decoder follows. Subject: C-att (primary), C (secondary).
 
 | Test | Construction | Cues it separates | Readout |
 |---|---|---|---|
-| **Power mismatch** | Transmit `αz`, α ∈ {0.85, 1.1, 1.2, 1.3, 1.4}, with noise set so the true SNR `α²/σ²` is unchanged | Every power-assuming cue is misled, **but by different amounts** (table below); scale-invariant cues are not | **Quantitative:** C-att's PSNR across α, measured **relative to B at the true SNR on the same scaled inputs** (pure scale fragility), compared with B at each cue's implied SNR; probe readout |
+| **Power mismatch** | Transmit `αz`, α ∈ {0.85, 1.1, 1.2, 1.3, 1.4}, with noise set so the true SNR `α²/σ²` is unchanged | Every power-assuming cue is misled, **but by different amounts** (table below); scale-invariant cues are not | **Quantitative double difference** (decision rule below); probe readout |
 | **Symbol shuffling** | Permute the received symbols' positions (energy and lattice membership kept) | **Manifold** cues (re-encoding residual) break; energy and DD survive | Probe readout only: the image is destroyed, so PSNR says nothing about the internal SNR |
-| **C+E vs C-att** (16-QAM) | Genie true transmitted energy in the attention slot | Repairs only the energy cue; geometry and architecture unchanged | Gain of C+E over C-att vs SNR; C+E-shuf as its control |
-| 16-PSK vs 16-QAM *(secondary)* | Same bits per symbol; PSK has constant energy | Energy cue clean vs degraded, **confounded by geometry** | B − C-att for each, at matched symbol-error rate |
-| QPSK *(optional)* | Constant energy, 2 bits/symbol | As above | Weak: QPSK decisions are almost error-free above ~8 dB, so its decoder barely depends on the SNR where it matters |
+| **C+E vs C-att** (16-QAM) | Genie true transmitted energy in the attention slot | Repairs only the energy cue; geometry and architecture unchanged | Gain of C+E over C-att vs SNR; C+E-shuf as its control if there is a gain |
 
 **Implied SNR under power mismatch** (simulated; 16-QAM, k = 4,096, median, receiver assumes unit
-transmit power; "fail" = negative noise estimate, floored at 20 dB):
+transmit power; "fail" = negative noise estimate, floored at 20 dB). Each cell is energy / DD /
+M2M4, with DD's symbol-error rate in brackets:
 
-| α | True 10 dB: energy / DD / M2M4 (DD symbol errors) | True 20 dB: energy / DD / M2M4 (DD symbol errors) |
-|---|---|---|
-| 0.70 *(not used)* | fail / 11.5 / 10.0 (44%) | fail / 10.7 / 20.0 (24%) |
-| 0.85 | fail → 20 / 12.2 / 10.0 (27%) | fail → 20 / 15.3 / 20.0 (0.2%) |
-| 1.00 | 10.0 / 11.6 / 10.1 (22%) | 20.2 / 20.0 / 19.7 (0%) |
-| 1.10 | 4.8 / 10.2 / 10.0 (23%) | 6.5 / 16.6 / 19.6 (0%) |
-| 1.20 | 2.3 / 8.7 / 10.1 (26%) | 3.4 / 12.6 / 19.7 (0.1%) |
-| 1.30 | 0.7 / 7.1 / 10.0 (30%) | 1.5 / 9.7 / 19.9 (0.8%) |
-| 1.40 | −0.6 / 5.6 / 10.0 (33%) | 0.1 / 7.5 / 19.7 (2.7%) |
+| α | True 10 dB | **True 18 dB (primary)** | True 20 dB |
+|---|---|---|---|
+| 0.85 | fail → 20 / 12.2 / 10.0 (27%) | fail → 20 / 14.7 / 17.8 (1.1%) | fail → 20 / 15.3 / 20.0 (0.2%) |
+| 1.00 | 10.0 / 11.6 / 10.1 (22%) | 17.9 / 18.0 / 18.1 (0.1%) | 20.2 / 20.0 / 19.7 (0%) |
+| 1.10 | 4.8 / 10.2 / 10.0 (23%) | **6.4 / 15.4 / 18.2 (0.2%)** | 6.5 / 16.6 / 19.6 (0%) |
+| 1.20 | 2.3 / 8.7 / 10.1 (26%) | **3.4 / 12.0 / 18.0 (0.9%)** | 3.4 / 12.6 / 19.7 (0.1%) |
+| 1.30 | 0.7 / 7.1 / 10.0 (30%) | **1.4 / 9.4 / 18.0 (2.8%)** | 1.5 / 9.7 / 19.9 (0.8%) |
+| 1.40 | −0.6 / 5.6 / 10.0 (33%) | 0.0 / 7.3 / 17.8 (6.3%) | 0.1 / 7.5 / 19.7 (2.7%) |
+
+α = 0.7 is not used: DD's decisions break down (24% symbol errors even at 20 dB).
 
 Readings:
 
-- **α = 1.1–1.3 at a true 20 dB is the primary window.** Energy, DD and M2M4 imply roughly 6.5,
-  16.6 and 19.6 dB at α = 1.1, with DD decisions still error-free. That is the primary contrast for
-  RQ2.
-- **α < 1 adjudicates at mid SNR, not at high SNR.** At a true 20 dB, energy's failure is floored at
-  20 dB, which equals the truth, so energy and M2M4 predict the same thing. At a true 10 dB the floor
+- **α = 1.1–1.3 at a true 18 dB is the primary window.** Energy, DD and M2M4 imply 6.4, 15.4 and
+  18.2 dB at α = 1.1, with 0.2% DD symbol errors. α = 1.4 is secondary (6.3% DD errors at 18 dB).
+- **α < 1 adjudicates at mid SNR, not at high SNR.** At a true 18–20 dB, energy's failure is
+  floored at 20 dB, close to the truth, so energy and M2M4 predict nearly the same thing. At a true 10 dB the floor
   is 10 dB away from the truth, so α = 0.85 separates energy from M2M4 there (DD is already biased by
   22% symbol errors at α = 1).
 - **The hybrid tracks energy** to within 1 dB at every α, so it is not a separate column.
 - **The M2M4 column assumes uniform symbol usage** (kurtosis 1.32). If Step 0 shows non-uniform
   usage, it is recomputed with the measured kurtosis.
 
-**Discriminability check (pre-registered, inference only).** Once B is trained, compute each cue's
-predicted PSNR curve across α at each true SNR, by evaluating B at the cue's implied SNR on the
-scaled inputs. An SNR point is used to adjudicate H2a vs H2b only if the predicted curves differ by
-more than the seed confidence interval there. Points that fail the check are reported but not used.
+**Readout: a double difference.** For the blind arm at power scale α,
+
+```
+r(α) = [PSNR_C-att(α) − PSNR_C-att(1)] − [PSNR_B(α; true SNR) − PSNR_B(1; true SNR)]
+```
+
+The first bracket is C-att's change under scaling. The second removes pure scale fragility, measured
+by B given the true SNR on the same scaled inputs. Differencing against α = 1 removes C-att's
+unscaled gap G, which would otherwise shift the whole curve by a constant and bias the fit toward
+whichever cue predicts a similar offset. Each cue j predicts
+
+```
+p_j(α) = [PSNR_B(α; s_j(α)) − PSNR_B(α; true SNR)] − [PSNR_B(1; s_j(1)) − PSNR_B(1; true SNR)]
+```
+
+where s_j(α) is the cue's implied SNR from the table, computed per image on the actual inputs.
+
+**Discriminability check (pre-registered, inference only).** Once B is trained, compute every p_j
+across α at each true SNR. Let m be the 95% confidence half-width of r(α) across seeds. An SNR
+point is used to adjudicate H2b only if every pair of cue curves differs by more than 2m at one α or
+more. Points that fail the check are reported but not used.
+
+**Cue-fit decision rule (RQ2 primary, pre-registered).**
+
+1. **Metric:** for each cue j, `S_j = Σ_α (r(α) − p_j(α))²` over α ∈ {1.1, 1.2, 1.3} at a true
+   18 dB.
+2. **Uncertainty:** a hierarchical bootstrap, 10,000 resamples: resample seeds, then test images
+   within each seed, recomputing r, p_j and S_j each time.
+3. **Winner:** the cue with the lowest S_j wins only if it beats the runner-up in at least 95% of
+   bootstrap resamples. Otherwise the outcome is **not resolved**.
+4. **None:** if even the winner's root-mean-square residual `√(S_j/3)` exceeds m, the outcome is
+   **tracks none**, whatever the ranking.
 
 **Analog.** The analog latent is roughly complex Gaussian, with kurtosis near 2, which makes M2M4
 unidentifiable (its margin 2 − k_a goes to zero). There is therefore **no scale-invariant cue in
@@ -463,16 +517,17 @@ analog**: the analog test separates energy from the re-encoding residual. The re
 implied SNR depends on the trained model, so the **analog implied-SNR table is filled in post hoc**
 from the trained B and the measured latent kurtosis. An analog result where C-att tracks the true
 SNR would point to a cue not on this list, and is reported as such rather than as one of the
-expected outcomes.
+expected outcomes. **All analog mechanism results (H2a) are exploratory,** since the analog table
+cannot be fixed before training.
 
-**Interpretation (16-QAM):**
+**Interpretation (16-QAM), applying the decision rule:**
 
-- **C-att's relative PSNR tracks the energy-implied curve across α, and C+E clearly beats C-att at
-  high SNR (and C+E-shuf does not):** the energy story holds (H2a).
-- **C-att tracks the DD-implied curve, and C+E adds little:** a lattice cue (H2b).
-- **C-att tracks the true SNR:** C-att estimates signal and noise separately. This is the more
-  interesting paper, and the probes then have a specific target.
-- **C-att tracks none of the curves, or the discriminability check fails:** the mismatch test is
+- **Energy wins, and C+E clearly beats C-att at high SNR (and C+E-shuf does not):** the 16-QAM
+  blind decoder reads energy, against H2b.
+- **DD wins, and C+E adds little:** a lattice cue (H2b supported).
+- **M2M4 (the true-SNR curve) wins:** the blind decoder estimates signal and noise separately. This
+  is the more interesting paper, and the probes then have a specific target.
+- **Not resolved, tracks none, or the discriminability check fails:** the mismatch test is
   inconclusive for mechanism; rely on the shuffling test and probes.
 - **The probe readout moves under shuffling but not under power mismatch, or the reverse:** that
   identifies a manifold cue or an energy cue respectively.
@@ -485,8 +540,8 @@ yields a whole PSNR-vs-SNR curve, so a grid of widths costs one run per cell, no
 
 | Sweep | Grid | Arms | Purpose |
 |---|---|---|---|
-| **Decoder width** | `hidden_dec` ∈ {64, 128, 256}, `hidden_enc` = 256 | B and C-att, analog and 16-QAM | RQ3: blind penalty vs decoder size |
-| **Asymmetric grid** | `hidden_enc` × `hidden_dec` ∈ {64, 128, 256}², 9 cells, plus (64, 169) and (169, 64) | B (conditioned), 16-QAM | RQ4: marginal value of each side across SNR |
+| **Decoder width** | `hidden_dec` ∈ {64, 128, 256}, `hidden_enc` = 256 | B and C-att, analog and 16-QAM. Width 256 reuses the week-1 runs; width 64, 16-QAM gets 5 seeds (primary); the rest 2 seeds | RQ3: blind penalty vs decoder size |
+| **Asymmetric grid** | `hidden_enc` × `hidden_dec` ∈ {64, 128, 256}², 9 cells, plus (64, 169) and (169, 64) | B (conditioned), 16-QAM. (64, 169) and (169, 64): 5 seeds (primary); other cells 1 seed | RQ4: marginal value of each side across SNR |
 
 **Outputs:**
 
@@ -526,17 +581,51 @@ yields a whole PSNR-vs-SNR curve, so a grid of widths costs one run per cell, no
 - **Arms are compared at convergence, not at matched training loss.** The training loss is the MSE
   being compared, so matching it would erase the gap by construction. Gaps are also reported at
   intermediate checkpoints, so a gap that is still closing is visible.
-- **Equivalence, not non-significance.** Claims of "no penalty" (gate row 1, H5) use an
-  **equivalence test**: the 95% confidence interval of the paired difference must lie inside
-  **±0.15 dB**, the same δ as the power analysis (equivalent to two one-sided tests at 2.5%). A
+- **Equivalence, not non-significance.** Claims of "no penalty" (gate row 1, H5's CIFAR secondary)
+  use **two one-sided tests at 5%**: the **90%** confidence interval of the paired difference,
+  computed with **Student's t on n − 1 degrees of freedom**, must lie inside **±0.15 dB**. A
   difference that is neither significant nor equivalent is reported as **inconclusive**, not as
   equality.
-- **Seeds.** Three paired seeds per arm to start (same data order and channel noise across arms).
-  Three seeds give a narrow enough interval only if the seed-to-seed standard deviation of the
-  paired difference is small. Its measured value from week 1 sets the final count (n ≥ 2, 7 or 16
-  for σ = 0.05, 0.10 or 0.15 dB), with **contingency seeds budgeted for the primary contrasts**
-  (§7.1). Capacity grid cells start at one seed, with three seeds on the iso-parameter set.
-- **Primary contrasts** as listed in §3.5; Holm correction where a question has two.
+- **Seeds, sized with t quantiles.** With few seeds the interval uses Student's t, which changes the
+  numbers drastically compared with normal quantiles. σ below is the seed-to-seed standard deviation
+  of the **paired difference** (same data order and channel noise across arms). Simulated
+  probability that a truly zero difference passes the ±0.15 dB equivalence test:
+
+  | σ (dB) | n = 3 | n = 4 | n = 5 | n = 6 | n = 7 |
+  |---|---|---|---|---|---|
+  | 0.05 | 0.88 | 0.99 | 1.00 | 1.00 | 1.00 |
+  | 0.08 | 0.50 | 0.77 | 0.92 | 0.97 | 0.99 |
+  | 0.10 | 0.33 | 0.54 | 0.74 | 0.86 | 0.93 |
+  | 0.12 | 0.22 | 0.36 | 0.53 | 0.68 | 0.79 |
+
+  The largest σ that can pass at all is 0.034, 0.089, 0.127 and 0.157 dB for n = 2, 3, 4 and 5, so
+  **equivalence with two seeds is impossible in practice**. Superiority tests (one-sided, 5%) are
+  far cheaper. Power to detect a true 0.15 dB difference:
+
+  | σ (dB) | n = 3 | n = 4 | n = 5 |
+  |---|---|---|---|
+  | 0.08 | 0.67 | 0.88 | 0.96 |
+  | 0.10 | 0.53 | 0.74 | 0.86 |
+  | 0.15 | 0.32 | 0.46 | 0.58 |
+
+  **Seed plan, set by the primary contrasts:**
+
+  | Contrast | Test | Seeds |
+  |---|---|---|
+  | RQ1: B − C-att, 16-QAM | Two-sided + equivalence | **5** for B and C-att |
+  | RQ1 secondary: B − C-att, analog | Two-sided only ("clearly nonzero"; no equivalence claims) | **3** for B and C-att |
+  | RQ2: cue fit | Bootstrap rule (§4.3) | Uses the RQ1 runs |
+  | RQ3: penalty at width 64 − at width 256 | One-sided superiority | **5** at width 64 (width 256 reuses RQ1) |
+  | RQ4: (64, 169) vs (169, 64) | Two one-sided tests | **5** per cell |
+  | RQ5: D − D-shuf at 128×128 | One-sided superiority | **3** for B, C-att, D, D-shuf, warm-started (power 0.67 for a 0.15 dB effect at σ = 0.08 dB; 0.94 for 0.25 dB) |
+  | Effective-k claim: C vs C-att at 128×128 | Secondary | **2** for C, warm-started |
+  | RQ5 secondary: D vs B at CIFAR | Equivalence | **5** for D, D-shuf |
+  | Everything else | Secondary | 1–3 |
+
+  RQ3 is a difference of differences, so its σ is larger than a single gap's. The week-1 measurement
+  of σ re-checks every row; if a primary contrast is underpowered, seeds are added before its
+  stage starts.
+- **Primary contrasts** as listed in §3.5; Holm correction for RQ4's two tests.
 - **Estimator error** is reported as failure rate plus median and interquartile range, never RMS
   alone.
 
@@ -559,17 +648,18 @@ come cheaply from:
 ### 5.1 The gate (end of week 1)
 
 Let P be the energy penalty predicted from B's sensitivity curve (§4.2), and G = B − C-att the
-measured matched gap, each with a 95% confidence interval.
+measured matched gap at 18 dB, both from paired seeds with Student's t intervals.
 
 | Outcome | Meaning | Action |
 |---|---|---|
-| G **equivalent to zero** (inside ±0.15 dB) everywhere **and** P clearly nonzero somewhere | C-att **beats plug-in energy**. This is the likely outcome by construction, since P is an upper bound (§4.2), so it says nothing about *which* cue is used | Continue: mechanism claims come only from the cue-conflict tests |
+| G **equivalent to zero** (90% t-interval inside ±0.15 dB) at 18 dB **and** P clearly nonzero somewhere | C-att **beats plug-in energy**. This is the likely outcome by construction, since P is an upper bound (§4.2), so it says nothing about *which* cue is used | Continue: mechanism claims come only from the cue-conflict tests |
 | G clearly nonzero **and** consistent with P | The blind decoder reads energy | Continue: the energy story, the digital contrast and capacity |
 | G clearly nonzero **and** larger than P | Unlikely, because P overstates the penalty; if seen, blind training costs more than estimation error explains (optimisation or capacity) | Continue with the decoder-width sweep first (RQ3) |
 | G inconclusive (neither equivalent nor clearly nonzero) | Underpowered | Add contingency seeds to the primary contrast, then re-apply the gate |
 | P ≈ 0 everywhere (decoder insensitive) | Blindness is free for a trivial reason at this scale | Drop the mechanism study; ship plain SI-JSCC-Q and the capacity map as a short paper |
 
-"Clearly nonzero" means the 95% interval excludes zero. The gate's main job is to catch an
+"Clearly nonzero" means the 95% t-interval excludes zero; "equivalent" means the 90% t-interval
+lies inside ±0.15 dB (§4.5). The gate's main job is to catch an
 insensitive decoder (last row). It does not decide the mechanism.
 
 ### 5.2 What SI-JSCC-Q becomes
@@ -577,9 +667,9 @@ insensitive decoder (last row). It does not decide the mechanism.
 | Result | Deliverable |
 |---|---|
 | D ≈ C-att at CIFAR scale | Expected (§3.6); no decision taken. The decision is made at 128×128 |
-| C-att equivalent to B at every SNR, at both scales | Plain SI-JSCC-Q (C-att) is the result; D is reported as unnecessary |
-| C-att < B somewhere, D closes the gap, and D > D-shuf | Self-conditioned SI-JSCC-Q is the method; the gap it closes is the headline number |
-| D ≈ D-shuf | The statistics' information does not help; any D gain over C was the attention modules. Recommend C-att |
+| C-att equivalent to B at CIFAR, and D − D-shuf not significant at 128×128 | Plain SI-JSCC-Q (C-att) is the result; D is reported as unnecessary |
+| D − D-shuf > 0 at 128×128 (primary), and D closes some of the B − C-att gap there | Self-conditioned SI-JSCC-Q is the method; the gap it closes is the headline number |
+| D − D-shuf not significant at 128×128 | The statistics' information does not help; any D gain over C was the attention modules. Recommend C-att |
 
 ### 5.3 Combined with Step 0 (usage entropy from wandb)
 
@@ -596,9 +686,9 @@ insensitive decoder (last row). It does not decide the mechanism.
 |---|---|---|
 | 0 | Run safety: `wandb.save` on `best.pt`. The R = 1/12 weights were lost, so nothing can reuse them | — |
 | 0 | Step 0: final `train/kl` from wandb, usage entropy `H = ln 16 − KL` nats (soft usage, ≈ hard at σ_q = 100) | — |
-| 1 | Code: encoder/decoder SNR flags; decoder SNR override; attention with an empty or arbitrary input slot (C-att, C+E, D); cosine decay; 16-PSK constellation; energy/DD/hybrid/M2M4 estimators; sensitivity and prediction evaluation; quantitative power-mismatch evaluation with the scale-fragility reference | — |
+| 1 | Code: encoder/decoder SNR flags; decoder SNR override; attention with an empty or arbitrary input slot (C-att, C+E, D); cosine decay; energy/DD/hybrid/M2M4 estimators; sensitivity and prediction evaluation; quantitative power-mismatch evaluation with the scale-fragility reference | — |
 | 2 | Calibration: arm B and arm C-att, 16-QAM, cosine decay; set the shared epoch budget | ~5 h |
-| 3 | B, C-att and C, analog and 16-QAM × 3 seeds (18 runs); C+E 16-QAM × 3 seeds | ~40–55 h |
+| 3 | B and C-att, 16-QAM × 5 seeds; B and C-att, analog × 3 seeds; C, analog and 16-QAM × 3 seeds; C+E 16-QAM × 3 seeds (25 runs) | ~40–55 h |
 | 4 | Sensitivity curves, prediction P, gaps G; discriminability check; power-mismatch test | Inference |
 | 5 | Gate (§5.1) | — |
 
@@ -613,11 +703,11 @@ each. Step 3 is about two days on the 3050, or about one day across three Kaggle
 
 | Weeks | Work | Compute |
 |---|---|---|
-| 2 | Symbol-shuffling test; probe calibration, then probes read out under conflict; C+E-shuf × 3; 16-PSK B and C-att × 2; 3×3-kernel decoder for C, 2 seeds; contingency seeds for the primary contrasts if week 1 was inconclusive | ~20–30 h |
-| 2–4 | **SI-JSCC-Q at CIFAR:** D, D-shuf, B-loop(energy), 16-QAM × 3 seeds. **Baselines:** arm A × 1 seed; DeepJSCC-Q specialists at 1, 7, 13, 19 dB × 1 seed | ~25–35 h |
-| 3–5 | **SI-JSCC-Q at 128×128:** B, C, C-att, D, D-shuf, 16-QAM × 2 seeds (the decisive D comparison, and C vs C-att for pooling). Per-run cost estimated at 8–12 h with a ~20k-crop training set; to be calibrated with one run first | ~80–120 h |
-| 4–5 | **RQ3:** decoder-width sweep (B, C-att × analog, 16-QAM × 3 widths, 2 seeds); calibration run at width 64 | ~20–25 h (small models run faster) |
-| 5 | **RQ4 (separable module):** asymmetric grid, 9 cells + 2 iso-parameter cells (B, 16-QAM, 1 seed + 3 seeds on the iso-parameter set); R = 1/6 at CIFAR | ~25–35 h |
+| 2 | Symbol-shuffling test; probe calibration, then probes read out under conflict; C+E-shuf × 3 (only if C+E showed a gain); 3×3-kernel decoder for C, 2 seeds; contingency seeds for the primary contrasts if week 1 was inconclusive | ~5–15 h |
+| 2–4 | **SI-JSCC-Q at CIFAR:** D, D-shuf × 5 seeds. **Baselines:** arm A × 1 seed; DeepJSCC-Q specialists at 1 and 19 dB × 1 seed | ~25–30 h |
+| 3–6 | **SI-JSCC-Q at 128×128, warm-started:** each arm fine-tuned from **its own** CIFAR checkpoint at the same seed (B from B, D from D, and so on), all for the same number of epochs. B, C-att, D, D-shuf, 16-QAM × 3 seeds (the primary RQ5 contrast); C × 2 seeds (the only test of the effective-k claim, secondary). **Warm-start check first:** C-att seed 1 trained both cold and warm with matched epochs; warm starts are adopted only if the two agree within ±0.15 dB at 18 dB, otherwise the block runs cold. Training data: random 128×128 crops from the **DIV2K** training set (800 images), about 20k fresh crops per epoch; evaluation on full **Kodak** images and DIV2K validation crops. Fine-tune cost estimated at 3–5 h, a cold run at 8–12 h | ~55–85 h |
+| 4–5 | **RQ3:** decoder-width sweep; width 64, 16-QAM, B and C-att × 5 seeds (primary); width 128 and analog × 2 seeds; calibration run at width 64 | ~25–30 h (small models run faster) |
+| 5–6 | **RQ4 (separable module):** asymmetric grid, 9 cells × 1 seed; (64, 169) and (169, 64) × 5 seeds; R = 1/6 at CIFAR | ~30–40 h |
 
 ### 7.2 Write-up (weeks 6–9)
 
@@ -633,8 +723,16 @@ RQ6 perturbations: piecewise SNR (SNR changes every w symbols, with the symbol-t
 stated), Rayleigh fading with unknown gain, impulsive and narrowband noise. RQ7 shaping study:
 second paper.
 
-**Total:** about 240–330 GPU-hours before the cut line: week 1 45–60, 128×128 runs 80–120, RQ4
-25–35, the rest CIFAR-scale.
+**Total:** about 180–260 GPU-hours before the cut line: week 1 45–60, 128×128 runs 55–85, RQ4
+30–40, the rest CIFAR-scale. If the warm-start check fails and the 128×128 block runs cold, add
+about 60–90 h. The 128×128 block uses 3 seeds: RQ5 is powered for effects of about
+0.25 dB (power 0.94 at σ = 0.08 dB) but only weakly for 0.15 dB (0.67). A 0.15 dB effect that is
+missed is reported as inconclusive, not as absent.
+
+**128×128 content check.** DIV2K crops range from smooth to highly textured, and earlier results in
+this repo showed smooth content behaves very differently. Test PSNR is therefore also reported by
+content quartile (mean gradient energy of the crop), per arm, to check that no arm's advantage comes
+from one content type.
 
 ### 7.4 Code changes
 
@@ -643,9 +741,8 @@ second paper.
 | `snr_at_encoder` / `snr_at_decoder` flags; decoder SNR override | `semcom/models.py`, `semcom/config.py` |
 | `hidden_enc` / `hidden_dec`; 3×3-kernel decoder option | `semcom/config.py`, `semcom/models.py` |
 | Cosine learning-rate decay | `semcom/train.py` |
-| 16-PSK constellation (fixed point list; the quantiser is constellation-agnostic) | `semcom/constellation.py` |
 | Estimators: energy, DD, hybrid, M2M4, re-encoding residual | new `semcom/snr_estimation.py` |
-| AF modules with a configurable slot: nothing (C-att), true SNR (B), genie energy (C+E), statistics vector (D), or another image's value (C+E-shuf, D-shuf); B-loop training | `semcom/train.py`, `semcom/modules.py` |
+| AF modules with a configurable slot: nothing (C-att), true SNR (B), genie energy (C+E), statistics vector (D), or another image's value (C+E-shuf, D-shuf) | `semcom/train.py`, `semcom/modules.py` |
 | Sensitivity, prediction, matched-gap, equivalence and cue-conflict evaluation (with the scale-fragility reference and discriminability check) | new `scripts/blind_eval.py` |
 | Probes trained on natural data, applied to conflict inputs | new `scripts/probe.py` |
 | Capacity grid driver and allocation map | new `scripts/capacity_sweep.py` |
@@ -653,7 +750,6 @@ second paper.
 **Tests to write first:**
 
 - the estimators reproduce §3.2 within tolerance;
-- 16-PSK symbols are bit-exact and constant-energy;
 - the decoder SNR override leaves transmitted symbols identical;
 - power mismatch preserves the true SNR;
 - shuffling preserves energy and lattice membership;
@@ -670,8 +766,10 @@ second paper.
 |---|---|---|
 | Decoder insensitive to SNR error at CIFAR scale | **High** | Gate row 4; the capacity map and plain SI-JSCC-Q still give a short paper |
 | Runs still not converged with cosine decay | High | Calibration runs; shared epoch budget per comparison; gaps reported across checkpoints |
-| Equivalence not reachable with three seeds | Medium | Contingency seeds on the primary contrasts; "inconclusive" reported as such |
-| 128×128 runs cost more than estimated | Medium | Calibrate with one run first; Kaggle; reduce the crop set with a convergence check |
+| Equivalence not reachable even with five seeds (σ > 0.12 dB) | Medium | Seeds re-planned from week 1's measured σ; RQ5 primary is superiority, not equivalence; "inconclusive" reported as such |
+| 128×128 runs cost more than estimated | High | Warm starts from CIFAR checkpoints; calibrate with one run first; Kaggle; reduce the crop set with a convergence check. Two seeds is not a fallback: superiority power at n = 2 is below 0.5 |
+| Warm starts bias the 128×128 arms toward looking alike | Medium | Cold-vs-warm check on C-att before adopting; primary test is superiority, which the bias works against; no equivalence claims at 128×128 |
+| RQ5 underpowered for small effects with 3 seeds | Medium | Powered for ~0.25 dB; a smaller effect is reported as inconclusive |
 | Mechanism-only papers are hard to place in communications venues | High | Lead with the design rule, the capacity map and SI-JSCC-Q |
 | Power-mismatch result confounded by scale fragility | Medium | Several α values; compare trends, not single points |
 | Prior art appears in a later search (novelty has shrunk twice) | Medium | Re-search before Stage 2 and before writing; claims limited to §2.6 |
@@ -711,12 +809,16 @@ comparisons and power analysis.
   Implicit-JSCC, DD-JSCC and G-UNet-JSCC were checked against the full paper text (PDF).
 - SIJSCC's figure contents come from an earlier reading in this project. Its attention design was
   checked against the full text: the authors describe the ACmix module as *"global
-  self-attention"* for long-range dependencies. Whether the ACmix implementation is windowed was
-  not checked.
+  self-attention"* for long-range dependencies. The reference ACmix implementation
+  (LeapLabTHU/ACmix, `ResNet/test_bottleneck.py`) uses 7×7 local-window attention
+  (`kernel_att=7`, `nn.Unfold`). SIJSCC's own code was not checked, so whether it changed this is
+  unknown.
 - D²-JSCC and Park et al. details come from the earlier novelty audit (archived shaping proposal §2.2, commit 976db88).
 - The §3.2 simulations are idealised (Gaussian latent or uniform usage, AWGN, 4,000 trials).
 - The receptive field (~16×16 latent positions) is a geometric bound from the layer configuration.
 - Parameter and FLOP counts in §4.4 were measured from `semcom/models.py` (`torch` FLOP counter,
   one 32×32 image, C_out = 8).
 - The power-mismatch table (§4.3) is simulated with uniform 16-QAM usage, AWGN, k = 4,096.
+- The equivalence and superiority power tables (§4.5) are Monte Carlo simulations (200,000 trials
+  per cell) of t-based tests on normally distributed paired differences.
 - The 128×128 per-run cost (§7.1) is an estimate, not a measurement.
