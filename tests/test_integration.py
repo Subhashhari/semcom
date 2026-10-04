@@ -17,34 +17,6 @@ from semcom.evaluate import evaluate_run, load_run
 from semcom.train import build_model, evaluate, train
 
 
-@pytest.fixture
-def fake_cifar(monkeypatch):
-    """Replace the CIFAR-10 loaders with a small in-memory dataset.
-
-    Avoids a 170 MB download in CI and keeps these tests to a few seconds, while leaving
-    every other part of the pipeline real.
-    """
-    from torch.utils.data import DataLoader, TensorDataset
-
-    torch.manual_seed(0)
-    # Low-frequency images: compressible, so the model can actually learn something.
-    yy, xx = torch.meshgrid(torch.linspace(0, 1, 32), torch.linspace(0, 1, 32), indexing="ij")
-    phases = torch.arange(32).view(32, 1, 1, 1) * 0.3
-    x = (torch.sin(torch.stack([xx, yy, xx * yy])[None] * 6.28 + phases) * 0.5 + 0.5).clamp(0, 1)
-    ds = TensorDataset(x, torch.zeros(32, dtype=torch.long))
-
-    def loaders(*a, **kw):
-        return (
-            DataLoader(ds, batch_size=8, shuffle=True, drop_last=True),
-            DataLoader(ds, batch_size=8),
-            DataLoader(ds, batch_size=8),
-        )
-
-    for module in ("semcom.train", "semcom.evaluate", "semcom.analyze_gates"):
-        monkeypatch.setattr(f"{module}.cifar10_loaders", loaders, raising=False)
-    return ds
-
-
 def tiny_config(tmp_path: Path, **kw) -> Config:
     defaults = dict(
         hidden=8,

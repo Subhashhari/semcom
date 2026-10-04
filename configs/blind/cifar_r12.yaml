@@ -1,0 +1,49 @@
+# Blind-JSCC study, CIFAR-10, R = 1/12 (docs/proposal/blind-jscc-proposal.md).
+#
+# Base config for every arm; scripts/run_blind.py sets the arm, modulation and seed.
+# Differences from the ADJSCC-Q configs:
+#   * cosine learning-rate decay (the earlier runs used a constant rate and never converged)
+#   * no early stopping: every arm in a comparison trains for the same shared epoch budget
+#   * results go to results/blind/r12, logging to the blind-jscc wandb project
+#
+# `epochs` is a placeholder until the calibration runs (B and C-att, 16-QAM) set the
+# shared budget: pass --epochs to run_blind.py once it is known.
+
+name: blind-jscc-cifar-r12
+seed: 0
+out_dir: results/blind/r12
+
+# k = (32/4)^2 * 8 / 2 = 256 complex symbols; R = 256 / 3072 = 1/12
+c_out: 8
+hidden: 256
+image_size: 32
+
+channel: awgn
+modulation_order: 16
+
+# Every arm trains and is evaluated on 0-20 dB (proposal section 4.1).
+snr_train_min: 0.0
+snr_train_max: 20.0
+
+sigma_q_init: 5.0
+anneal_period: 10000
+kl_weight: 0.05
+
+lr: 0.0001
+lr_schedule: cosine
+lr_min_factor: 0.01
+batch_size: 128
+epochs: 250
+patience: null
+# Keep this identical for every arm in a comparison: augmentation draws depend on it, so
+# changing it between arms breaks the paired-seed design.
+num_workers: 4
+amp: true
+
+eval_repeats: 10
+eval_every: 10
+
+wandb: true
+wandb_project: blind-jscc
+wandb_mode: online
+wandb_save_checkpoint: true

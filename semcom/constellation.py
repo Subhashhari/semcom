@@ -173,3 +173,25 @@ class SoftToHardQuantiser(nn.Module):
 
     def extra_repr(self) -> str:
         return f"order={self.order}, sigma_q={self.sigma_q.item():.1f}"
+
+
+@torch.no_grad()
+def usage_statistics(z: torch.Tensor, points: torch.Tensor) -> dict:
+    """Hard symbol-usage statistics of transmitted symbols `z` (..., 2).
+
+    Returns the usage distribution, its entropy in bits, and the kurtosis
+    E|c|^4 / (E|c|^2)^2 under that distribution. The kurtosis is what the M2M4 estimator
+    needs; uniform 16-QAM gives 1.32, and learned shaping pushes it toward 2.
+    """
+    flat = z.reshape(-1, 2).to(points.dtype)
+    dist = flat.pow(2).sum(1, keepdim=True) - 2.0 * flat @ points.T + points.pow(2).sum(1)
+    counts = torch.bincount(dist.argmin(dim=1), minlength=points.shape[0]).to(torch.float64)
+    p = counts / counts.sum().clamp_min(1.0)
+    nz = p[p > 0]
+    r2 = points.to(torch.float64).pow(2).sum(1)
+    power = (p * r2).sum()
+    return {
+        "usage": p.tolist(),
+        "entropy_bits": float(-(nz * nz.log2()).sum()),
+        "kurtosis": float((p * r2.pow(2)).sum() / power.pow(2).clamp_min(1e-24)),
+    }

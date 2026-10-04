@@ -4,13 +4,41 @@ Why deep joint source-channel coding (JSCC) decoders work without being told the
 cue they use in its place, what that costs in model capacity, and **SI-JSCC-Q**: an
 SNR-independent digital JSCC model with fixed 16-QAM symbols and no SNR or pilots anywhere.
 
-**Status:** proposal stage. The plan, the prior-art audit and the week-1 kill test are in
-[`docs/proposal/blind-jscc-proposal.md`](docs/proposal/blind-jscc-proposal.md). Nothing from
-it has been implemented or run yet.
+**Status:** week-1 code implemented, nothing run yet. The plan, the prior-art audit and the
+pre-registered decision rules are in
+[`docs/proposal/blind-jscc-proposal.md`](docs/proposal/blind-jscc-proposal.md).
 
-The code in this repo is the **ADJSCC-Q harness** from the previous project (below). The new
-work builds on it: the blind arms, estimators, cue-conflict evaluation and capacity sweeps are
-listed in §7.4 of the proposal.
+The code builds on the **ADJSCC-Q harness** from the previous project (below).
+
+## Running the blind-JSCC study
+
+```bash
+pip install -r requirements.txt
+pytest tests/ -q                                       # 248 tests
+
+# 1. calibration: B and C-att, 16-QAM, seed 0, in results/blind/r12-calibration
+python scripts/run_blind.py --stage calibration --epochs 300
+python scripts/convergence_report.py results/blind/r12-calibration   # -> shared epoch budget
+
+# 2. week 1 (25 runs), trained and evaluated; split across machines by seed with --shard i/n
+python scripts/run_blind.py --stage week1 --epochs <budget> --evaluate
+
+# 3. the gate and the other pre-registered decisions
+python -m semcom.blind_report results/blind/r12
+```
+
+| Arm | Flags | Meaning |
+|---|---|---|
+| B | `--decoder-input snr` | Decoder told the true SNR |
+| C-att | `--decoder-input blank` | Same modules as B, nothing in the SNR slot (primary blind arm) |
+| C | `--decoder-input none` | No attention modules (plain SI-JSCC-Q variant) |
+| C+E | `--decoder-input energy` | Genie per-image transmitted energy (16-QAM) |
+| D | `--decoder-input stats` | Receiver-computed statistics (self-conditioned SI-JSCC-Q) |
+| *-shuf | `energy_shuf`, `stats_shuf` | Another image's value: the information controls |
+
+Every arm in a comparison must use the same epoch budget and `num_workers` (data order and
+augmentation are paired across arms by seed). `best.pt`, `config.yaml` and `history.json` are
+uploaded to wandb at the end of each run.
 
 ## Documents
 
@@ -43,14 +71,19 @@ semcom/
   data.py              CIFAR-10 loaders, PSNR, SNR sampling
   separation.py        classical source+channel baseline (capacity bound, fixed MCS)
   importance.py        latent importance by erasure (unequal-error-protection study)
+  snr_estimation.py    receiver-side noise/SNR estimators (energy, DD, hybrid, M2M4)
+  blind_eval.py        per-run blind evaluation with paired channel noise
+  blind_stats.py       t-intervals, equivalence, the gate, the cue-fit bootstrap
+  blind_report.py      applies the pre-registered decision rules across seeds
   train.py             training loop + wandb
   evaluate.py          SNR sweep + trained-model invariant check
   analyze_gates.py     AF gate statistics (ADJSCC patterns 1 and 2)
 scripts/
   run_ablation.py      all runs of the 2x2 -> curves, tables, figure
+  run_blind.py         blind-study run plans (calibration, week1, ...), sharded by seed
   convergence_report.py  is each run still improving? (reads history.json)
   recover_from_wandb.py  rebuild history.json from local wandb logs
-configs/               cifar_r12.yaml (primary), cifar_r6.yaml
+configs/               cifar_r12.yaml, cifar_r6.yaml (ADJSCC-Q); blind/cifar_r12.yaml
 results/
   adjscc-q/r12/        run records (history.json, wandb config) of the R=1/12 sweep
 tests/

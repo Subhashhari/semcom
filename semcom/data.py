@@ -48,8 +48,22 @@ def cifar10_loaders(
         pin_memory=torch.cuda.is_available(),
         persistent_workers=num_workers > 0,
     )
+    # A dedicated generator for shuffling (and, through it, the workers' augmentation
+    # seeds). Without it the order is drawn from the global RNG *after* model
+    # initialisation, and arms with different parameter counts consume different amounts
+    # of it - so two arms at the same seed would see different data orders, breaking the
+    # paired-seed design. Augmentation draws still depend on num_workers, so every arm in
+    # a comparison must use the same num_workers.
+    shuffle_gen = torch.Generator().manual_seed(seed)
     return (
-        DataLoader(train_set, batch_size=batch_size, shuffle=True, drop_last=True, **common),
+        DataLoader(
+            train_set,
+            batch_size=batch_size,
+            shuffle=True,
+            drop_last=True,
+            generator=shuffle_gen,
+            **common,
+        ),
         DataLoader(val_set, batch_size=batch_size, shuffle=False, **common),
         DataLoader(test_set, batch_size=batch_size, shuffle=False, **common),
     )

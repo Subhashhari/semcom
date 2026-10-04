@@ -38,8 +38,8 @@ from .evaluate import load_run
 @torch.no_grad()
 def collect_gate_statistics(model, loader, device, snrs, max_batches: int = 8) -> dict:
     """Mean and across-channel std of S, per encoder AF module, per SNR."""
-    if not model.snr_adaptive:
-        raise ValueError(f"{model.name} has no AF modules; nothing to analyse")
+    if model.encoder.af is None:
+        raise ValueError(f"{model.name} has no AF modules in its encoder; nothing to analyse")
 
     stats: dict[float, list[dict]] = {}
     for snr in snrs:

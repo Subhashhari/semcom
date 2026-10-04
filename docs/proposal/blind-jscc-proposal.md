@@ -475,8 +475,8 @@ Readings:
   is 10 dB away from the truth, so α = 0.85 separates energy from M2M4 there (DD is already biased by
   22% symbol errors at α = 1).
 - **The hybrid tracks energy** to within 1 dB at every α, so it is not a separate column.
-- **The M2M4 column assumes uniform symbol usage** (kurtosis 1.32). If Step 0 shows non-uniform
-  usage, it is recomputed with the measured kurtosis.
+- **The M2M4 column assumes uniform symbol usage** (kurtosis 1.32). The evaluation
+  recomputes it with each run's measured usage kurtosis.
 
 **Readout: a double difference.** For the blind arm at power scale α,
 
@@ -671,7 +671,12 @@ insensitive decoder (last row). It does not decide the mechanism.
 | D − D-shuf > 0 at 128×128 (primary), and D closes some of the B − C-att gap there | Self-conditioned SI-JSCC-Q is the method; the gap it closes is the headline number |
 | D − D-shuf not significant at 128×128 | The statistics' information does not help; any D gain over C was the attention modules. Recommend C-att |
 
-### 5.3 Combined with Step 0 (usage entropy from wandb)
+### 5.3 Combined with the measured symbol usage
+
+The week-1 16-QAM runs log hard symbol usage (entropy and kurtosis) at every validation pass.
+That measurement, not the earlier runs' wandb logs, decides whether the shaping study is worth
+pursuing. The old runs used a constant learning rate, never converged, and logged only
+batch-averaged soft usage.
 
 | | Gate passes | Decoder insensitive |
 |---|---|---|
@@ -684,10 +689,9 @@ insensitive decoder (last row). It does not decide the mechanism.
 
 | Step | Work | Compute |
 |---|---|---|
-| 0 | Run safety: `wandb.save` on `best.pt`. The R = 1/12 weights were lost, so nothing can reuse them | — |
-| 0 | Step 0: final `train/kl` from wandb, usage entropy `H = ln 16 − KL` nats (soft usage, ≈ hard at σ_q = 100) | — |
+| 0 | Run safety: `best.pt`, `config.yaml` and `history.json` uploaded to wandb at the end of every run. The R = 1/12 weights were lost, so nothing can reuse them | — |
 | 1 | Code: encoder/decoder SNR flags; decoder SNR override; attention with an empty or arbitrary input slot (C-att, C+E, D); cosine decay; energy/DD/hybrid/M2M4 estimators; sensitivity and prediction evaluation; quantitative power-mismatch evaluation with the scale-fragility reference | — |
-| 2 | Calibration: arm B and arm C-att, 16-QAM, cosine decay; set the shared epoch budget | ~5 h |
+| 2 | Calibration: arm B and arm C-att, 16-QAM, cosine decay, in a separate results folder; set the shared epoch budget | ~5 h |
 | 3 | B and C-att, 16-QAM × 5 seeds; B and C-att, analog × 3 seeds; C, analog and 16-QAM × 3 seeds; C+E 16-QAM × 3 seeds (25 runs) | ~40–55 h |
 | 4 | Sensitivity curves, prediction P, gaps G; discriminability check; power-mismatch test | Inference |
 | 5 | Gate (§5.1) | — |
@@ -743,7 +747,9 @@ from one content type.
 | Cosine learning-rate decay | `semcom/train.py` |
 | Estimators: energy, DD, hybrid, M2M4, re-encoding residual | new `semcom/snr_estimation.py` |
 | AF modules with a configurable slot: nothing (C-att), true SNR (B), genie energy (C+E), statistics vector (D), or another image's value (C+E-shuf, D-shuf) | `semcom/train.py`, `semcom/modules.py` |
-| Sensitivity, prediction, matched-gap, equivalence and cue-conflict evaluation (with the scale-fragility reference and discriminability check) | new `scripts/blind_eval.py` |
+| Per-run evaluation: curve, sensitivity, plug-in prediction, power mismatch, usage (paired noise) | new `semcom/blind_eval.py` |
+| Decision rules across seeds: t-intervals, equivalence, gate, cue-fit bootstrap | new `semcom/blind_stats.py`, `semcom/blind_report.py` |
+| Run plans by stage, sharded by seed | new `scripts/run_blind.py`, `configs/blind/cifar_r12.yaml` |
 | Probes trained on natural data, applied to conflict inputs | new `scripts/probe.py` |
 | Capacity grid driver and allocation map | new `scripts/capacity_sweep.py` |
 

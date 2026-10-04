@@ -141,7 +141,7 @@ def gradient_importance(model, x: torch.Tensor, snr_db: float,
     z.retain_grad()
 
     y = model.channel_fn(z, snr, model.avg_power)
-    x_hat = model.decoder(model._from_symbols(y), snr)
+    x_hat = model.decode(y, snr, z)
     torch.nn.functional.mse_loss(x_hat, x).backward()
 
     saliency = z.grad.abs().sum(-1).mean(0)         # (k,)

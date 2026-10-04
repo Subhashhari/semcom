@@ -31,3 +31,6 @@ __pycache__/
 # Stray editor/tool artifacts
 tea_debug.log
 *.log
+
+# Kaggle job folders (generated kernels and downloaded outputs)
+.kaggle_jobs/

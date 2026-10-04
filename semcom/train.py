@@ -34,7 +34,60 @@ def build_model(cfg: Config) -> JSCC:
         avg_power=cfg.avg_power,
         sigma_q_init=cfg.sigma_q_init,
         anneal_period=cfg.anneal_period,
+        encoder_snr=cfg.encoder_snr,
+        decoder_input=cfg.decoder_input,
+        hidden_enc=cfg.hidden_enc,
+        hidden_dec=cfg.hidden_dec,
     )
+
+
+def build_scheduler(cfg: Config, opt: torch.optim.Optimizer):
+    """Per-epoch learning-rate schedule, or None for a constant rate."""
+    if cfg.lr_schedule == "cosine":
+        return torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=max(cfg.epochs, 1), eta_min=cfg.lr * cfg.lr_min_factor
+        )
+    return None
+
+
+def save_to_wandb(run, run_dir: Path) -> None:
+    """Upload the weights and run record to the wandb run. Never fatal.
+
+    The R=1/12 weights were lost when a local results folder was deleted; wandb had only
+    the logs. With this the weights survive too.
+    """
+    if run is None:
+        return
+    for name in ("best.pt", "config.yaml", "history.json"):
+        path = run_dir / name
+        if path.exists():
+            try:
+                run.save(str(path), base_path=str(run_dir), policy="now")
+            except Exception as exc:  # noqa: BLE001 - logging must never kill training
+                print(f"[wandb] could not upload {name} ({exc})")
+
+
+@torch.no_grad()
+def symbol_usage(model: JSCC, loader, device: torch.device, max_batches: int = 4) -> dict | None:
+    """Hard usage entropy and kurtosis of the transmitted symbols, digital arms only."""
+    if model.quantiser is None:
+        return None
+    from .constellation import usage_statistics
+
+    was_training = model.training
+    model.eval()
+    zs = []
+    for i, (x, _) in enumerate(loader):
+        if i >= max_batches:
+            break
+        x = x.to(device, non_blocking=True)
+        # Mid-range SNR; only arms with encoder conditioning depend on it.
+        zs.append(model.transmit(x, torch.full((x.shape[0],), 10.0, device=device)).float())
+    model.train(was_training)
+    if not zs:
+        return None
+    stats = usage_statistics(torch.cat(zs), model.quantiser.points.float())
+    return {"entropy_bits": stats["entropy_bits"], "kurtosis": stats["kurtosis"]}
 
 
 def init_wandb(cfg: Config):
@@ -120,6 +173,7 @@ def train(cfg: Config) -> dict:
 
     model = build_model(cfg).to(device)
     opt = torch.optim.Adam(model.parameters(), lr=cfg.lr)
+    scheduler = build_scheduler(cfg, opt)
     use_amp = cfg.amp and device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
 
@@ -141,6 +195,8 @@ def train(cfg: Config) -> dict:
         ckpt = torch.load(ckpt_path, map_location=device, weights_only=False)
         model.load_state_dict(ckpt["model"])
         opt.load_state_dict(ckpt["optimiser"])
+        if scheduler is not None and ckpt.get("scheduler") is not None:
+            scheduler.load_state_dict(ckpt["scheduler"])
         start_epoch = ckpt["epoch"] + 1
         best_psnr, best_epoch, step = ckpt["best_psnr"], ckpt["best_epoch"], ckpt["step"]
         print(f"resumed from epoch {start_epoch} (best {best_psnr:.3f} dB)")
@@ -212,13 +268,20 @@ def train(cfg: Config) -> dict:
             "train_loss": running["loss"].item() / n,
             "train_psnr": running["psnr"].item() / n,
             "train_seconds": train_s,
+            "lr": opt.param_groups[0]["lr"],
         }
+        if scheduler is not None:
+            scheduler.step()
 
         if epoch % cfg.eval_every == 0 or epoch == cfg.epochs - 1:
             val = evaluate(model, val_loader, device, val_snrs, repeats=1)
             mean_psnr = sum(val.values()) / len(val)
             epoch_stats["val_psnr"] = mean_psnr
             epoch_stats["val_by_snr"] = val
+            usage = symbol_usage(model, val_loader, device)
+            if usage is not None:
+                epoch_stats["usage_entropy_bits"] = usage["entropy_bits"]
+                epoch_stats["usage_kurtosis"] = usage["kurtosis"]
 
             log(
                 wandb_run,
@@ -226,6 +289,8 @@ def train(cfg: Config) -> dict:
                     "val/psnr_mean": mean_psnr,
                     **{f"val/psnr_at_{s:g}dB": v for s, v in val.items()},
                     "val/epoch": epoch,
+                    "train/lr": epoch_stats["lr"],
+                    **({f"val/usage_{k}": v for k, v in usage.items()} if usage else {}),
                 },
                 step=step,
             )
@@ -254,11 +319,12 @@ def train(cfg: Config) -> dict:
                     "best_psnr": best_psnr,
                     "best_epoch": best_epoch,
                     "step": step,
+                    "scheduler": scheduler.state_dict() if scheduler is not None else None,
                 },
                 ckpt_path,
             )
 
-            if epoch - best_epoch >= cfg.patience:
+            if cfg.patience is not None and epoch - best_epoch >= cfg.patience:
                 print(f"early stopping at epoch {epoch} (best {best_psnr:.3f} dB @ {best_epoch})")
                 history.append(epoch_stats)
                 break
@@ -288,6 +354,8 @@ def train(cfg: Config) -> dict:
 
     if wandb_run is not None:
         wandb_run.summary.update(summary)
+        if cfg.wandb_save_checkpoint:
+            save_to_wandb(wandb_run, run_dir)
         wandb_run.finish()
 
     print(f"done: best {best_psnr:.3f} dB @ epoch {best_epoch} -> {run_dir}")
@@ -300,6 +368,19 @@ def add_arguments(p: argparse.ArgumentParser) -> argparse.ArgumentParser:
     p.add_argument("--digital", action="store_true", default=None)
     p.add_argument("-M", "--modulation-order", type=int, default=None)
     p.add_argument("--snr-train-fixed", type=float, default=None)
+    p.add_argument(
+        "--encoder-snr", dest="encoder_snr", action="store_true", default=None,
+        help="SNR-conditioned AF modules in the encoder (blind-study arm A)",
+    )
+    p.add_argument(
+        "--decoder-input", default=None,
+        choices=["auto", "none", "snr", "blank", "energy", "energy_shuf", "stats", "stats_shuf"],
+        help="what fills the decoder AF slot: B=snr, C-att=blank, C=none, C+E=energy, D=stats",
+    )
+    p.add_argument("--hidden-enc", type=int, default=None)
+    p.add_argument("--hidden-dec", type=int, default=None)
+    p.add_argument("--lr-schedule", choices=["constant", "cosine"], default=None)
+    p.add_argument("--patience", type=int, default=None)
     p.add_argument("--channel", choices=["awgn", "rayleigh"], default=None)
     p.add_argument("--c-out", type=int, default=None)
     p.add_argument("--epochs", type=int, default=None)
