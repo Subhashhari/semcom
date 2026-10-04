@@ -1,6 +1,6 @@
 """Evaluate a trained run: PSNR against test SNR over the full sweep.
 
-    python -m semcom.evaluate results/r12/adjsccq_r0.0833_m16_snr0-20
+    python -m semcom.evaluate results/adjscc-q/r12/adjsccq_r0.0833_m16_snr0-20
 
 Writes `evaluation.json` into the run directory and, unless --no-wandb, logs the curve to
 the run's wandb project.

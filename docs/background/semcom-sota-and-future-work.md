@@ -111,7 +111,7 @@ away from the property that made the subfield deployable in the first place.**
   uplink / 1024-QAM downlink. At the orders NR really offers, the advantage over separation
   is real but much narrower, and at 16/64-QAM it does not uniformly win.
 - **SNR-conditioned + fixed-alphabet.** As of this survey, not published — see
-  [ADJSCC-Q-EXPLAINED.md §4](ADJSCC-Q-EXPLAINED.md) for the checked comparison table. This is
+  [ADJSCC-Q-EXPLAINED.md §4](../prior-work/adjscc-q/ADJSCC-Q-EXPLAINED.md) for the checked comparison table. This is
   what this repository measures.
 - **Still no bit interface.** Constellation indices carry no bit-level semantics: no CRC, no
   HARQ soft-combining, no standard ciphering, no rate matching.

@@ -14,7 +14,7 @@ wandb, so a recovered run is readable but not re-evaluatable or resumable.
 Usage:
     python scripts/recover_from_wandb.py                      # dry run, prints what it found
     python scripts/recover_from_wandb.py --write               # writes into results/recovered/
-    python scripts/recover_from_wandb.py --write --out results/r12
+    python scripts/recover_from_wandb.py --write --out results/adjscc-q/r12
 """
 
 from __future__ import annotations

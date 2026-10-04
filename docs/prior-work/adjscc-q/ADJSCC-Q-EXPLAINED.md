@@ -2,8 +2,8 @@
 
 *What is being built in this repository, why, what is genuinely new about it, and what
 it deliberately does not attempt. Written to be read alongside
-[the complete roadmap](semantic-communication-roadmap-complete.md) and
-[the SOTA survey](semcom-sota-and-future-work.md).*
+[the complete roadmap](../../background/semantic-communication-roadmap-complete.md) and
+[the SOTA survey](../../background/semcom-sota-and-future-work.md).*
 
 ---
 
@@ -352,11 +352,11 @@ results. Neither would have crashed anything.
 For someone picking this up cold:
 
 1. This document — what and why.
-2. [`semantic-communication-roadmap-complete.md`](semantic-communication-roadmap-complete.md)
+2. [`semantic-communication-roadmap-complete.md`](../../background/semantic-communication-roadmap-complete.md)
    §2.3 and §3.1 and §3.6 — the two source mechanisms in full, and the debt they address.
 3. §1 of `semantic-communication-roadmap-complete.md` — if the wireless vocabulary is
    unfamiliar; it introduces the pipeline in ML terms.
 4. `semcom/constellation.py` and `semcom/modules.py` — the two mechanisms, ~150 lines each.
 5. `semcom/models.py` — how they compose, and where the ordering decision lives.
-6. [`semcom-sota-and-future-work.md`](semcom-sota-and-future-work.md) — where this sits in
+6. [`semcom-sota-and-future-work.md`](../../background/semcom-sota-and-future-work.md) — where this sits in
    the wider field, and what else is open.

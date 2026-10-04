@@ -6,8 +6,8 @@ answer.**
 
 Status: proposal, not started. v2 revises v1 after an independent review; every concern and the
 change it produced is in §11. Builds on this repo's 2×2 harness (analog/digital × fixed/adaptive)
-and absorbs the digital study in [snr-self-estimation-proposal.md](snr-self-estimation-proposal.md)
-as an optional second paper. The first week is a kill test with outcomes fixed in advance (§6).
+and keeps the digital shaping study as an optional second paper. That study's proposal is archived:
+`git show 976db88:docs/snr-self-estimation-proposal.md`. The first week is a kill test with outcomes fixed in advance (§6).
 
 ---
 
@@ -57,7 +57,7 @@ learned decoder. It degrades gracefully: a worse channel gives a blurrier image,
 But the best encoding and decoding depend on channel quality. A decoder trained at 1 dB denoises
 aggressively, while one trained at 19 dB trusts its input. In this repo's R = 1/12 results, digital
 specialists lose several dB when tested away from their training SNR
-([r12-results-analysis.md](r12-results-analysis.md)). The field therefore moved to one model
+([r12-results-analysis.md](../prior-work/adjscc-q/r12-results-analysis.md)). The field therefore moved to one model
 conditioned on the SNR, and that assumes somebody supplies the SNR.
 
 ### 1.2 Where the SNR comes from
@@ -165,7 +165,7 @@ Reference: N. Pauluzzi and N. C. Beaulieu, *IEEE Trans. Commun.* 48(10):1681–1
 
 ### 3.1 The energy hypothesis
 
-Every encoder in this repo normalises power per image ([channel.py:40](../semcom/channel.py#L40)),
+Every encoder in this repo normalises power per image ([channel.py:40](../../semcom/channel.py#L40)),
 so `‖z‖² = k`. Over AWGN, `‖y‖² = k + 2·Re⟨z, n⟩ + ‖n‖²`, giving `σ̂² = (‖y‖² − k)/k` with
 relative standard deviation `√((2·SNR + 1)/k)`. The `2·SNR` cross term makes energy estimation worse
 as the channel gets better.
@@ -254,7 +254,7 @@ parameters? A plain blind decoder made slightly wider separates the two.
 | **RQ4** | How does the marginal value of encoder vs decoder capacity change with SNR? | **H4:** decoder capacity matters more at low SNR, encoder capacity more at high SNR |
 | **RQ5** | Can a digital model with no SNR anywhere match the genie-decoder model? | **H5:** self-conditioned SI-JSCC-Q is within seed noise of B at every SNR, and its advantage over plain blind exceeds that of an equally sized wider plain blind model |
 | RQ6 *(below the cut line)* | How do non-stationary noise, unknown-gain fading and non-Gaussian noise break blindness? | Each breaks a specific cue (§7.3) |
-| RQ7 *(second paper)* | Shaping–estimability trade-off (v2 digital proposal) | See that document |
+| RQ7 *(second paper)* | Shaping–estimability trade-off | See the archived proposal (commit 976db88) |
 
 **Crossover (H2b) defined in advance:** for each system (analog, 16-QAM), plot the blind penalty
 C − B in dB against SNR. A crossover means the two penalty curves' 95% confidence bands cross,
@@ -382,7 +382,7 @@ separates "C reads energy" from "C is fragile to scale".
 ### 4.4 Capacity sweeps (RQ3–4)
 
 Split `hidden` into `hidden_enc` and `hidden_dec` (the encoder and decoder classes already take
-width separately; [models.py](../semcom/models.py)). Each run trains one model over U[0, 20] dB and
+width separately; [models.py](../../semcom/models.py)). Each run trains one model over U[0, 20] dB and
 yields a whole PSNR-vs-SNR curve, so a grid of widths costs one run per cell, not per SNR.
 
 | Sweep | Grid | Arms | Purpose |
@@ -461,11 +461,11 @@ gap, each with a 95% confidence interval.
 | Plain blind < B somewhere, D closes the gap, C-wide does not | Self-conditioned SI-JSCC-Q is the method; the gap it closes is the headline number |
 | C-wide closes the gap as well as D | The gap was capacity, not information: report that and recommend widening the decoder |
 
-### 5.3 Combined with v2's Step 0 (usage entropy from wandb)
+### 5.3 Combined with Step 0 (usage entropy from wandb)
 
 | | Gate passes | Decoder insensitive |
 |---|---|---|
-| **Usage clearly non-uniform** | This paper; the shaping study (RQ7) as a second paper | v2 alone, plus plain SI-JSCC-Q |
+| **Usage clearly non-uniform** | This paper; the shaping study (RQ7) as a second paper | The shaping study alone, plus plain SI-JSCC-Q |
 | **Usage near-uniform** | This paper; RQ7 dropped | Plain SI-JSCC-Q + capacity map as a short paper, or pivot to impairment-blind decoding |
 
 ---
@@ -475,7 +475,7 @@ gap, each with a 95% confidence interval.
 | Step | Work | Compute |
 |---|---|---|
 | 0 | Run safety: `wandb.save` on `best.pt`. The R = 1/12 weights were lost, so nothing can reuse them | — |
-| 0 | v2 Step 0: final `train/kl` from wandb, usage entropy `H = ln 16 − KL` nats (soft usage, ≈ hard at σ_q = 100) | — |
+| 0 | Step 0: final `train/kl` from wandb, usage entropy `H = ln 16 − KL` nats (soft usage, ≈ hard at σ_q = 100) | — |
 | 1 | Code: encoder/decoder SNR flags; decoder SNR override; wider SNR input range for B; cosine decay; 16-PSK constellation; energy/DD/hybrid/M2M4 estimators; sensitivity and prediction evaluation; power-mismatch evaluation | — |
 | 2 | Calibration: one arm B run with cosine decay; confirm convergence within 200–300 epochs | ~2 h |
 | 3 | B and C: analog, 16-QAM, 16-PSK × 3 seeds (18 runs) | ~30–40 h |
@@ -569,7 +569,7 @@ second paper.
 | 8 | DD-JSCC, [arXiv:2507.20467](https://arxiv.org/abs/2507.20467); G-UNet-JSCC, [arXiv:2602.22691](https://arxiv.org/abs/2602.22691) | Dynamic and asymmetric architectures |
 | 9 | Pauluzzi & Beaulieu, *IEEE TCOM* 2000 | Estimator families, M2M4 |
 | 10 | Alain & Bengio, "Understanding intermediate layers using linear classifier probes", 2016 *(from memory; verify)* | Probe methodology and its limits |
-| 11 | [snr-self-estimation-proposal.md](snr-self-estimation-proposal.md) §§1.2, 4.4, 4.8 | Estimator definitions for the digital half |
+| 11 | Archived shaping proposal, `git show 976db88:docs/snr-self-estimation-proposal.md`, §§1.2, 4.4, 4.8 | Estimator definitions and simulations for the digital half |
 
 Concepts: complex Gaussian noise and moments; why the cross term dominates energy detection at high
 SNR; constant-modulus vs QAM constellations; receptive fields; probing vs intervention; paired
@@ -584,7 +584,7 @@ comparisons and power analysis.
   summaries for the last five; the key sentences are quoted.
 - SIJSCC's figure contents come from an earlier reading in this project. The claim that its
   attention is local and windowed was not re-checked.
-- D²-JSCC and Park et al. details come from the earlier novelty audit (v2 digital proposal §2.2).
+- D²-JSCC and Park et al. details come from the earlier novelty audit (archived shaping proposal §2.2, commit 976db88).
 - The §3.2 simulations are idealised (Gaussian latent or uniform usage, AWGN, 4,000 trials).
 - The receptive field (~16×16 latent positions) is a geometric bound from the layer configuration.
 - Capacity scaling statements (parameters ∝ width²) are standard for convolutions; FLOPs will be

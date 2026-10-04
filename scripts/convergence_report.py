@@ -13,7 +13,7 @@ much validation PSNR was still being gained at the end. Interpretation:
                                                longer before believing a null result
   everything flat                           -> the null result is real
 
-Usage:  python scripts/convergence_report.py [results/r12]
+Usage:  python scripts/convergence_report.py [results/adjscc-q/r12]
 """
 
 from __future__ import annotations
@@ -54,7 +54,7 @@ def load(run_dir: Path) -> dict | None:
 
 
 def main() -> None:
-    root = Path(sys.argv[1] if len(sys.argv) > 1 else "results/r12")
+    root = Path(sys.argv[1] if len(sys.argv) > 1 else "results/adjscc-q/r12")
     runs = [r for r in (load(d) for d in sorted(root.iterdir()) if d.is_dir()) if r]
     if not runs:
         print(f"no run records under {root}")

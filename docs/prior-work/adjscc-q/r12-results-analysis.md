@@ -1,6 +1,7 @@
 # R=1/12 Ablation: In-Depth Results Analysis
 
-Forward plan lives in [future-work-plan.md](future-work-plan.md). This document is analysis
+The ADJSCC-Q forward plan this fed into has been superseded by
+[the blind-JSCC proposal](../../proposal/blind-jscc-proposal.md). This document is analysis
 only — what the numbers say, how confident to be, and what would overturn each claim.
 
 ---

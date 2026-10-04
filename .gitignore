@@ -1,6 +1,5 @@
-# The three original source documents stay local. docs/ is now published: it holds the
-# results analysis, the forward plan, the security programme, the survey and the model
-# explainer. README.md is the repo's own documentation and IS tracked.
+# The three original source documents stay local. docs/ is published: the current proposal,
+# the ADJSCC-Q results analysis and explainer, and background surveys. README.md is tracked.
 semantic-communication-roadmap.md
 semcom-roadmap-expansion.md
 semcom-walkthrough-for-ml-readers.md

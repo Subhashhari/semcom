@@ -1,6 +1,6 @@
 """Record what the AF modules actually learned.
 
-    python -m semcom.analyze_gates results/r12/adjsccq_r0.0833_m16_snr0-20
+    python -m semcom.analyze_gates results/adjscc-q/r12/adjsccq_r0.0833_m16_snr0-20
 
 ADJSCC reports two patterns in the scaling factors S, and this reproduces both for a
 trained model. They are the most interesting part of that paper and the part most often

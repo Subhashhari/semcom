@@ -1,33 +1,82 @@
-# ADJSCC-Q
+# Blind deep JSCC
 
-SNR-adaptive, constellation-constrained deep joint source-channel coding — composing the
-**ADJSCC** attention-feature module with the **DeepJSCC-Q** soft-to-hard quantiser, plus
-the controlled ablation that tests whether the two mechanisms actually compose.
+Why deep joint source-channel coding (JSCC) decoders work without being told the SNR, which
+cue they use in its place, what that costs in model capacity, and **SI-JSCC-Q**: an
+SNR-independent digital JSCC model with fixed 16-QAM symbols and no SNR or pilots anywhere.
 
-It targets a gap the DeepJSCC-Q authors name explicitly in their own future-work section:
+**Status:** proposal stage. The plan, the prior-art audit and the week-1 kill test are in
+[`docs/proposal/blind-jscc-proposal.md`](docs/proposal/blind-jscc-proposal.md). Nothing from
+it has been implemented or run yet.
 
-> **No SNR conditioning.** Models are trained per SNR_train. Composing the ADJSCC AF
-> module with the soft-to-hard quantiser is the obvious next step and is not done here.
-
-ADJSCC removes the fixed-SNR idealisation but keeps analog symbols. DeepJSCC-Q removes the
-analog-symbol debt but keeps per-SNR specialist models. ADJSCC-Q removes both: one set of
-weights, SNR-conditioned at inference, emitting legal M-QAM symbols.
+The code in this repo is the **ADJSCC-Q harness** from the previous project (below). The new
+work builds on it: the blind arms, estimators, cue-conflict evaluation and capacity sweeps are
+listed in §7.4 of the proposal.
 
 ## Documents
 
 | | |
 |---|---|
-| [`docs/r12-results-analysis.md`](docs/r12-results-analysis.md) | What the first R=1/12 sweep established, with per-claim confidence and what would overturn each |
-| [`docs/future-work-plan.md`](docs/future-work-plan.md) | Forward plan: convergence, the modulation sweep, then the security work |
-| [`docs/semcom-security-research-programme.md`](docs/semcom-security-research-programme.md) | Threat taxonomy, adversarial audit of the SOTA, and the P1–P3 programme |
-| [`docs/semcom-sota-and-future-work.md`](docs/semcom-sota-and-future-work.md) | Survey of the field and the gaps that are actually open |
-| [`docs/ADJSCC-Q-EXPLAINED.md`](docs/ADJSCC-Q-EXPLAINED.md) | The model end to end, for readers new to it |
-| [`docs/semantic-communication-roadmap-complete.md`](docs/semantic-communication-roadmap-complete.md) | Background roadmap: how the field reached this point |
+| [`docs/proposal/blind-jscc-proposal.md`](docs/proposal/blind-jscc-proposal.md) | **Main proposal**: motivation, prior work, hypotheses, arms, kill test, decision rules, timeline |
+| [`docs/prior-work/adjscc-q/r12-results-analysis.md`](docs/prior-work/adjscc-q/r12-results-analysis.md) | What the ADJSCC-Q R=1/12 sweep established, with per-claim confidence |
+| [`docs/prior-work/adjscc-q/ADJSCC-Q-EXPLAINED.md`](docs/prior-work/adjscc-q/ADJSCC-Q-EXPLAINED.md) | The ADJSCC-Q model end to end, for readers new to it |
+| [`docs/background/semcom-sota-and-future-work.md`](docs/background/semcom-sota-and-future-work.md) | Survey of the field and its open gaps |
+| [`docs/background/semantic-communication-roadmap-complete.md`](docs/background/semantic-communication-roadmap-complete.md) | Background roadmap: how the field reached this point |
 
-**Start with the results analysis if you want to know what is actually established** — the
-headline matched-point claim is *not*, and the document says so.
+Retired proposals (the ADJSCC-Q forward plan, the security programme and the digital
+shaping–estimability study) are in git history; `git show 976db88:docs/<file>.md` recovers
+any of them.
 
-## Prior art — read this before claiming novelty
+## Layout
+
+```
+docs/
+  proposal/            the current research plan
+  prior-work/adjscc-q/ results analysis and explainer for the ADJSCC-Q project
+  background/          field survey and roadmap
+semcom/
+  constellation.py     M-QAM lattice + soft-to-hard quantiser (DeepJSCC-Q)
+  modules.py           FL modules + AF module (ADJSCC)
+  models.py            the 2x2, as two booleans
+  channel.py           power normalisation, AWGN, Rayleigh
+  gdn.py               generalised divisive normalisation
+  config.py            dataclass config + YAML
+  data.py              CIFAR-10 loaders, PSNR, SNR sampling
+  separation.py        classical source+channel baseline (capacity bound, fixed MCS)
+  importance.py        latent importance by erasure (unequal-error-protection study)
+  train.py             training loop + wandb
+  evaluate.py          SNR sweep + trained-model invariant check
+  analyze_gates.py     AF gate statistics (ADJSCC patterns 1 and 2)
+scripts/
+  run_ablation.py      all runs of the 2x2 -> curves, tables, figure
+  convergence_report.py  is each run still improving? (reads history.json)
+  recover_from_wandb.py  rebuild history.json from local wandb logs
+configs/               cifar_r12.yaml (primary), cifar_r6.yaml
+results/
+  adjscc-q/r12/        run records (history.json, wandb config) of the R=1/12 sweep
+tests/
+```
+
+Run records are tracked; weights (`*.pt`) are not. See `.gitignore`.
+
+---
+
+## Prior work in this repo: ADJSCC-Q
+
+SNR-adaptive, constellation-constrained deep JSCC: the **ADJSCC** attention-feature module
+composed with the **DeepJSCC-Q** soft-to-hard quantiser, plus the controlled 2x2 ablation that
+tests whether the two mechanisms compose. The R=1/12 sweep was run; its records are in
+`results/adjscc-q/r12/` and its analysis in
+[`docs/prior-work/adjscc-q/r12-results-analysis.md`](docs/prior-work/adjscc-q/r12-results-analysis.md).
+The headline matched-point claim is **not** established (no arm converged), and the analysis
+says so.
+
+It targeted a gap the DeepJSCC-Q authors name in their own future-work section:
+
+> **No SNR conditioning.** Models are trained per SNR_train. Composing the ADJSCC AF
+> module with the soft-to-hard quantiser is the obvious next step and is not done here.
+
+
+### Prior art: read this before claiming novelty
 
 The **idea** is not novel. Framed honestly, this is a reproduction-and-composition study;
 the contribution is the evidence and the ablation, not the architecture.
@@ -47,7 +96,7 @@ the contribution is the evidence and the ablation, not the architecture.
   that DeepJSCC-Q exists to make. And none run the 2x2 that isolates whether SNR
   conditioning still pays once the channel input is quantised.
 
-## The 2x2
+### The 2x2
 
 One model class, two booleans ([semcom/models.py](semcom/models.py)):
 
@@ -62,7 +111,7 @@ model trained on SNR ~ U[0,20] dB, resampled *per example*.
 The digital arms add **zero trainable parameters** (the constellation is fixed) and the AF
 modules add well under 1%, so the comparison is controlled on capacity.
 
-## The separation baseline (external reference)
+### The separation baseline (external reference)
 
 The 2×2 on its own is self-referential: it can say whether conditioning survives
 quantisation, but not whether any of it beats a conventional radio — and it cannot show
@@ -86,7 +135,7 @@ below roughly 4 dB the separation baseline is infeasible for *source-coding* rea
 have nothing to do with the channel. Results distinguish `channel_outage` from
 `codec_infeasible` rather than collapsing both into a blank PSNR cell.
 
-## The hypothesis
+### The hypothesis
 
 ADJSCC reports its largest margin at low bandwidth ratio — where the encoder is most
 starved of dimensions and allocation decisions matter most. Quantisation starves the
@@ -94,11 +143,11 @@ encoder *further*. So conditioning should pay **more** under a finite constellat
 less. That is what `run_ablation.py`'s Q2 measures. A null result is a legitimate outcome
 and is reported as one.
 
-## Install and run
+### Install and run
 
 ```bash
 pip install -r requirements.txt
-pytest tests/ -q                      # 168 tests, ~1 min on CPU
+pytest tests/ -q                      # 190 tests, ~1 min on CPU
 
 # one arm
 python -m semcom.train --config configs/cifar_r12.yaml --snr-adaptive --digital -M 16
@@ -108,14 +157,14 @@ python scripts/run_ablation.py --config configs/cifar_r12.yaml
 #   add --no-separation to skip the classical reference curves
 
 # afterwards
-python -m semcom.evaluate results/r12/<run>       # full SNR sweep -> evaluation.json
-python -m semcom.analyze_gates results/r12/<run>  # AF gate statistics
+python -m semcom.evaluate results/adjscc-q/r12/<run>       # full SNR sweep -> evaluation.json
+python -m semcom.analyze_gates results/adjscc-q/r12/<run>  # AF gate statistics
 ```
 
 Add `--no-wandb` to any of these to run without logging. Training is resumable: rerun the
 same command and it picks up from `checkpoint.pt`.
 
-### Logging
+#### Logging
 
 Weights & Biases is on by default (`wandb: true` in the configs). Runs are named by arm,
 rate, modulation order and training SNR, and tagged by arm so the 2x2 groups cleanly.
@@ -123,7 +172,7 @@ Logged: loss, MSE, PSNR, and for digital arms the KL term and the quantiser's `s
 annealing — worth watching, since that schedule climbs fast once it starts. `wandb init`
 failures are caught and never kill a training run.
 
-## Design decisions worth knowing
+### Design decisions worth knowing
 
 **Ordering: AF gating → power normalisation → quantisation.** This is the one decision the
 composition forces and neither source paper had to make. AF gates are sigmoid-bounded, so
@@ -147,9 +196,9 @@ far cheaper in memory at training batch sizes.
 raise the rate — it refines the codebook, and must be monotonically better at every SNR.
 Any non-monotonicity in M is a bug, not a finding.
 
-## Testing
+### Testing
 
-168 tests. The suite is structured around the invariants that, if broken, would produce
+The suite is structured around the invariants that, if broken, would produce
 *plausible but wrong* results rather than crashes:
 
 - `tests/test_constellation.py` — the alphabet invariant (transmitted values are bit-exact
@@ -189,7 +238,7 @@ Six real bugs were caught this way before any training run:
 reporting any number, and refuses to emit results if it fails. Training moves the
 encoder's output distribution a long way; the unit tests only check an untrained quantiser.
 
-## Caveats
+### Caveats
 
 - **Epoch budget.** The ADJSCC results being reproduced were trained for 1280 epochs.
   Early stopping usually fires far sooner; `history.json` records `epochs_trained`
@@ -200,24 +249,3 @@ encoder's output distribution a long way; the unit tests only check an untrained
   standards-compatible; it does not make the *stack* compatible. That distinction is the
   subject of standardisation-roadmap work, not this repo.
 - The learned-constellation (L-M) variant from DeepJSCC-Q is not implemented.
-
-## Layout
-
-```
-semcom/
-  constellation.py   M-QAM lattice + soft-to-hard quantiser (DeepJSCC-Q)
-  modules.py         FL modules + AF module (ADJSCC)
-  models.py          the 2x2, as two booleans
-  channel.py         power normalisation, AWGN, Rayleigh
-  gdn.py             generalised divisive normalisation
-  config.py          dataclass config + YAML
-  data.py            CIFAR-10 loaders, PSNR, SNR sampling
-  separation.py      classical source+channel baseline (capacity bound, fixed MCS)
-  train.py           training loop + wandb
-  evaluate.py        SNR sweep + trained-model invariant check
-  analyze_gates.py   AF gate statistics (ADJSCC patterns 1 and 2)
-scripts/
-  run_ablation.py    all 12 runs -> curves, tables, figure
-configs/             cifar_r12.yaml (primary), cifar_r6.yaml
-tests/
-```
