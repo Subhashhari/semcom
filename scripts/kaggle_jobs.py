@@ -194,6 +194,17 @@ def cmd_logs(args) -> None:
     """Print the last lines of the job's execution log (works while it is running)."""
     job = load_job(args.name)
     text = kaggle("kernels", "logs", job["kernel"], token_file=_token(job), capture=True)
+    if not text.strip():
+        # A running job returns an empty log; only the streaming mode (-f) shows it, and it
+        # never exits on its own, so stream for a few seconds and keep what arrived.
+        env = dict(os.environ, PYTHONUTF8="1")
+        if _token(job) is not None:
+            env["KAGGLE_API_TOKEN"] = _token(job).read_text(encoding="utf-8").strip()
+        try:
+            subprocess.run([sys.executable, "-m", "kaggle", "kernels", "logs", "-f", job["kernel"]],
+                           env=env, capture_output=True, timeout=args.seconds)
+        except subprocess.TimeoutExpired as e:
+            text = (e.stdout or b"").decode("utf-8", errors="replace")
     lines = []
     try:
         # The log is a JSON list of {"stream_name", "time", "data"} records.
@@ -262,6 +273,7 @@ def main() -> None:
     logs = sub.add_parser("logs", help="tail a job's execution log, even while running")
     logs.add_argument("name")
     logs.add_argument("--tail", type=int, default=40)
+    logs.add_argument("--seconds", type=int, default=20, help="how long to stream a running job")
     logs.set_defaults(func=cmd_logs)
     sub.add_parser("list").set_defaults(func=cmd_list)
 
