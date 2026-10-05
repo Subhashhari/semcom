@@ -308,6 +308,8 @@ def main() -> None:
     sub.add_parser("list").set_defaults(func=cmd_list)
 
     args = p.parse_args()
+    # Job logs contain non-cp1252 characters (progress bars); don't crash the Windows console.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     args.func(args)
 
 
