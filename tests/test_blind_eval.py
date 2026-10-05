@@ -94,3 +94,21 @@ def test_evaluation_is_deterministic_so_runs_can_be_paired(tmp_path, fake_cifar)
     b = dict(np.load(cfg.run_dir / "blind_eval_images.npz"))
     assert first["curve"] == second["curve"] and first["arm"] == "D"
     assert all(np.array_equal(a[k], b[k]) for k in a)
+
+
+def test_eval_and_report_analog(tmp_path, fake_cifar):
+    """Analog has no lattice: no DD/M2M4 cues, but the curve, plug-in energy and mismatch run."""
+    small = dict(max_images=16, repeats=1, snrs=[10.0, 18.0, 20.0], mismatch_snrs=(18.0,),
+                 alphas=(1.0, 1.1, 1.2, 1.3), deltas=(-4.0, 0.0, 4.0), sensitivity_snrs=(18.0,),
+                 batch_size=8)
+    for seed in (0, 1):
+        for arm in ("snr", "blank"):
+            cfg = tiny(tmp_path, decoder_input=arm, encoder_snr=False, seed=seed, digital=False)
+            train(cfg)
+            res = evaluate_blind(cfg.run_dir, **small)
+            assert not res["digital"] and 18.0 in res["curve"]
+            assert res["mismatch"][18.0][1.2]["psnr_own"] > 0
+            if arm == "snr":
+                assert "energy" in res["plugin"]
+    out = report(tmp_path, n_boot=50)
+    assert out["gaps_to_B"]["analog"]["C-att"]["seeds"] == [0, 1]
