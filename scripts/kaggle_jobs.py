@@ -7,6 +7,7 @@
     python scripts/kaggle_jobs.py push w1-qam-s0 --arms B C-att --mods qam16 --seeds 0 1 --epochs 250
 
     python scripts/kaggle_jobs.py status calib     # queued / running / complete / error
+    python scripts/kaggle_jobs.py logs calib       # last 40 log lines, works while running
     python scripts/kaggle_jobs.py fetch calib      # download outputs, merge runs into results/
     python scripts/kaggle_jobs.py list             # every job pushed from this machine
     python -m kaggle quota                         # remaining weekly GPU hours
@@ -57,7 +58,10 @@ sh("git", "-C", src, "checkout", "--quiet", COMMIT)
 sh(sys.executable, "-m", "pip", "install", "--quiet", "pyyaml", "scipy", "wandb")
 sh(sys.executable, "-c", "import torch; print(torch.__version__, torch.cuda.get_device_name(0))")
 
-env = dict(os.environ, WANDB_DIR=os.path.join(WORK, "wandb"), WANDB_SILENT="true")
+# PYTHONUNBUFFERED: the training process writes to a pipe, so without it epoch lines reach
+# the Kaggle log in large delayed chunks instead of as they happen.
+env = dict(os.environ, WANDB_DIR=os.path.join(WORK, "wandb"), WANDB_SILENT="true",
+           PYTHONUNBUFFERED="1")
 os.makedirs(env["WANDB_DIR"], exist_ok=True)
 try:
     sh(sys.executable, "scripts/run_blind.py", *PLAN, "--wandb-mode", "offline", cwd=src, env=env)
@@ -70,7 +74,8 @@ finally:
 
 
 def kaggle(*args, token_file: Path | None = None, capture: bool = False) -> str:
-    env = dict(os.environ)
+    # UTF-8 mode: on Windows the CLI otherwise crashes on non-cp1252 characters in job logs.
+    env = dict(os.environ, PYTHONUTF8="1")
     if token_file is not None:
         env["KAGGLE_API_TOKEN"] = Path(token_file).read_text(encoding="utf-8").strip()
     proc = subprocess.run(
@@ -185,6 +190,20 @@ def cmd_status(args) -> None:
     print(kaggle("kernels", "status", job["kernel"], token_file=_token(job), capture=True).strip())
 
 
+def cmd_logs(args) -> None:
+    """Print the last lines of the job's execution log (works while it is running)."""
+    job = load_job(args.name)
+    text = kaggle("kernels", "logs", job["kernel"], token_file=_token(job), capture=True)
+    lines = []
+    try:
+        # The log is a JSON list of {"stream_name", "time", "data"} records.
+        for rec in json.loads(text):
+            lines.extend(rec.get("data", "").splitlines())
+    except (json.JSONDecodeError, TypeError, AttributeError):
+        lines = text.splitlines()
+    print("\n".join(lines[-args.tail:]))
+
+
 def cmd_fetch(args) -> None:
     job = load_job(args.name)
     out = job_dir(args.name) / "output"
@@ -240,6 +259,10 @@ def main() -> None:
         if name == "fetch":
             sp.add_argument("--force", action="store_true", help="overwrite runs already present")
         sp.set_defaults(func=fn)
+    logs = sub.add_parser("logs", help="tail a job's execution log, even while running")
+    logs.add_argument("name")
+    logs.add_argument("--tail", type=int, default=40)
+    logs.set_defaults(func=cmd_logs)
     sub.add_parser("list").set_defaults(func=cmd_list)
 
     args = p.parse_args()
