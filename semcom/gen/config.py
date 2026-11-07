@@ -1,0 +1,216 @@
+"""Configuration for the generative-JSCC prototype (a small DiT-JSCC).
+
+One dataclass covers both model families trained on the cached data:
+
+    model="dit"   semantic + detail JSCC encoders, a conditional DiT receiver (the prototype)
+    model="cnn"   the repo's CNN deep JSCC at the same bandwidth (the MSE baseline)
+
+The SNR switch mirrors the blind-JSCC arms, so the same matched contrasts apply:
+
+    snr_mode="fixed"   a specialist: trained at one SNR, the receiver is not told it
+    snr_mode="snr"     one model for U[min, max], the receiver is told the SNR    (like B)
+    snr_mode="blank"   identical architecture, the SNR slot holds a constant      (like C-att)
+"""
+
+from __future__ import annotations
+
+import dataclasses
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any
+
+import yaml
+
+#: DiT sizes from Peebles & Xie (2023), table 1: (depth, hidden, heads).
+DIT_SIZES = {"S": (12, 384, 6), "B": (12, 768, 12), "L": (24, 1024, 16)}
+SNR_MODES = ("fixed", "snr", "blank")
+
+
+@dataclass
+class GenConfig:
+    # --- identity
+    name: str = "gen-p128"
+    seed: int = 0
+    out_dir: str = "results/gen/p128"
+    model: str = "dit"  # "dit" | "cnn"
+
+    # --- data (built once by semcom.gen.data.prepare and cached)
+    dataset: str = "imagenette"
+    data_root: str = "data"
+    image_size: int = 128
+    dino_model: str = "dinov2_vitb14"
+    dino_input: int = 224  # DINOv2 sees the image at this size; 224 / 14 = 16 patches a side
+    vae_model: str = "stabilityai/sd-vae-ft-ema"
+    vae_scale: float = 0.18215  # Stable Diffusion's latent scaling factor
+    # Tiny fixed random stand-ins for the VAE and DINOv2 (semcom.gen.frozen): offline tests only.
+    fake_frozen: bool = False
+
+    # --- bandwidth. Both branches emit an (image_size/16)^2 grid; channels pair into I/Q.
+    c_sem: int = 8  # semantic channels per grid cell -> k_s = grid^2 * c_sem / 2
+    c_det: int = 24  # detail channels per grid cell  -> k_d = grid^2 * c_det / 2
+    det_hidden: int = 128  # width of the detail encoder
+    cnn_c_out: int = 2  # CNN baseline: k = (image_size/4)^2 * c_out / 2
+    cnn_hidden: int = 256
+
+    # --- channel and SNR
+    channel: str = "awgn"
+    avg_power: float = 1.0
+    snr_mode: str = "fixed"
+    snr_train_fixed: float | None = 0.0
+    snr_train_min: float = -5.0
+    snr_train_max: float = 5.0
+
+    # --- DiT receiver
+    dit_size: str = "S"
+    patch_size: int = 2
+    cond_blocks_sem: int = 3  # blocks that take the semantic symbols (coarse)
+    cond_blocks_det: int = 3  # the following blocks take the detail symbols (fine)
+    cfg_dropout: float = 0.1  # drop all received symbols with this probability (for CFG)
+
+    # --- diffusion
+    num_timesteps: int = 1000
+    beta_start: float = 1e-4
+    beta_end: float = 0.02
+
+    # --- optimisation (iterations, not epochs: diffusion training is step-budgeted)
+    lr: float = 1e-4
+    weight_decay: float = 0.0
+    warmup_steps: int = 1000
+    batch_size: int = 64
+    steps: int = 50_000
+    ema_decay: float = 0.9999
+    grad_clip: float = 1.0
+    num_workers: int = 2
+    amp: bool = True
+    # Stop cleanly (checkpoint saved, no history.json) after this many hours, so a run that
+    # would outlive a Kaggle session resumes in the next job instead of being killed. None: off.
+    max_hours: float | None = None
+
+    # --- correctness checks (semcom.gen.checks)
+    sanity: bool = True  # pre-flight data / VAE-ceiling / overfit checks before step 1
+    sanity_steps: int = 150  # optimiser steps of the one-batch overfit check
+    val_quality_images: int = 32  # val images reconstructed at every validation pass
+    max_bad_steps: int = 100  # abort after this many consecutive non-finite losses
+
+    # --- evaluation
+    eval_snrs: list[float] = field(default_factory=lambda: [-5.0, 0.0, 5.0])
+    sample_steps: list[int] = field(default_factory=lambda: [50, 20, 10])
+    cfg_scale: float = 1.0
+    eval_images: int = 1000  # test images per SNR point; None-like 0 means all
+    eval_batch: int = 50
+    val_every: int = 2_000  # steps between validation-loss passes
+    sample_every: int = 10_000  # steps between sample grids
+    ckpt_every: int = 2_000
+
+    # --- logging
+    wandb: bool = True
+    wandb_project: str = "gen-jscc"
+    wandb_entity: str | None = None
+    wandb_mode: str = "online"
+    log_every: int = 100
+
+    def __post_init__(self):
+        if self.model not in ("dit", "cnn"):
+            raise ValueError(f"model must be 'dit' or 'cnn', got {self.model!r}")
+        if self.snr_mode not in SNR_MODES:
+            raise ValueError(f"snr_mode must be one of {SNR_MODES}, got {self.snr_mode!r}")
+        if self.snr_mode == "fixed" and self.snr_train_fixed is None:
+            raise ValueError("snr_mode='fixed' needs snr_train_fixed")
+        if self.snr_mode != "fixed" and self.snr_train_min > self.snr_train_max:
+            raise ValueError("snr_train_min must not exceed snr_train_max")
+        if self.image_size % 16 != 0:
+            raise ValueError(f"image_size must be divisible by 16, got {self.image_size}")
+        if self.c_sem % 2 or self.c_det % 2 or self.cnn_c_out % 2:
+            raise ValueError("channel counts must be even to pair into (I, Q)")
+        if self.dit_size not in DIT_SIZES:
+            raise ValueError(f"dit_size must be one of {sorted(DIT_SIZES)}")
+        depth = DIT_SIZES[self.dit_size][0]
+        if self.cond_blocks_sem + self.cond_blocks_det > depth:
+            raise ValueError("more conditional blocks than DiT blocks")
+        if (self.image_size // 8) % self.patch_size:
+            raise ValueError("VAE latent size must be divisible by patch_size")
+
+    # --- derived quantities
+    @property
+    def grid(self) -> int:
+        """Side of the symbol grid both DiT branches emit (one cell per 16x16 pixels)."""
+        return self.image_size // 16
+
+    @property
+    def k_sem(self) -> int:
+        return self.grid**2 * self.c_sem // 2
+
+    @property
+    def k_det(self) -> int:
+        return self.grid**2 * self.c_det // 2
+
+    @property
+    def k(self) -> int:
+        """Complex channel symbols per image."""
+        if self.model == "cnn":
+            return (self.image_size // 4) ** 2 * self.cnn_c_out // 2
+        return self.k_sem + self.k_det
+
+    @property
+    def source_dim(self) -> int:
+        return self.image_size**2 * 3
+
+    @property
+    def bandwidth_ratio(self) -> float:
+        return self.k / self.source_dim
+
+    @property
+    def arm(self) -> str:
+        if self.snr_mode == "fixed":
+            return f"spec{self.snr_train_fixed:g}"
+        return f"{'told' if self.snr_mode == 'snr' else 'blind'}{self.snr_train_min:g}to{self.snr_train_max:g}"
+
+    @property
+    def run_name(self) -> str:
+        """e.g. dit-S_cbr48_spec0_s0, dit-S_cbr48_blind-5to5_s0, cnn_cbr48_spec0_s0."""
+        family = f"dit-{self.dit_size}" if self.model == "dit" else "cnn"
+        parts = [family, f"cbr{round(1 / self.bandwidth_ratio)}", self.arm]
+        if self.channel != "awgn":
+            parts.append(self.channel)
+        parts.append(f"s{self.seed}")
+        return "_".join(parts)
+
+    @property
+    def run_dir(self) -> Path:
+        return Path(self.out_dir) / self.run_name
+
+    @property
+    def cache_dir(self) -> Path:
+        dino = "fake" if self.fake_frozen else self.dino_model.replace("dinov2_", "")
+        return Path(self.data_root) / "gen_cache" / f"{self.dataset}_{self.image_size}_{dino}"
+
+    DERIVED_KEYS = ("arm", "k", "k_sem", "k_det", "bandwidth_ratio", "run_name")
+
+    def to_dict(self) -> dict[str, Any]:
+        d = dataclasses.asdict(self)
+        d.update(
+            arm=self.arm, k=self.k, k_sem=self.k_sem, k_det=self.k_det,
+            bandwidth_ratio=self.bandwidth_ratio, run_name=self.run_name,
+        )
+        return d
+
+    def replace(self, **kw) -> "GenConfig":
+        return dataclasses.replace(self, **kw)
+
+    @classmethod
+    def from_yaml(cls, path: str | Path, **overrides) -> "GenConfig":
+        with open(path, "r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+        for key in cls.DERIVED_KEYS:
+            data.pop(key, None)
+        known = {f.name for f in dataclasses.fields(cls)}
+        unknown = set(data) - known
+        if unknown:
+            raise ValueError(f"unknown config keys in {path}: {sorted(unknown)}")
+        data.update({k: v for k, v in overrides.items() if v is not None})
+        return cls(**data)
+
+    def save(self, path: str | Path) -> None:
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(self.to_dict(), f, sort_keys=True)

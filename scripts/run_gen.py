@@ -1,0 +1,110 @@
+"""Run generative-JSCC prototype plans: build the data cache, train, evaluate. Resumable.
+
+    python scripts/run_gen.py --stage smoke                      # offline, CPU, ~minutes
+    python scripts/run_gen.py --stage week1 --evaluate           # CNN + DiT-S specialists at 0 dB
+    python scripts/run_gen.py --stage week2 --evaluate           # 3 specialists + told + blind
+    python scripts/run_gen.py --models dit --arms told blind --seeds 0 --steps 40000 --evaluate
+
+Arms: spec<SNR> (a specialist trained at that SNR, e.g. spec0, spec-5), told (one model for
+U[min, max] with the SNR in its slot), blind (the same model with a constant in the slot).
+
+Finished runs (history.json present) are skipped; unfinished ones resume from checkpoint.pt.
+Runs within one comparison should use the same GPU type, as in the blind study.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from semcom.gen.config import GenConfig  # noqa: E402
+
+STAGES = {
+    "smoke": [("dit", "spec0"), ("cnn", "spec0"), ("dit", "blind")],
+    "week1": [("dit", "spec0"), ("cnn", "spec0")],
+    "week2": [("dit", "spec-5"), ("dit", "spec5"), ("dit", "told"), ("dit", "blind")],
+    "baselines": [("cnn", "spec-5"), ("cnn", "spec5"), ("cnn", "told"), ("cnn", "blind")],
+}
+
+#: Overrides for the smoke stage: synthetic data, stand-in frozen models, tiny everything.
+SMOKE = dict(
+    dataset="synthetic", fake_frozen=True, out_dir="results/gen/smoke", steps=30, batch_size=8,
+    warmup_steps=5, val_every=15, sample_every=30, ckpt_every=15, log_every=10, num_workers=0,
+    eval_images=16, eval_batch=8, eval_snrs=[0.0], sample_steps=[5, 2], cnn_hidden=16,
+    det_hidden=16, wandb=False,
+)
+
+
+def arm_config(base: GenConfig, model: str, arm: str, seed: int) -> GenConfig:
+    if arm.startswith("spec"):
+        return base.replace(model=model, snr_mode="fixed", snr_train_fixed=float(arm[4:]), seed=seed)
+    if arm in ("told", "blind"):
+        return base.replace(model=model, snr_mode="snr" if arm == "told" else "blank", seed=seed)
+    raise ValueError(f"unknown arm {arm!r}: spec<SNR>, told or blind")
+
+
+def main() -> None:
+    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    p.add_argument("--config", type=Path, default=Path("configs/gen/p128.yaml"))
+    p.add_argument("--stage", choices=sorted(STAGES), default=None)
+    p.add_argument("--models", nargs="+", choices=["dit", "cnn"], default=None)
+    p.add_argument("--arms", nargs="+", default=None)
+    p.add_argument("--seeds", nargs="+", type=int, default=[0])
+    p.add_argument("--steps", type=int, default=None, help="training steps per run")
+    p.add_argument("--dit-size", choices=["S", "B", "L"], default=None)
+    p.add_argument("--batch-size", type=int, default=None)
+    p.add_argument("--max-hours", type=float, default=None, help="per-run wall-clock budget")
+    p.add_argument("--eval-images", type=int, default=None)
+    p.add_argument("--out-dir", default=None)
+    p.add_argument("--data-root", default=None)
+    p.add_argument("--wandb-mode", choices=["online", "offline", "disabled"], default=None)
+    p.add_argument("--evaluate", action="store_true", help="evaluate each run after training")
+    p.add_argument("--dry-run", action="store_true")
+    args = p.parse_args()
+
+    overrides = {"steps": args.steps, "dit_size": args.dit_size, "batch_size": args.batch_size,
+                 "max_hours": args.max_hours, "eval_images": args.eval_images,
+                 "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode}
+    if args.stage == "smoke":
+        overrides = {**SMOKE, **{k: v for k, v in overrides.items() if v is not None}}
+    base = GenConfig.from_yaml(args.config, **overrides)
+
+    if args.stage:
+        pairs = STAGES[args.stage]
+    elif args.models and args.arms:
+        pairs = [(m, a) for m in args.models for a in args.arms]
+    else:
+        p.error("give --stage, or both --models and --arms")
+    cfgs = [arm_config(base, m, a, s) for s in args.seeds for m, a in pairs]
+
+    names = [c.run_name for c in cfgs]
+    if len(set(names)) != len(names):
+        raise SystemExit("run-name collision in the plan; refusing to run")
+    print(f"{len(cfgs)} runs (steps={base.steps}, dataset={base.dataset}, cache={base.cache_dir}):")
+    for c in cfgs:
+        state = "done " if (c.run_dir / "history.json").exists() else (
+            "part " if (c.run_dir / "checkpoint.pt").exists() else "     ")
+        print(f"  {state}{c.run_name:34s} k={c.k} -> {c.run_dir}")
+    if args.dry_run:
+        return
+
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    for i, cfg in enumerate(cfgs, 1):
+        print(f"\n--- [{i}/{len(cfgs)}] {cfg.run_name}", flush=True)
+        if not (cfg.run_dir / "history.json").exists():
+            if train(cfg) is None:
+                print("stopped by max_hours; rerun the same plan to resume")
+                continue
+        else:
+            print("already trained; skipping")
+        if args.evaluate and not (cfg.run_dir / "eval.json").exists():
+            evaluate_run(cfg.run_dir, external=cfg.dataset != "synthetic")
+
+
+if __name__ == "__main__":
+    main()

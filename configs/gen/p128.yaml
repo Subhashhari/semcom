@@ -1,0 +1,58 @@
+# Generative-JSCC prototype: a small DiT-JSCC at 128x128 on Imagenette (docs/proposal/gen-jscc-prototype.md).
+#
+# Bandwidth: both branches emit an 8x8 grid (128 / 16). c_sem = 8 and c_det = 24 give
+# k_s = 256 and k_d = 768 complex symbols, k = 1024 = 1/48 of the 49,152 source values,
+# the bandwidth ratio of DiT-JSCC's headline table. The CNN baseline matches it with c_out = 2.
+#
+# scripts/run_gen.py sets the model, SNR mode, SNR and seed per run.
+
+name: gen-p128
+seed: 0
+out_dir: results/gen/p128
+model: dit
+
+dataset: imagenette
+data_root: data
+image_size: 128
+dino_model: dinov2_vitb14
+dino_input: 224
+vae_model: stabilityai/sd-vae-ft-ema
+
+c_sem: 8
+c_det: 24
+det_hidden: 128
+cnn_c_out: 2
+cnn_hidden: 256
+
+channel: awgn
+snr_mode: fixed
+snr_train_fixed: 0.0
+snr_train_min: -5.0
+snr_train_max: 5.0
+
+dit_size: S
+patch_size: 2
+cond_blocks_sem: 3
+cond_blocks_det: 3
+cfg_dropout: 0.1
+
+lr: 0.0001
+warmup_steps: 1000
+batch_size: 64
+steps: 40000
+ema_decay: 0.9999
+num_workers: 2
+amp: true
+
+eval_snrs: [-5.0, 0.0, 5.0]
+sample_steps: [50, 20, 10]
+cfg_scale: 1.0
+eval_images: 1000
+eval_batch: 50
+val_every: 2000
+sample_every: 10000
+ckpt_every: 2000
+
+wandb: true
+wandb_project: gen-jscc
+wandb_mode: online

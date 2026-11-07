@@ -1,4 +1,22 @@
-# Blind deep JSCC
+# Deep JSCC: blind decoding and generative receivers
+
+## Current work (Nov 2026): a small DiT-JSCC with an SNR slot
+
+One generative receiver, told the
+SNR or blind, against per-SNR specialists. Design, novelty position, gate and schedule:
+[`docs/proposal/gen-jscc-prototype.md`](docs/proposal/gen-jscc-prototype.md). Code in `semcom/gen/`.
+
+```bash
+pip install -r requirements.txt diffusers lpips torch-fidelity
+pytest tests/test_gen.py -q
+python scripts/run_gen.py --stage smoke                  # offline CPU check
+python scripts/run_gen.py --stage week1 --evaluate       # DiT-S and CNN specialists at 0 dB
+python scripts/kaggle_jobs.py push g-w1 --runner gen --plan "--stage week1 --evaluate --max-hours 10"
+```
+
+The blind-JSCC study below is complete for week 1 (results in `results/blind/`).
+
+## Blind deep JSCC (previous study)
 
 Why deep joint source-channel coding (JSCC) decoders work without being told the SNR, which
 cue they use in its place, what that costs in model capacity, and **SI-JSCC-Q**: an
