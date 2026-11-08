@@ -245,7 +245,8 @@ def upload_runs(name: str, run_dirs: list[Path], user: str, token_file: Path | N
     """Upload local run folders as a private Kaggle dataset, flat, and return its id.
 
     Each file is stored as results__gen__..._s0__best.pt; the job runner restores the folders.
-    checkpoint.pt only if the run is unfinished (no history.json), to keep uploads small."""
+    checkpoint.pt only if the run is unfinished (no history.json), final.pt only without best.pt,
+    to keep uploads small."""
     import time
 
     folder = job_dir(name) / "dataset"
@@ -260,6 +261,8 @@ def upload_runs(name: str, run_dirs: list[Path], user: str, token_file: Path | N
         files = [f for f in RUN_FILES if (run / f).exists()]
         if (run / "history.json").exists():
             files = [f for f in files if f != "checkpoint.pt"]
+        if "best.pt" in files:  # evaluation reads best.pt (eval_checkpoint: best)
+            files = [f for f in files if f != "final.pt"]
         if not any(f.endswith(".pt") for f in files):
             raise SystemExit(f"{run}: no weights to upload")
         for f in files:
