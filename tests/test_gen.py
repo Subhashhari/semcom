@@ -562,3 +562,31 @@ def test_actual_energy_run_trains_and_evaluates_against_test_set_energy(tmp_path
     out = evaluate_run(cfg.run_dir, external=False)
     sym = out["symbols"]
     assert sym["power_ref"] == "actual" and "es_ref_trained" in sym and 0 < sym["qam_power"] < 2
+
+
+def test_kaggle_runner_restores_uploaded_run_folders(tmp_path):
+    """The job runner's restore step, run on a fake /kaggle/input of flat dataset files."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "scripts" / "kaggle_jobs.py"
+    spec = importlib.util.spec_from_file_location("kaggle_jobs", path)
+    kj = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(kj)
+    block = kj.RUNNER.split("# Local run folders")[1].split("try:")[0].split("\n", 1)[1]
+    inp, src = tmp_path / "input" / "ds", tmp_path / "src"
+    inp.mkdir(parents=True)
+    run = ("results", "gen", "p128", "dit-S-v_cbr48_blind-5to5_s0")
+    (inp / "__".join(run + ("best.pt",))).write_bytes(b"weights")
+    (inp / "__".join(run + ("config.yaml",))).write_text("from upload")
+    (src / Path(*run)).mkdir(parents=True)
+    (src / Path(*run) / "config.yaml").write_text("from git")  # tracked files are kept
+    (inp / "unrelated.txt").write_text("x")
+    import os
+    import shutil
+
+    exec(block.replace('"/kaggle/input"', repr(str(tmp_path / "input"))),
+         {"os": os, "shutil": shutil, "src": str(src)})
+    assert (src / Path(*run) / "best.pt").read_bytes() == b"weights"
+    assert (src / Path(*run) / "config.yaml").read_text() == "from git"
+    assert not (src / "unrelated.txt").exists()

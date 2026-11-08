@@ -89,6 +89,17 @@ for root, dirs, _ in os.walk("/kaggle/input"):
                     shutil.copy2(os.path.join(r2, f), os.path.join(src, rel, f))
         dirs.remove("results")
 
+# Local run folders uploaded as a private dataset (--input-run): files are stored flat, with the
+# path encoded as results__gen__..., because dataset uploads do not keep folders reliably.
+for root, _, files in os.walk("/kaggle/input"):
+    for f in files:
+        if f.startswith("results__"):
+            dest = os.path.join(src, *f.split("__"))
+            os.makedirs(os.path.dirname(dest), exist_ok=True)
+            if not os.path.exists(dest) or f.endswith(".pt"):
+                print("+ restore", dest, flush=True)
+                shutil.copy2(os.path.join(root, f), dest)
+
 try:
     for plan in PLANS:
         sh(sys.executable, SCRIPT, *plan, "--wandb-mode", "offline", cwd=src, env=env)
@@ -174,9 +185,19 @@ def cmd_push(args) -> None:
     for plan in plans:
         subprocess.run([sys.executable, script, *plan, "--dry-run"], cwd=ROOT, check=True)
     sources = [load_job(j)["kernel"] for j in args.input_job]
+    for j in args.input_job:
+        # Kaggle refuses the output of a session that ended in error as a kernel source, and the
+        # push then succeeds anyway with the input silently missing (g-w5 ran without g-w3's and
+        # g-w4's weights). Upload such runs with --input-run instead.
+        job = load_job(j)
+        status = kaggle("kernels", "status", job["kernel"], token_file=_token(job), capture=True)
+        if "complete" not in status.lower():
+            raise SystemExit(f"input job {j} did not complete ({status.strip()}); its output cannot be "
+                             "attached. Fetch it and pass the run folders with --input-run.")
 
     commit = pinned_commit()
     user = kaggle_username(args.token_file)
+    datasets = [upload_runs(args.name, args.input_run, user, args.token_file)] if args.input_run else []
     slug = f"{prefix}{args.name}".lower()
     folder = job_dir(args.name) / "kernel"
     if folder.exists():
@@ -195,22 +216,65 @@ def cmd_push(args) -> None:
         "enable_gpu": True,
         "enable_internet": True,
         "machine_shape": args.accelerator,
-        "dataset_sources": [],
+        "dataset_sources": datasets,
         "competition_sources": [],
         "kernel_sources": sources,
     }
     (folder / "kernel-metadata.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    kaggle("kernels", "push", "-p", str(folder), "--accelerator", args.accelerator,
-           token_file=args.token_file)
+    out = kaggle("kernels", "push", "-p", str(folder), "--accelerator", args.accelerator,
+                 token_file=args.token_file, capture=True)
+    print(out.strip())
+    if "not valid" in out.lower():
+        raise SystemExit("Kaggle dropped an input source (see above): the job is running without it")
     job = {
         "name": args.name, "kernel": meta["id"], "commit": commit, "runner": args.runner,
-        "plan": [a for p in plans for a in p + [";"]][:-1], "inputs": sources,
+        "plan": [a for p in plans for a in p + [";"]][:-1], "inputs": sources + datasets,
         "accelerator": args.accelerator,
         "token_file": str(args.token_file) if args.token_file else None,
     }
     (job_dir(args.name) / "job.json").write_text(json.dumps(job, indent=2), encoding="utf-8")
     print(f"pushed {meta['id']} at {commit[:7]} on {args.accelerator}")
     print(f"  https://www.kaggle.com/code/{meta['id']}")
+
+
+#: Files of a run folder worth uploading for evaluation or resumption (no wandb, no samples).
+RUN_FILES = ("best.pt", "final.pt", "checkpoint.pt", "config.yaml", "history.json", "sanity.json")
+
+
+def upload_runs(name: str, run_dirs: list[Path], user: str, token_file: Path | None) -> str:
+    """Upload local run folders as a private Kaggle dataset, flat, and return its id.
+
+    Each file is stored as results__gen__..._s0__best.pt; the job runner restores the folders.
+    checkpoint.pt only if the run is unfinished (no history.json), to keep uploads small."""
+    import time
+
+    folder = job_dir(name) / "dataset"
+    if folder.exists():
+        shutil.rmtree(folder)
+    folder.mkdir(parents=True)
+    for run in run_dirs:
+        run = Path(run).resolve()
+        rel = run.relative_to(ROOT)
+        if rel.parts[0] != "results":
+            raise SystemExit(f"{run}: --input-run folders must be under results/")
+        files = [f for f in RUN_FILES if (run / f).exists()]
+        if (run / "history.json").exists():
+            files = [f for f in files if f != "checkpoint.pt"]
+        if not any(f.endswith(".pt") for f in files):
+            raise SystemExit(f"{run}: no weights to upload")
+        for f in files:
+            shutil.copy2(run / f, folder / "__".join(rel.parts + (f,)))
+            print(f"  upload {rel / f}")
+    slug = f"gjscc-{name}-runs".lower()
+    (folder / "dataset-metadata.json").write_text(json.dumps(
+        {"title": slug, "id": f"{user}/{slug}", "licenses": [{"name": "CC0-1.0"}]}), encoding="utf-8")
+    kaggle("datasets", "create", "-p", str(folder), token_file=token_file)  # private by default
+    for _ in range(60):  # the dataset must be processed before a kernel can mount it
+        status = kaggle("datasets", "status", f"{user}/{slug}", token_file=token_file, capture=True)
+        if "ready" in status.lower():
+            return f"{user}/{slug}"
+        time.sleep(10)
+    raise SystemExit(f"dataset {user}/{slug} not ready after 10 minutes")
 
 
 def _token(job: dict) -> Path | None:
@@ -313,6 +377,9 @@ def main() -> None:
                       help='another run_blind.py plan run after the first, e.g. "--arms B --mods qam16 --seeds 0"')
     push.add_argument("--input-job", action="append", default=[],
                       help="attach an earlier job's output; its results/ are merged in before the plans run")
+    push.add_argument("--input-run", action="append", type=Path, default=[],
+                      help="upload a local run folder (weights, config) as a private dataset and restore it "
+                           "in the job; for runs whose job ended in error, which Kaggle cannot attach")
     push.set_defaults(func=cmd_push)
 
     for name, fn in (("status", cmd_status), ("fetch", cmd_fetch)):
