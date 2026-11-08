@@ -30,7 +30,8 @@ Reconstruction-quality rules, added after g-w1 (whose EMA weights sampled meanin
 while every loss looked healthy). They read the fixed validation batch's real reconstructions:
     quality_drop  PSNR (by > 0.5 dB) or DINOv2 similarity (by > 0.02) fell at two consecutive
                   validations, at step >= 4,000
-    unrelated     DiT only, SNR >= 0 only: DINOv2 similarity below 0.1 at step >= 10,000, outputs
+    unrelated     DiT only, SNR >= 0 only: DINOv2 similarity below 0.1 and not rising (by > 0.005
+                  since the previous validation) at step >= 10,000, outputs
                   unrelated to the inputs (the VAE alone scores 0.77, an unrelated real photo 0.34,
                   flat grey 0.0; at -5 dB even healthy models score ~0.04)
     zscale        sampled latents' spread outside 0.5-2x the true latents' at step >= 4,000
@@ -137,8 +138,12 @@ def quality_alerts(run, vals: list[dict]) -> list[tuple[str, str]]:
         # matching their inputs (g-w1 CNN at 18-19 dB: 0.05-0.10). Only at SNR >= 0: at -5 dB a
         # healthy model scores ~0.04 (g-w2's 0 dB model and g-w3's -5 dB specialist alike), so
         # there only the quality_drop trend applies.
+        # And only while it is not improving: g-w4's 16-QAM model lagged the analog one (0.082 at
+        # 10k, effectively at -1.9 dB) but was rising; g-w1's broken EMA fell 0.022 -> -0.016.
+        seq_d = [v[key] for v in vals if key in v]
+        rising = len(seq_d) >= 2 and seq_d[-1] > seq_d[-2] + 0.005
         if (key.startswith("dino@") and str(run).startswith("dit") and float(key.split("@")[1]) >= 0
-                and step >= 10_000 and last[key] < 0.1):
+                and step >= 10_000 and last[key] < 0.1 and not rising):
             out.append((f"unrelated:{run}:{key}:{step}",
                         f"{run} step {step:.0f}: {key}={last[key]:.3f}, outputs unrelated to the inputs"))
         raw = last.get("raw_" + key)

@@ -88,7 +88,14 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
             stats.append(symbol_stats(model, batch))
         symbols = {k: float(np.mean([st[k] for st in stats])) for k in stats[0]}
         symbols.update(on_constellation=True, modulation_order=cfg.modulation_order)
-        print(f"SYMBOLS run={cfg.run_name} " + kv(**{k: v for k, v in symbols.items() if k != "on_constellation"}),
+        symbols["power_ref"] = cfg.power_ref
+        if hasattr(model, "es_ref"):
+            # SNR against the energy actually sent: one constant for the whole evaluation,
+            # measured on these test images (equal-size batches, so the batch mean is the mean).
+            symbols["es_ref_trained"] = model.es_ref.item()
+            model.es_ref.fill_(symbols["qam_power"])
+        print(f"SYMBOLS run={cfg.run_name} " + kv(**{k: v for k, v in symbols.items()
+                                                    if k not in ("on_constellation", "power_ref")}),
               flush=True)
     for snr in snrs:
         for steps in steps_list:

@@ -76,6 +76,13 @@ class GenConfig:
     sigma_q_init: float | None = None
     anneal_period: int | None = None  # None: no annealing; 10_000 reproduces DeepJSCC-Q's schedule
     kl_weight: float = 0.05  # weight of KL(symbol usage || uniform), training only
+    # What the SNR is measured against, digital only. "actual": Es/N0 with Es the energy the symbols
+    # really carry (the batch mean in training; at evaluation one constant measured on the test
+    # set, i.e. a fixed constellation scaled by one amplifier gain). "nominal": Es = 1, the
+    # constellation's energy under uniform use, DeepJSCC-Q's convention; clipping onto the outer
+    # points then makes the encoder send less energy (0.83 in g-w4), a hidden SNR handicap.
+    # Default "nominal" so configs saved before this option (g-w4) load unchanged.
+    power_ref: str = "nominal"
 
     # --- DiT receiver
     dit_size: str = "S"
@@ -147,6 +154,8 @@ class GenConfig:
             raise ValueError("snr_mode='fixed' needs snr_train_fixed")
         if self.snr_mode != "fixed" and self.snr_train_min > self.snr_train_max:
             raise ValueError("snr_train_min must not exceed snr_train_max")
+        if self.power_ref not in ("nominal", "actual"):
+            raise ValueError(f"power_ref must be 'nominal' or 'actual', got {self.power_ref!r}")
         if self.digital:
             m, side = self.modulation_order, round(self.modulation_order ** 0.5)
             if m < 4 or m & (m - 1) or side * side != m:

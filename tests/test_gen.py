@@ -343,6 +343,11 @@ def test_watcher_quality_rules_catch_g_w1():
                 "cond_gain": 0.2, "psnr@-5": 15.0 + 0.05 * i, "dino@-5": 0.035 + 0.002 * i}
                for i, s in enumerate(range(2000, 12_001, 2000))]
     assert {k.split(":")[0] for k, _ in w.check(spec_m5, "")} == set()
+    # g-w4's 16-QAM specialist: behind the analog one but still improving, so not "unrelated".
+    qam = [(2000, 15.2, 0.03), (4000, 15.6, 0.05), (6000, 15.89, 0.064), (8000, 16.0, 0.073),
+           (10000, 16.16, 0.082)]
+    assert "unrelated" not in keys(qam)
+    assert "unrelated" in keys(qam + [(12000, 16.2, 0.083)])  # stalled below 0.1
 
 
 def test_ema_decay_ramps_up_to_its_cap():
@@ -481,3 +486,79 @@ def test_watcher_flags_codebook_collapse():
     vals.append({**vals[-1], "step": 6000, "qam_usage": 0.4})
     assert [k for k, _ in w.check(vals, "") if k.startswith("collapse")]
     assert w.parse_line("SYMBOLS run=x qam_usage=0.9")["kind"] == "SYMBOLS"
+
+
+def test_downloads_are_retried_then_give_up():
+    from semcom.gen.frozen import retry
+
+    calls = []
+
+    def flaky():
+        calls.append(1)
+        if len(calls) < 3:
+            raise OSError("HTTP Error 504: Gateway Time-out")
+        return "ok"
+
+    assert retry(flaky, "x", wait=0) == "ok" and len(calls) == 3
+    with pytest.raises(OSError):
+        retry(lambda: (_ for _ in ()).throw(OSError("down")), "x", tries=2, wait=0)
+
+
+def _batch(cfg, n=8):
+    from semcom.gen.data import CachedSplit, prepare
+
+    prepare(cfg)
+    items = [CachedSplit(cfg.cache_dir, "val")[i] for i in range(n)]
+    return {k: torch.stack([it[k] for it in items]) for k in ("image", "latent", "dino")}
+
+
+@pytest.mark.parametrize("power_ref", ["nominal", "actual"])
+def test_digital_snr_refers_to_the_chosen_energy(tmp_path, power_ref):
+    from semcom.gen.model import from_symbols
+
+    cfg = tiny(tmp_path, digital=True, power_ref=power_ref, c_sem=64, c_det=64)  # many symbols
+    batch = _batch(cfg)
+    m = GenJSCC(cfg, 32)
+    snr = torch.full((8,), 3.0)
+    for training in (True, False):
+        m.train(training)
+        z_s, z_d = m.transmit(batch)
+        es = torch.cat([z_s, z_d], 1).pow(2).sum(-1).mean().item()
+        y_s, _ = m.received(batch, snr)
+        noise = (y_s - from_symbols(z_s, cfg.c_sem, cfg.grid)).pow(2).sum(1).mean().item() * 2 / cfg.c_sem
+        ref = 1.0 if power_ref == "nominal" else (es if training else m.es_ref.item())
+        assert noise == pytest.approx(ref * 10 ** -0.3, rel=0.05)
+    if power_ref == "actual":
+        assert m.es_ref.item() != 1.0  # the running estimate moved toward the energy sent
+    else:
+        assert not hasattr(m, "es_ref")
+
+
+def test_analog_models_keep_their_state_dict(tmp_path):
+    cfg = tiny(tmp_path, power_ref="actual")  # no effect without digital
+    assert "es_ref" not in GenJSCC(cfg, 32).state_dict()
+    assert not [k for k in CNNBaseline(cfg.replace(model="cnn")).state_dict() if "es_ref" in k]
+
+
+def test_ema_copies_buffers(tmp_path):
+    import copy
+
+    from semcom.gen.train import update_ema
+
+    m = GenJSCC(tiny(tmp_path, digital=True, power_ref="actual"), 32)
+    ema = copy.deepcopy(m)
+    m.es_ref.fill_(0.8)
+    update_ema(ema, m, 0.999)
+    assert ema.es_ref.item() == pytest.approx(0.8)
+
+
+@pytest.mark.parametrize("model", ["dit", "cnn"])
+def test_actual_energy_run_trains_and_evaluates_against_test_set_energy(tmp_path, model):
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cfg = tiny(tmp_path, model=model, digital=True, power_ref="actual", prediction="v")
+    train(cfg)
+    out = evaluate_run(cfg.run_dir, external=False)
+    sym = out["symbols"]
+    assert sym["power_ref"] == "actual" and "es_ref_trained" in sym and 0 < sym["qam_power"] < 2

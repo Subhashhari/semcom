@@ -59,6 +59,10 @@ def ema_decay(cfg: GenConfig, step: int) -> float:
 def update_ema(ema: torch.nn.Module, model: torch.nn.Module, decay: float) -> None:
     for e, p in zip(ema.parameters(), model.parameters()):
         e.lerp_(p.detach(), 1 - decay)
+    # Buffers are copied, not averaged: the transmitted-energy reference (es_ref) and the
+    # quantiser's temperature state follow the trained model.
+    for e, b in zip(ema.buffers(), model.buffers()):
+        e.copy_(b)
 
 
 @torch.no_grad()

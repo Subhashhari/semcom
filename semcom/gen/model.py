@@ -121,6 +121,34 @@ def quantise(q: SoftToHardQuantiser, *zs: torch.Tensor) -> tuple[list[torch.Tens
     return list(out.split(sizes, dim=1)), kl
 
 
+#: Momentum of the running transmitted-energy estimate (es_ref) kept during training.
+ES_MOMENTUM = 0.99
+
+
+class EnergyReference:
+    """Mixin for digital models with power_ref="actual": the channel noise is scaled to the energy
+    the symbols really carry, so the SNR is Es/N0 for the transmitted signal.
+
+    Training uses the batch's mean symbol energy (detached: a fixed function of the signal, not
+    something the encoder can trade against noise; scaling both together changes nothing anyway)
+    and keeps a running estimate in the `es_ref` buffer. Evaluation uses `es_ref`, one constant,
+    which semcom.gen.evaluate re-measures on the test images before scoring."""
+
+    def _init_energy(self, cfg: GenConfig) -> None:
+        if cfg.digital and cfg.power_ref == "actual":
+            self.register_buffer("es_ref", torch.tensor(1.0))
+
+    def signal_energy(self, z: torch.Tensor):
+        """Energy the SNR refers to, for transmitted symbols z (B, k, 2)."""
+        if not hasattr(self, "es_ref"):
+            return self.cfg.avg_power
+        if self.training:
+            es = z.detach().float().pow(2).sum(-1).mean()
+            self.es_ref.lerp_(es, 1 - ES_MOMENTUM)
+            return es
+        return self.es_ref
+
+
 def snr_input(cfg: GenConfig, snr_db: torch.Tensor) -> torch.Tensor | None:
     """What fills the receiver's SNR slot: nothing (specialist), the SNR, or a constant (blind)."""
     if cfg.snr_mode == "fixed":
@@ -130,7 +158,7 @@ def snr_input(cfg: GenConfig, snr_db: torch.Tensor) -> torch.Tensor | None:
     return torch.zeros_like(snr_db)
 
 
-class GenJSCC(nn.Module):
+class GenJSCC(EnergyReference, nn.Module):
     def __init__(self, cfg: GenConfig, dino_dim: int):
         super().__init__()
         self.cfg = cfg
@@ -146,6 +174,7 @@ class GenJSCC(nn.Module):
         self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction)
         self.quantiser = make_quantiser(cfg)
         self._kl = None
+        self._init_energy(cfg)
 
     def transmit(self, batch: dict) -> tuple[torch.Tensor, torch.Tensor]:
         """Channel inputs (z_sem, z_det), each (B, k, 2) at unit average power; exact M-QAM points
@@ -164,8 +193,9 @@ class GenJSCC(nn.Module):
         """Received symbol grids (y_sem, y_det) after the channel."""
         cfg, g = self.cfg, self.cfg.grid
         z_s, z_d = self.transmit(batch)
-        y_s = channel(z_s, snr_db, cfg.channel, cfg.avg_power, generator)
-        y_d = channel(z_d, snr_db, cfg.channel, cfg.avg_power, generator)
+        es = self.signal_energy(torch.cat([z_s, z_d], dim=1))
+        y_s = channel(z_s, snr_db, cfg.channel, es, generator)
+        y_d = channel(z_d, snr_db, cfg.channel, es, generator)
         return from_symbols(y_s, cfg.c_sem, g), from_symbols(y_d, cfg.c_det, g)
 
     def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
@@ -211,7 +241,7 @@ class GenJSCC(nn.Module):
         return vae.decode(z.float())
 
 
-class CNNBaseline(nn.Module):
+class CNNBaseline(EnergyReference, nn.Module):
     """The repo's CNN deep JSCC (semcom.models.JSCC) at the same bandwidth, MSE-trained on pixels.
 
     snr_mode maps onto the blind-study decoder inputs: fixed -> no AF modules (specialist),
@@ -229,6 +259,7 @@ class CNNBaseline(nn.Module):
                          decoder_input=dec, digital=cfg.digital, modulation_order=cfg.modulation_order,
                          sigma_q_init=cfg.sigma_q, anneal_period=anneal_period(cfg))
         self._kl = None
+        self._init_energy(cfg)
 
     @property
     def quantiser(self) -> SoftToHardQuantiser | None:
@@ -240,9 +271,13 @@ class CNNBaseline(nn.Module):
 
     def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
         x = batch["image"]
-        out = self.jscc(x, snr_db)
-        mse = F.mse_loss(out["x_hat"].float(), x)
-        self._kl = out["kl"] if self.quantiser is not None else None
+        if snr_db.dim() == 0:
+            snr_db = snr_db.expand(x.shape[0])
+        # The JSCC's own forward pass, with this module's channel so the SNR reference applies.
+        z = self.jscc.transmit(x, snr_db)
+        self._kl = self.quantiser.kl_to_uniform() if self.quantiser is not None else None
+        y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z))
+        mse = F.mse_loss(self.jscc.decode(y, snr_db, z).float(), x)
         return {**with_kl(self, mse), "pixel_mse": mse.detach()}
 
     @torch.no_grad()
@@ -250,7 +285,7 @@ class CNNBaseline(nn.Module):
                     eta=0.0, cfg_scale=1.0) -> torch.Tensor:
         x = batch["image"]
         z = self.jscc.transmit(x, snr_db)
-        y = channel(z, snr_db, self.cfg.channel, self.cfg.avg_power, channel_gen)
+        y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z), channel_gen)
         return self.jscc.decode(y, snr_db, z).float().clamp(0, 1)
 
 

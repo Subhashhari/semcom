@@ -29,6 +29,10 @@ snr_mode: fixed
 snr_train_fixed: 0.0
 snr_train_min: -5.0
 snr_train_max: 5.0
+# Digital runs (--qam M): SNR against the energy the QAM symbols actually carry (Es/N0), as for the
+# analog runs, whose per-image power is exactly 1. g-w4 used "nominal" (Es = 1): clipping onto the
+# outer points left it sending 0.83, an unstated 0.8 dB handicap.
+power_ref: actual
 
 dit_size: S
 patch_size: 2

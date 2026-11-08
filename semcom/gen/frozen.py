@@ -11,6 +11,8 @@ offline on a CPU.
 
 from __future__ import annotations
 
+import time
+
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -19,6 +21,21 @@ IMAGENET_MEAN = (0.485, 0.456, 0.406)
 IMAGENET_STD = (0.229, 0.224, 0.225)
 DINO_DIMS = {"dinov2_vits14": 384, "dinov2_vitb14": 768, "dinov2_vitl14": 1024}
 FAKE_DINO_DIM = 32
+
+
+def retry(fn, what: str, tries: int = 5, wait: float = 15.0):
+    """Call fn(), retrying network failures with growing waits (15, 30, 60, 120 s).
+
+    Every job downloads its frozen models and data; a transient GitHub 504 killed probe job g-p1
+    before training started."""
+    for i in range(tries):
+        try:
+            return fn()
+        except Exception as exc:  # noqa: BLE001 - any download failure is worth a retry
+            if i == tries - 1:
+                raise
+            print(f"{what}: {type(exc).__name__}: {exc}; retrying in {wait * 2**i:.0f} s", flush=True)
+            time.sleep(wait * 2**i)
 
 
 class FrozenVAE(nn.Module):
@@ -31,7 +48,8 @@ class FrozenVAE(nn.Module):
         super().__init__()
         from diffusers import AutoencoderKL
 
-        self.vae = AutoencoderKL.from_pretrained(model_id).eval().requires_grad_(False)
+        self.vae = retry(lambda: AutoencoderKL.from_pretrained(model_id), "VAE download")
+        self.vae = self.vae.eval().requires_grad_(False)
         self.scale = scale
 
     @torch.no_grad()
@@ -51,7 +69,11 @@ class FrozenDINO(nn.Module):
 
     def __init__(self, model_name: str, input_size: int):
         super().__init__()
-        self.model = torch.hub.load("facebookresearch/dinov2", model_name).eval().requires_grad_(False)
+        # An explicit ref and no validation: torch.hub otherwise asks github.com for the default
+        # branch and the repo's fork status on every load, which is what returned the 504.
+        self.model = retry(lambda: torch.hub.load("facebookresearch/dinov2:main", model_name, trust_repo=True,
+                                                  skip_validation=True), "DINOv2 download")
+        self.model = self.model.eval().requires_grad_(False)
         self.dim = DINO_DIMS[model_name]
         self.input_size = input_size
         self.register_buffer("mean", torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1))

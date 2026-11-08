@@ -48,8 +48,12 @@ def _download_imagenette(root: Path) -> Path:
     root.mkdir(parents=True, exist_ok=True)
     archive = root / "imagenette2-320.tgz"
     if not archive.exists():
+        from .frozen import retry
+
         print(f"downloading {IMAGENETTE_URL}", flush=True)
-        urllib.request.urlretrieve(IMAGENETTE_URL, archive)
+        part = archive.with_suffix(".part")  # a failed transfer never leaves a truncated archive
+        retry(lambda: urllib.request.urlretrieve(IMAGENETTE_URL, part), "Imagenette download")
+        part.replace(archive)
     with tarfile.open(archive) as tar:
         try:
             tar.extractall(root, filter="data")  # refuses absolute paths and links out
