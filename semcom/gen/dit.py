@@ -2,7 +2,7 @@
 
 Follows the DiT reference design (Peebles & Xie, 2023): patchify the VAE latent, a stack of
 transformer blocks modulated by adaLN-Zero from the conditioning vector, a modulated final
-layer that predicts the noise. Two additions from DiT-JSCC (Tan et al., arXiv:2601.03112):
+layer that predicts the diffusion target (noise or velocity, semcom.gen.diffusion). Two additions from DiT-JSCC (Tan et al., arXiv:2601.03112):
 
 * **Channel fusion.** The received symbols, laid out on the token grid, pass through a small
   adapter and are fused into the token stream by concatenation and projection, rather than
@@ -12,7 +12,7 @@ layer that predicts the noise. Two additions from DiT-JSCC (Tan et al., arXiv:26
   the next `cond_blocks_det` blocks the detail symbols; the rest see only the tokens.
 
 Deliberate simplifications against the paper, for a prototype that trains on one consumer GPU:
-no U-Net-style long skips, no learned variance (noise prediction only), trained from scratch
+no U-Net-style long skips, no learned variance (the output is the noise or velocity target only), trained from scratch
 rather than from a pretrained class-conditional DiT.
 
 The conditioning vector is the timestep embedding, plus an SNR embedding when the model has an
@@ -108,7 +108,7 @@ class CondAdapter(nn.Module):
 
 
 class ConditionalDiT(nn.Module):
-    """Predicts the noise in a VAE latent, guided by received semantic and detail symbols.
+    """Predicts the diffusion target (noise or velocity) for a VAE latent, guided by received semantic and detail symbols.
 
     Args:
         latent_size: side of the VAE latent (image_size / 8).
@@ -195,7 +195,7 @@ class ConditionalDiT(nn.Module):
         snr: torch.Tensor | None = None,
         drop: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Noise prediction, same shape as x_t.
+        """The diffusion target (noise or velocity), same shape as x_t.
 
         Args:
             y_sem, y_det: received symbol grids (B, c_sem, g, g) and (B, c_det, g, g).
