@@ -10,6 +10,7 @@ machine-readable lines the training and evaluation code print
     STEP run=... step= loss= gnorm= it_s= skipped=
     VAL  run=... step= val_loss= uncond= cond_gain= psnr@<snr>= dino@<snr>=
     EVAL run=... snr= steps= psnr= lpips= dino_sim= fid=
+    SYMBOLS run=... qam_usage= qam_kurtosis= qam_power=   (digital runs, at evaluation)
 
 appends new ones to .kaggle_jobs/<job>/metrics.jsonl, and checks the rules below. The watcher
 exits with a non-zero code on a new alert (so whoever launched it in the background is woken),
@@ -34,6 +35,10 @@ while every loss looked healthy). They read the fixed validation batch's real re
                   flat grey 0.0; at -5 dB even healthy models score ~0.04)
     zscale        sampled latents' spread outside 0.5-2x the true latents' at step >= 4,000
     ema_gap       the raw weights reconstruct > 2 dB better than the EMA at step >= 10,000
+
+Digital (M-QAM) runs:
+    collapse      symbol-usage entropy below half of log2(M) at step >= 4,000: the encoder uses only
+                  a few constellation points (an off-constellation symbol raises SanityError: error)
 """
 
 from __future__ import annotations
@@ -49,7 +54,7 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-LINE = re.compile(r"^(SANITY \w+|STEP|VAL|EVAL) (.*)$")
+LINE = re.compile(r"^(SANITY \w+|STEP|VAL|EVAL|SYMBOLS) (.*)$")
 ERRORS = ("Traceback (most recent call last)", "SanityError", "CUDA out of memory", "RuntimeError:")
 
 
@@ -140,6 +145,9 @@ def quality_alerts(run, vals: list[dict]) -> list[tuple[str, str]]:
         if key.startswith("psnr@") and raw is not None and step >= 10_000 and raw - last[key] > 2:
             out.append((f"ema_gap:{run}:{key}:{step}",
                         f"{run} step {step:.0f}: raw {key}={raw:.2f} vs EMA {last[key]:.2f}"))
+    if step >= 4000 and last.get("qam_usage", 1.0) < 0.5:
+        out.append((f"collapse:{run}:{step}", f"{run} step {step:.0f}: symbol usage {last['qam_usage']:.2f} "
+                    "of log2(M): the encoder uses few constellation points"))
     for key in [k for k in last if re.match(r"^(raw_)?zstd@", k)]:
         if step >= 4000 and not 0.5 <= last[key] <= 2.0:
             out.append((f"zscale:{run}:{key}:{step}",
@@ -149,7 +157,7 @@ def quality_alerts(run, vals: list[dict]) -> list[tuple[str, str]]:
 
 def summary(records: list[dict]) -> str:
     out = []
-    for kind in ("SANITY", "STEP", "VAL", "EVAL"):
+    for kind in ("SANITY", "STEP", "VAL", "EVAL", "SYMBOLS"):
         latest = {}
         for r in records:
             if r["kind"].startswith(kind):

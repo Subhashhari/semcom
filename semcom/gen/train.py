@@ -27,7 +27,7 @@ from pathlib import Path
 import torch
 
 from ..train import init_wandb, log
-from .checks import SanityError, check_data, kv, overfit_check, val_quality, vae_ceiling
+from .checks import SanityError, check_data, kv, overfit_check, symbol_stats, val_quality, vae_ceiling
 from .config import GenConfig
 from .data import cache_meta, loaders, prepare
 from .model import build_model, num_parameters
@@ -202,6 +202,10 @@ def train(cfg: GenConfig) -> dict | None:
         if use_amp and scaler.get_scale() < scale_before:
             skipped += 1  # inf/nan gradient: the scaler skipped this step
         update_ema(ema, model, ema_decay(cfg, step))
+        if model.quantiser is not None:
+            # The EMA copy's quantiser keeps its initial temperature, which only shapes gradients;
+            # its forward pass (the nearest point) is the same at any temperature.
+            model.quantiser.step_anneal()
         step += 1
         running += out["loss"].detach()
         gnorm_sum += torch.nan_to_num(gnorm.detach().float(), nan=0.0, posinf=0.0)
@@ -210,8 +214,11 @@ def train(cfg: GenConfig) -> dict | None:
             loss = (running / cfg.log_every).item()
             gn = (gnorm_sum / cfg.log_every).item()
             rate = cfg.log_every / (time.time() - t_log)
+            digital = {} if model.quantiser is None else {
+                "kl": out["kl"].item() if "kl" in out else 0.0, "sigma_q": model.quantiser.sigma_q.item()}
             print(f"STEP run={cfg.run_name} " + kv(step=step, loss=loss, gnorm=gn, lr=lr, it_s=rate,
-                                                   skipped=skipped, hours=(time.time() - t0) / 3600),
+                                                   skipped=skipped, hours=(time.time() - t0) / 3600,
+                                                   **digital),
                   flush=True)
             log(wandb_run, {"train/loss": loss, "train/grad_norm": gn, "train/lr": lr,
                             "train/it_per_s": rate, "train/skipped_steps": skipped}, step=step)
@@ -226,6 +233,7 @@ def train(cfg: GenConfig) -> dict | None:
             quality.update({f"raw_{k}": v for k, v in raw_quality.items()})
             quality["raw_val_loss"] = sum(v["loss"] for v in raw_val.values()) / len(raw_val)
             quality["ema_decay"] = ema_decay(cfg, step)
+            quality.update(symbol_stats(ema, quality_batch))
             entry = {"step": step, "val_loss": sum(v["loss"] for v in val.values()) / len(val),
                      "val_by_snr": val, "quality": quality, "skipped": skipped,
                      "hours": (time.time() - t0) / 3600}

@@ -19,6 +19,7 @@ ignores the channel still produces realistic images, so this is the check that m
 from __future__ import annotations
 
 import copy
+import math
 
 import torch
 import torch.nn.functional as F
@@ -132,3 +133,27 @@ def val_quality(model, cfg: GenConfig, batch: dict, vae, dino, snrs, steps: int 
         out[f"dino@{snr:g}"] = F.cosine_similarity(cls.float(), cls_hat.float(), dim=1).mean().item()
     model.train(was)
     return out
+
+
+@torch.no_grad()
+def symbol_stats(model, batch: dict) -> dict:
+    """Digital models only: what actually goes over the air for a fixed batch. Raises SanityError
+    if any symbol is off the constellation (the property the digital claim rests on).
+
+    qam_usage is the entropy of the symbol usage over log2(M): 1 when every point is used equally,
+    near 0 when the encoder has collapsed onto a few points. qam_power is the mean transmitted
+    energy per symbol (1 under uniform use; shaping toward the inner points lowers it)."""
+    q = model.quantiser
+    if q is None:
+        return {}
+    was = model.training
+    model.eval()
+    z = model.channel_input(batch).float()
+    model.train(was)
+    if not q.is_on_constellation(z):
+        raise SanityError("transmitted symbols are not exact constellation points")
+    from ..constellation import usage_statistics
+
+    st = usage_statistics(z, q.points)
+    return {"qam_usage": st["entropy_bits"] / math.log2(q.order), "qam_kurtosis": st["kurtosis"],
+            "qam_power": z.pow(2).sum(-1).mean().item()}

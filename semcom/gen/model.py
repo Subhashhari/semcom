@@ -9,6 +9,11 @@ Each branch is power-normalised on its own to unit average symbol power, so the 
 split moves bandwidth between the branches but never power. The received symbols are laid back
 onto their (image_size/16)^2 grid for the receiver.
 
+With cfg.digital, both branches are then quantised to M-QAM points (one shared constellation,
+semcom.constellation.SoftToHardQuantiser): what goes over the air is a stream of standard QAM
+symbols. Quantisation runs in float32 outside autocast, so half precision cannot move a symbol's
+nearest-point decision.
+
 Both models expose:
     loss(batch, snr_db)                          training loss (dict with "loss")
     reconstruct(batch, snr_db, vae, ...)         images in [0, 1], with optional explicit
@@ -22,6 +27,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from ..channel import power_normalise, snr_to_noise_power
+from ..constellation import SoftToHardQuantiser
 from .config import DIT_SIZES, GenConfig
 from .diffusion import Diffusion
 from .dit import ConditionalDiT
@@ -95,6 +101,26 @@ class DetailEncoder(nn.Module):
         return self.net(x)
 
 
+def make_quantiser(cfg: GenConfig) -> SoftToHardQuantiser | None:
+    if not cfg.digital:
+        return None
+    return SoftToHardQuantiser(cfg.modulation_order, avg_power=cfg.avg_power, sigma_q_init=cfg.sigma_q,
+                               anneal_period=anneal_period(cfg))
+
+
+def anneal_period(cfg: GenConfig) -> int:
+    return cfg.anneal_period if cfg.anneal_period is not None else 2**62  # never: fixed temperature
+
+
+def quantise(q: SoftToHardQuantiser, *zs: torch.Tensor) -> tuple[list[torch.Tensor], torch.Tensor]:
+    """Quantise (B, k_i, 2) blocks to one constellation in float32; returns them and the KL term."""
+    sizes = [z.shape[1] for z in zs]
+    with torch.autocast(zs[0].device.type, enabled=False):
+        out = q(torch.cat([z.float() for z in zs], dim=1))
+        kl = q.kl_to_uniform()
+    return list(out.split(sizes, dim=1)), kl
+
+
 def snr_input(cfg: GenConfig, snr_db: torch.Tensor) -> torch.Tensor | None:
     """What fills the receiver's SNR slot: nothing (specialist), the SNR, or a constant (blind)."""
     if cfg.snr_mode == "fixed":
@@ -118,12 +144,21 @@ class GenJSCC(nn.Module):
             snr_slot=cfg.snr_mode != "fixed",
         )
         self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction)
+        self.quantiser = make_quantiser(cfg)
+        self._kl = None
 
     def transmit(self, batch: dict) -> tuple[torch.Tensor, torch.Tensor]:
-        """Channel inputs (z_sem, z_det), each (B, k, 2) at unit average power."""
+        """Channel inputs (z_sem, z_det), each (B, k, 2) at unit average power; exact M-QAM points
+        when digital (average power then varies a little per image with the points used)."""
         z_s = power_normalise(to_symbols(self.sem_enc(batch["dino"])), self.cfg.avg_power)
         z_d = power_normalise(to_symbols(self.det_enc(batch["image"])), self.cfg.avg_power)
+        if self.quantiser is not None:
+            (z_s, z_d), self._kl = quantise(self.quantiser, z_s, z_d)
         return z_s, z_d
+
+    def channel_input(self, batch: dict) -> torch.Tensor:
+        """Every transmitted symbol of each image, (B, k, 2)."""
+        return torch.cat(self.transmit(batch), dim=1)
 
     def received(self, batch, snr_db, generator=None):
         """Received symbol grids (y_sem, y_det) after the channel."""
@@ -149,7 +184,7 @@ class GenJSCC(nn.Module):
             raise ValueError(f"drop must be 'train', 'none' or 'all', got {drop!r}")
         out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, snr_db), mask)
         mse = F.mse_loss(out.float(), self.diffusion.target(x0, noise, t).float())
-        return {"loss": mse}
+        return with_kl(self, mse)
 
     @torch.no_grad()
     def sample_latent(self, y_s, y_d, snr_db, steps, generator=None, eta=0.0, cfg_scale=1.0):
@@ -191,13 +226,24 @@ class CNNBaseline(nn.Module):
         dec = {"fixed": "none", "snr": "snr", "blank": "blank"}[cfg.snr_mode]
         self.jscc = JSCC(c_out=cfg.cnn_c_out, image_size=cfg.image_size, hidden=cfg.cnn_hidden,
                          channel=cfg.channel, avg_power=cfg.avg_power, encoder_snr=False,
-                         decoder_input=dec)
+                         decoder_input=dec, digital=cfg.digital, modulation_order=cfg.modulation_order,
+                         sigma_q_init=cfg.sigma_q, anneal_period=anneal_period(cfg))
+        self._kl = None
+
+    @property
+    def quantiser(self) -> SoftToHardQuantiser | None:
+        return self.jscc.quantiser
+
+    def channel_input(self, batch: dict) -> torch.Tensor:
+        x = batch["image"]
+        return self.jscc.transmit(x, torch.zeros(x.shape[0], device=x.device))
 
     def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
         x = batch["image"]
-        x_hat = self.jscc(x, snr_db)["x_hat"]
-        mse = F.mse_loss(x_hat.float(), x)
-        return {"loss": mse, "pixel_mse": mse.detach()}
+        out = self.jscc(x, snr_db)
+        mse = F.mse_loss(out["x_hat"].float(), x)
+        self._kl = out["kl"] if self.quantiser is not None else None
+        return {**with_kl(self, mse), "pixel_mse": mse.detach()}
 
     @torch.no_grad()
     def reconstruct(self, batch, snr_db, vae=None, steps=None, channel_gen=None, sample_gen=None,
@@ -206,6 +252,16 @@ class CNNBaseline(nn.Module):
         z = self.jscc.transmit(x, snr_db)
         y = channel(z, snr_db, self.cfg.channel, self.cfg.avg_power, channel_gen)
         return self.jscc.decode(y, snr_db, z).float().clamp(0, 1)
+
+
+def with_kl(model: nn.Module, mse: torch.Tensor) -> dict:
+    """The training loss: the reconstruction/diffusion MSE, plus the codebook-collapse penalty
+    while training a digital model. Validation (eval mode) reports the MSE alone, so analog and
+    digital validation losses compare directly."""
+    if model.quantiser is None or not model.training or model._kl is None:
+        return {"loss": mse}
+    kl = model._kl.float()
+    return {"loss": mse + model.cfg.kl_weight * kl, "mse": mse.detach(), "kl": kl.detach()}
 
 
 def build_model(cfg: GenConfig, dino_dim: int) -> nn.Module:

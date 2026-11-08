@@ -10,6 +10,12 @@ The SNR switch mirrors the blind-JSCC arms, so the same matched contrasts apply:
     snr_mode="fixed"   a specialist: trained at one SNR, the receiver is not told it
     snr_mode="snr"     one model for U[min, max], the receiver is told the SNR    (like B)
     snr_mode="blank"   identical architecture, the SNR slot holds a constant      (like C-att)
+
+Digital transmission (`digital=True`): every channel symbol is an exact point of a square M-QAM
+constellation (unit average power under uniform use), as in DeepJSCC-Q (semcom.constellation):
+nearest-point quantisation going forward, a temperature-annealed softmax relaxation for the
+gradient, and a KL-to-uniform penalty against codebook collapse. The receiver sees the noisy
+received symbols, exactly what an equaliser hands a demapper; there is no channel code.
 """
 
 from __future__ import annotations
@@ -59,6 +65,17 @@ class GenConfig:
     snr_train_fixed: float | None = 0.0
     snr_train_min: float = -5.0
     snr_train_max: float = 5.0
+    # Digital transmission: M-QAM channel symbols (see the module docstring). SNR is Es/N0 with
+    # Es the constellation's average energy under uniform use (1).
+    digital: bool = False
+    modulation_order: int = 16
+    # Softmax inverse temperature of the gradient relaxation. None: 2 / d_min^2 (5 for 16-QAM, 1 for
+    # QPSK, 21 for 64-QAM), held fixed. Measured on unit-power Gaussian inputs, this leaves ~91% of
+    # symbols with a surrogate gradient above 0.1 for every M; DeepJSCC-Q's rise to 100 (from
+    # `anneal_period`) leaves 14% for 16-QAM, so the encoders would barely train after it.
+    sigma_q_init: float | None = None
+    anneal_period: int | None = None  # None: no annealing; 10_000 reproduces DeepJSCC-Q's schedule
+    kl_weight: float = 0.05  # weight of KL(symbol usage || uniform), training only
 
     # --- DiT receiver
     dit_size: str = "S"
@@ -130,6 +147,10 @@ class GenConfig:
             raise ValueError("snr_mode='fixed' needs snr_train_fixed")
         if self.snr_mode != "fixed" and self.snr_train_min > self.snr_train_max:
             raise ValueError("snr_train_min must not exceed snr_train_max")
+        if self.digital:
+            m, side = self.modulation_order, round(self.modulation_order ** 0.5)
+            if m < 4 or m & (m - 1) or side * side != m:
+                raise ValueError(f"modulation_order must be square QAM (4, 16, 64, ...), got {m}")
         if self.image_size % 16 != 0:
             raise ValueError(f"image_size must be divisible by 16, got {self.image_size}")
         if self.c_sem % 2 or self.c_det % 2 or self.cnn_c_out % 2:
@@ -147,6 +168,15 @@ class GenConfig:
     def grid(self) -> int:
         """Side of the symbol grid both DiT branches emit (one cell per 16x16 pixels)."""
         return self.image_size // 16
+
+    @property
+    def sigma_q(self) -> float:
+        """The quantiser's starting inverse temperature (see sigma_q_init)."""
+        if self.sigma_q_init is not None:
+            return float(self.sigma_q_init)
+        side = round(self.modulation_order ** 0.5)
+        d_min_sq = 4 / (2 * (side * side - 1) / 3)  # odd-integer lattice at unit average power
+        return 2 / d_min_sq
 
     @property
     def k_sem(self) -> int:
@@ -179,11 +209,15 @@ class GenConfig:
 
     @property
     def run_name(self) -> str:
-        """e.g. dit-S_cbr48_spec0_s0, dit-S-v_cbr48_blind-5to5_s0 (velocity target), cnn_cbr48_spec0_s0."""
+        """e.g. dit-S_cbr48_spec0_s0, dit-S-v_cbr48_blind-5to5_s0 (velocity target), cnn_cbr48_spec0_s0,
+        dit-S-v_cbr48_qam16_spec0_s0 (16-QAM symbols)."""
         family = f"dit-{self.dit_size}" if self.model == "dit" else "cnn"
         if self.model == "dit" and self.prediction != "eps":
             family += f"-{self.prediction}"
-        parts = [family, f"cbr{round(1 / self.bandwidth_ratio)}", self.arm]
+        parts = [family, f"cbr{round(1 / self.bandwidth_ratio)}"]
+        if self.digital:
+            parts.append(f"qam{self.modulation_order}")
+        parts.append(self.arm)
         if self.channel != "awgn":
             parts.append(self.channel)
         parts.append(f"s{self.seed}")

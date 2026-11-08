@@ -365,3 +365,119 @@ def test_velocity_dit_trains_evaluates_and_is_named_apart(tmp_path):
     train(cfg)
     out = evaluate_run(cfg.run_dir, external=False)
     assert out["checkpoint"] == "best" and all(v["psnr"] == v["psnr"] for v in out["results"].values())
+
+
+# ------------------------------------------------------------------ digital (M-QAM) transmission
+
+
+def test_digital_configs_are_named_apart_and_need_square_qam():
+    assert GenConfig(digital=True, prediction="v").run_name == "dit-S-v_cbr48_qam16_spec0_s0"
+    assert GenConfig(digital=True, modulation_order=4, model="cnn").run_name == "cnn_cbr48_qam4_spec0_s0"
+    assert GenConfig(modulation_order=8).run_name == "dit-S_cbr48_spec0_s0"  # analog ignores M
+    for m in (8, 2, 12):
+        with pytest.raises(ValueError):
+            GenConfig(digital=True, modulation_order=m)
+
+
+@pytest.mark.parametrize("model", ["dit", "cnn"])
+@pytest.mark.parametrize("order", [4, 16])
+def test_digital_models_send_exact_qam_points_and_still_train_the_encoders(tmp_path, model, order):
+    from semcom.gen.data import CachedSplit, prepare
+
+    cfg = tiny(tmp_path, model=model, digital=True, modulation_order=order)
+    prepare(cfg)
+    items = [CachedSplit(cfg.cache_dir, "val")[i] for i in range(4)]
+    batch = {k: torch.stack([it[k] for it in items]) for k in ("image", "latent", "dino")}
+    m = GenJSCC(cfg, 32) if model == "dit" else CNNBaseline(cfg)
+    z = m.channel_input(batch)
+    assert z.shape == (4, cfg.k, 2) and m.quantiser.is_on_constellation(z)
+    assert len(torch.unique(z.reshape(-1, 2), dim=0)) <= order
+
+    m.train()
+    out = m.loss(batch, torch.zeros(4))
+    assert out["loss"].item() == pytest.approx((out["mse"] + cfg.kl_weight * out["kl"]).item(), rel=1e-5)
+    out["loss"].backward()
+    enc = (m.sem_enc, m.det_enc) if model == "dit" else (m.jscc.encoder,)
+    for e in enc:  # the relaxation carries gradient back through the quantiser
+        assert sum(p.grad.abs().sum().item() for p in e.parameters() if p.grad is not None) > 0
+    m.eval()
+    assert "kl" not in m.loss(batch, torch.zeros(4))  # validation: the MSE alone
+
+
+def test_default_temperature_is_fixed_and_scaled_to_the_constellation_spacing(tmp_path):
+    from semcom.constellation import qam_constellation
+    from semcom.gen.model import make_quantiser
+
+    for m in (4, 16, 64):
+        cfg = GenConfig(digital=True, modulation_order=m)
+        p = qam_constellation(m)
+        d = torch.cdist(p, p)
+        assert cfg.sigma_q == pytest.approx(2 / d[d > 0].min().item() ** 2, rel=1e-4)
+    assert GenConfig(digital=True).sigma_q == pytest.approx(5.0)  # DeepJSCC-Q's starting value
+    q = make_quantiser(GenConfig(digital=True))
+    q._iteration.fill_(10**6)
+    assert q.step_anneal() == pytest.approx(5.0)  # no schedule by default
+
+
+def test_quantisation_ignores_autocast(tmp_path):
+    from semcom.gen.model import make_quantiser, quantise
+
+    q = make_quantiser(tiny(tmp_path, digital=True))
+    z = torch.randn(2, 64, 2)
+    with torch.autocast("cpu", dtype=torch.bfloat16):
+        (a,), _ = quantise(q, z.bfloat16())
+    assert a.dtype == torch.float32 and q.is_on_constellation(a)
+
+
+def test_symbol_stats_rejects_off_constellation_symbols(tmp_path):
+    from semcom.gen.checks import SanityError, symbol_stats
+    from semcom.gen.data import CachedSplit, prepare
+
+    cfg = tiny(tmp_path, digital=True)
+    prepare(cfg)
+    items = [CachedSplit(cfg.cache_dir, "val")[i] for i in range(4)]
+    batch = {k: torch.stack([it[k] for it in items]) for k in ("image", "latent", "dino")}
+    m = GenJSCC(cfg, 32)
+    st = symbol_stats(m, batch)
+    assert 0 < st["qam_usage"] <= 1 and st["qam_power"] > 0
+    m.quantiser = None
+    assert symbol_stats(m, batch) == {}  # analog: nothing to check
+
+    class Leaky(GenJSCC):
+        def channel_input(self, batch):
+            return super().channel_input(batch) + 1e-3
+
+    with pytest.raises(SanityError, match="constellation"):
+        symbol_stats(Leaky(cfg, 32), batch)
+
+
+@pytest.mark.parametrize("model", ["dit", "cnn"])
+def test_digital_run_trains_resumes_and_evaluates(tmp_path, model):
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cfg = tiny(tmp_path, model=model, digital=True, prediction="v", anneal_period=2, steps=6, val_every=3,
+               ckpt_every=3)
+    train(cfg.replace(steps=3))  # stop mid-run: the anneal state must survive the resume
+    ck = torch.load(cfg.run_dir / "checkpoint.pt", weights_only=False)
+    key = "quantiser.sigma_q" if model == "dit" else "jscc.quantiser.sigma_q"
+    sigma3 = ck["model"][key].item()
+    assert sigma3 > cfg.sigma_q  # annealed by step 3 (period 2)
+    (cfg.run_dir / "history.json").unlink()
+    train(cfg)
+    ck = torch.load(cfg.run_dir / "checkpoint.pt", weights_only=False)
+    assert ck["model"][key].item() > sigma3 and ck["model"][key.replace("sigma_q", "_iteration")].item() == 6
+    hist = json.loads((cfg.run_dir / "history.json").read_text())
+    assert {"qam_usage", "qam_kurtosis", "qam_power"} <= set(hist["history"][-1]["quality"])
+    out = evaluate_run(cfg.run_dir, external=False)
+    assert out["digital"] and out["modulation_order"] == 16 and out["symbols"]["on_constellation"]
+
+
+def test_watcher_flags_codebook_collapse():
+    w = _watch()
+    vals = [{"kind": "VAL", "run": "dit-S-v_cbr48_qam16_spec0_s0", "step": s, "val_loss": 0.3,
+             "qam_usage": u} for s, u in ((2000, 0.3), (4000, 0.9))]
+    assert not [k for k, _ in w.check(vals, "") if k.startswith("collapse")]
+    vals.append({**vals[-1], "step": 6000, "qam_usage": 0.4})
+    assert [k for k, _ in w.check(vals, "") if k.startswith("collapse")]
+    assert w.parse_line("SYMBOLS run=x qam_usage=0.9")["kind"] == "SYMBOLS"

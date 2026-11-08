@@ -29,7 +29,7 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, Subset
 
-from .checks import kv
+from .checks import kv, symbol_stats
 from .config import GenConfig
 from .data import CachedSplit, prepare
 from .frozen import load_frozen
@@ -78,6 +78,18 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
 
     results, images, sample_rows = {}, {}, []
     first = None
+    symbols = None
+    if getattr(model, "quantiser", None) is not None:
+        # Digital runs: every transmitted symbol of the evaluated images must be an exact
+        # constellation point (symbol_stats raises otherwise); usage statistics go in eval.json.
+        stats = []
+        for batch in loader:
+            batch = {k: v.to(device) if torch.is_tensor(v) else v for k, v in batch.items()}
+            stats.append(symbol_stats(model, batch))
+        symbols = {k: float(np.mean([st[k] for st in stats])) for k in stats[0]}
+        symbols.update(on_constellation=True, modulation_order=cfg.modulation_order)
+        print(f"SYMBOLS run={cfg.run_name} " + kv(**{k: v for k, v in symbols.items() if k != "on_constellation"}),
+              flush=True)
     for snr in snrs:
         for steps in steps_list:
             key = f"{snr:g}" + ("" if steps is None else f"_{steps}")
@@ -119,6 +131,8 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
     out = {"run_name": cfg.run_name, "model": cfg.model, "arm": cfg.arm, "snr_mode": cfg.snr_mode,
            "seed": cfg.seed, "checkpoint": cfg.eval_checkpoint, "k": cfg.k, "bandwidth_ratio": cfg.bandwidth_ratio,
            "device": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
+           "digital": cfg.digital, "modulation_order": cfg.modulation_order if cfg.digital else None,
+           "symbols": symbols,
            "snrs": snrs, "steps": steps_list, "cfg_scale": cfg.cfg_scale, "results": results}
     (run_dir / "eval.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
     np.savez_compressed(run_dir / "eval_images.npz", **images)

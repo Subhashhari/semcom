@@ -4,6 +4,7 @@
     python scripts/run_gen.py --stage week1 --evaluate           # CNN + DiT-S specialists at 0 dB
     python scripts/run_gen.py --stage week2 --evaluate           # 3 specialists + told + blind
     python scripts/run_gen.py --models dit --arms told blind --seeds 0 --steps 40000 --evaluate
+    python scripts/run_gen.py --models dit --arms spec0 told --qam 16 --out-dir results/gen/p128-qam --evaluate
 
 Arms: spec<SNR> (a specialist trained at that SNR, e.g. spec0, spec-5), told (one model for
 U[min, max] with the SNR in its slot), blind (the same model with a constant in the slot).
@@ -57,6 +58,9 @@ def main() -> None:
     p.add_argument("--dit-size", choices=["S", "B", "L"], default=None)
     p.add_argument("--prediction", choices=["eps", "v"], default=None, help="DiT target: noise or velocity")
     p.add_argument("--batch-size", type=int, default=None)
+    p.add_argument("--qam", type=int, default=None, metavar="M",
+                   help="digital: transmit M-QAM symbols (4, 16, 64, ...); default analog")
+    p.add_argument("--anneal-period", type=int, default=None, help="digital: quantiser temperature schedule")
     p.add_argument("--max-hours", type=float, default=None, help="per-run wall-clock budget")
     p.add_argument("--eval-images", type=int, default=None)
     p.add_argument("--out-dir", default=None)
@@ -68,7 +72,10 @@ def main() -> None:
 
     overrides = {"steps": args.steps, "dit_size": args.dit_size, "prediction": args.prediction, "batch_size": args.batch_size,
                  "max_hours": args.max_hours, "eval_images": args.eval_images,
-                 "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode}
+                 "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode,
+                 "anneal_period": args.anneal_period}
+    if args.qam:
+        overrides.update(digital=True, modulation_order=args.qam)
     if args.stage == "smoke":
         overrides = {**SMOKE, **{k: v for k, v in overrides.items() if v is not None}}
     base = GenConfig.from_yaml(args.config, **overrides)
