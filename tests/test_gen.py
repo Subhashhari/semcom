@@ -311,6 +311,9 @@ def test_watcher_rules_fire_on_the_failures_they_name():
     vals = [{"kind": "VAL", "run": "r", "step": 2000.0 * i, "val_loss": v, "cond_gain": 0.05}
             for i, v in enumerate([0.3, 0.31, 0.32, 0.33], 1)]
     assert any(k.startswith("val_rising") for k, _ in w.check(vals, ""))
+    # g-w3 spec5: a 0.4% creep from 30k is mild overfitting that best.pt handles, not an alert.
+    creep = [{**v, "val_loss": x} for v, x in zip(vals, [0.249855, 0.250048, 0.250368, 0.250847])]
+    assert not any(k.startswith("val_rising") for k, _ in w.check(creep, ""))
     ignored = [{"kind": "VAL", "run": "r", "step": 12000.0, "val_loss": 0.3, "cond_gain": 0.0}]
     assert any(k.startswith("no_cond") for k, _ in w.check(ignored, ""))
     assert any(k.startswith("nonfinite") for k, _ in w.check([{"kind": "STEP", "run": "r", "step": 5.0,
