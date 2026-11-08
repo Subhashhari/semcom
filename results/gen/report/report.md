@@ -4,6 +4,7 @@
 
 | run | usage entropy / log2 M | kurtosis | mean energy per symbol |
 |---|---|---|---|
+| cnn_cbr48_qam16_spec0_s0 | 0.996 | 1.286 | 1.054 |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 | 0.987 | 1.430 | 0.895 |
 | dit-S-v_cbr48_qam16_spec-5_s0 | 0.991 | 1.341 | 1.023 |
 | dit-S-v_cbr48_qam16_spec0_s0 | 0.987 | 1.436 | 0.883 |
@@ -16,6 +17,7 @@
 
 | run | -5 dB | +0 dB | +5 dB |
 |---|---|---|---|
+| cnn_cbr48_qam16_spec0_s0 | 14.643 | 20.794 | 21.501 |
 | cnn_cbr48_spec0_s0 | 14.314 | 21.212 | 21.795 |
 | dit-S-v_cbr48_blind-5to5_s0 | 14.919 | 17.517 | 19.115 |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 | 14.631 | 16.944 | 18.318 |
@@ -40,6 +42,7 @@
 
 | run | -5 dB | +0 dB | +5 dB |
 |---|---|---|---|
+| cnn_cbr48_qam16_spec0_s0 | 0.626 | 0.441 | 0.442 |
 | cnn_cbr48_spec0_s0 | 0.648 | 0.426 | 0.448 |
 | dit-S-v_cbr48_blind-5to5_s0 | 0.386 | 0.267 | 0.209 |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 | 0.394 | 0.288 | 0.236 |
@@ -64,6 +67,7 @@
 
 | run | -5 dB | +0 dB | +5 dB |
 |---|---|---|---|
+| cnn_cbr48_qam16_spec0_s0 | 0.017 | 0.130 | 0.161 |
 | cnn_cbr48_spec0_s0 | 0.023 | 0.161 | 0.198 |
 | dit-S-v_cbr48_blind-5to5_s0 | 0.074 | 0.168 | 0.269 |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 | 0.072 | 0.140 | 0.223 |
@@ -88,6 +92,7 @@
 
 | run | -5 dB | +0 dB | +5 dB |
 |---|---|---|---|
+| cnn_cbr48_qam16_spec0_s0 | 275.699 | 212.243 | 221.570 |
 | cnn_cbr48_spec0_s0 | 302.704 | 207.497 | 216.398 |
 | dit-S-v_cbr48_blind-5to5_s0 | 213.849 | 152.043 | 117.834 |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 | 214.216 | 162.303 | 133.178 |

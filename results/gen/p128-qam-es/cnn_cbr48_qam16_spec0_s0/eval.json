@@ -1,0 +1,57 @@
+{
+  "run_name": "cnn_cbr48_qam16_spec0_s0",
+  "model": "cnn",
+  "arm": "spec0",
+  "snr_mode": "fixed",
+  "seed": 0,
+  "checkpoint": "best",
+  "k": 1024,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "Tesla T4",
+  "digital": true,
+  "modulation_order": 16,
+  "symbols": {
+    "qam_usage": 0.9956122884197741,
+    "qam_kurtosis": 1.2864338712791148,
+    "qam_power": 1.054369431734085,
+    "on_constellation": true,
+    "modulation_order": 16,
+    "power_ref": "actual",
+    "es_ref_trained": 1.0587201118469238
+  },
+  "snrs": [
+    -5.0,
+    0.0,
+    5.0
+  ],
+  "steps": [
+    null
+  ],
+  "cfg_scale": 1.0,
+  "results": {
+    "-5": {
+      "psnr": 14.642871856689453,
+      "lpips": 0.625850260257721,
+      "dino_sim": 0.017364492639899254,
+      "fid": 275.6990051269531,
+      "seconds_per_image": 0.010811127424240112,
+      "n_images": 1000
+    },
+    "0": {
+      "psnr": 20.79440689086914,
+      "lpips": 0.441100150346756,
+      "dino_sim": 0.1301230490207672,
+      "fid": 212.242919921875,
+      "seconds_per_image": 0.0052505662441253665,
+      "n_images": 1000
+    },
+    "5": {
+      "psnr": 21.500995635986328,
+      "lpips": 0.442280113697052,
+      "dino_sim": 0.16090358793735504,
+      "fid": 221.5701141357422,
+      "seconds_per_image": 0.005285705327987671,
+      "n_images": 1000
+    }
+  }
+}
