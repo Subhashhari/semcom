@@ -333,6 +333,11 @@ def test_watcher_quality_rules_catch_g_w1():
     assert keys(good, **{"zstd@0": 1.0, "raw_psnr@0": 20.0}) == set()
     assert "zscale" in keys(good, **{"zstd@0": 3.1})
     assert "ema_gap" in keys(good, **{"raw_psnr@0": 30.0})
+    # g-w3's healthy -5 dB specialist: DINO ~0.04 is normal at -5 dB, so "unrelated" stays quiet there.
+    spec_m5 = [{"kind": "VAL", "run": "dit-S-v_cbr48_spec-5_s0", "step": float(s), "val_loss": 0.42 - 0.003 * i,
+                "cond_gain": 0.2, "psnr@-5": 15.0 + 0.05 * i, "dino@-5": 0.035 + 0.002 * i}
+               for i, s in enumerate(range(2000, 12_001, 2000))]
+    assert {k.split(":")[0] for k, _ in w.check(spec_m5, "")} == set()
 
 
 def test_ema_decay_ramps_up_to_its_cap():

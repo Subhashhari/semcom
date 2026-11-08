@@ -29,8 +29,9 @@ Reconstruction-quality rules, added after g-w1 (whose EMA weights sampled meanin
 while every loss looked healthy). They read the fixed validation batch's real reconstructions:
     quality_drop  PSNR (by > 0.5 dB) or DINOv2 similarity (by > 0.02) fell at two consecutive
                   validations, at step >= 4,000
-    unrelated     DiT only: DINOv2 similarity below 0.1 at step >= 10,000, outputs unrelated to the
-                  inputs (the VAE alone scores 0.77, an unrelated real photo 0.34, flat grey 0.0)
+    unrelated     DiT only, SNR >= 0 only: DINOv2 similarity below 0.1 at step >= 10,000, outputs
+                  unrelated to the inputs (the VAE alone scores 0.77, an unrelated real photo 0.34,
+                  flat grey 0.0; at -5 dB even healthy models score ~0.04)
     zscale        sampled latents' spread outside 0.5-2x the true latents' at step >= 4,000
     ema_gap       the raw weights reconstruct > 2 dB better than the EMA at step >= 10,000
 """
@@ -124,8 +125,11 @@ def quality_alerts(run, vals: list[dict]) -> list[tuple[str, str]]:
             out.append((f"quality_drop:{run}:{key}:{step}",
                         f"{run} step {step:.0f}: {key} fell twice in a row: {[round(x, 3) for x in seq[-3:]]}"))
         # DiT only: the CNN's blurry, noisy outputs score low DINOv2 similarity while clearly
-        # matching their inputs (g-w1 CNN at 18-19 dB: 0.05-0.10).
-        if key.startswith("dino@") and str(run).startswith("dit") and step >= 10_000 and last[key] < 0.1:
+        # matching their inputs (g-w1 CNN at 18-19 dB: 0.05-0.10). Only at SNR >= 0: at -5 dB a
+        # healthy model scores ~0.04 (g-w2's 0 dB model and g-w3's -5 dB specialist alike), so
+        # there only the quality_drop trend applies.
+        if (key.startswith("dino@") and str(run).startswith("dit") and float(key.split("@")[1]) >= 0
+                and step >= 10_000 and last[key] < 0.1):
             out.append((f"unrelated:{run}:{key}:{step}",
                         f"{run} step {step:.0f}: {key}={last[key]:.3f}, outputs unrelated to the inputs"))
         raw = last.get("raw_" + key)
