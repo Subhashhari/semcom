@@ -306,7 +306,9 @@ def test_watcher_rules_fire_on_the_failures_they_name():
     assert w.check(steps, "") == []
     spiked = steps + [{"kind": "STEP", "run": "r", "step": 13000.0, "loss": 0.5, "it_s": 8.0, "skipped": 0.0}]
     assert any(k.startswith("spike") for k, _ in w.check(spiked, ""))
-    slow = steps + [{"kind": "STEP", "run": "r", "step": 13000.0, "loss": 0.2, "it_s": 1.0, "skipped": 0.0}]
+    slow1 = steps + [{"kind": "STEP", "run": "r", "step": 13000.0, "loss": 0.2, "it_s": 1.0, "skipped": 0.0}]
+    assert not any(k.startswith("slow") for k, _ in w.check(slow1, ""))  # one window: a validation pass
+    slow = slow1 + [{"kind": "STEP", "run": "r", "step": 13100.0, "loss": 0.2, "it_s": 1.0, "skipped": 0.0}]
     assert any(k.startswith("slow") for k, _ in w.check(slow, ""))
     vals = [{"kind": "VAL", "run": "r", "step": 2000.0 * i, "val_loss": v, "cond_gain": 0.05}
             for i, v in enumerate([0.3, 0.31, 0.32, 0.33], 1)]

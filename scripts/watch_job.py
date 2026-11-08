@@ -22,7 +22,7 @@ Rules (thresholds fixed here, before any run):
     val_rising  validation loss up at three consecutive validations and by > 1% in total (overfitting or divergence)
     no_cond     DiT cond_gain <= 0.001 at step >= 10,000: the receiver ignores the channel
     skipped     the AMP scaler skipped more than 1% of steps
-    slow        throughput below half its median for the run
+    slow        throughput below half its median for the run, two log windows in a row
     stall       no new STEP line for --stall-minutes while the job is running
 
 Reconstruction-quality rules, added after g-w1 (whose EMA weights sampled meaningless images
@@ -103,7 +103,9 @@ def check(records: list[dict], log_text: str, stall: bool = False) -> list[tuple
             alerts.append((f"skipped:{run}", f"{run}: {steps[-1]['skipped']:.0f} AMP-skipped steps "
                            f"of {steps[-1]['step']:.0f}"))
         rates = [r["it_s"] for r in steps if "it_s" in r]
-        if len(rates) >= 10 and rates[-1] < 0.5 * statistics.median(rates):
+        # Two windows in a row: the window holding a validation pass is slow by design (g-w3's
+        # told arm validates at three SNRs and logged 2.9 it/s against a median of 7.9).
+        if len(rates) >= 10 and max(rates[-2:]) < 0.5 * statistics.median(rates):
             alerts.append((f"slow:{run}:{steps[-1]['step']}",
                            f"{run}: {rates[-1]:.2f} it/s, median {statistics.median(rates):.2f}"))
         alerts += quality_alerts(run, vals)
