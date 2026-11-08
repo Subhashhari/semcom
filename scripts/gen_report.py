@@ -8,6 +8,9 @@ Reads every <root>/<run>/eval.json (and history.json for validation curves) and 
                        told / blind arms to it, which is the week-2 question
     metrics_vs_snr.png PSNR, LPIPS, DINO, FID against test SNR, one panel each (no shared axis)
     val_curves.png     EMA validation PSNR/DINO against training step, per run
+    digital_vs_snr.png when M-QAM runs are present: analog vs each modulation order (specialists at
+                       0 dB, and the 16-QAM told / blind arms and specialist envelope when present)
+Analog and digital runs are kept apart: the envelope and gap rows are computed per modulation.
 DiT results are read at --steps DDIM steps; CNN runs have one result per SNR.
 """
 
@@ -38,7 +41,10 @@ def load(root: Path, steps: int) -> dict[str, dict]:
                 continue
             by_snr[snr] = r
         hist = ev.parent / "history.json"
-        runs[e["run_name"]] = {"model": e["model"], "arm": e["arm"], "by_snr": by_snr,
+        modem = f"qam{e['modulation_order']}" if e.get("digital") else "analog"
+        runs[e["run_name"]] = {"model": e["model"], "arm": e["arm"], "by_snr": by_snr, "modem": modem,
+                               "family": e["run_name"].split("_")[0],
+                               "symbols": e.get("symbols"),
                                "history": json.loads(hist.read_text())["history"] if hist.exists() else []}
     return runs
 
@@ -48,12 +54,12 @@ def spec_snr(arm: str) -> float | None:
     return float(m.group(1)) if m else None
 
 
-def envelope(runs: dict, model: str) -> dict[float, dict]:
-    """Each specialist of `model` scored at its own training SNR."""
+def envelope(runs: dict, model: str, modem: str = "analog") -> dict[float, dict]:
+    """Each specialist of `model` with this modulation scored at its own training SNR."""
     env = {}
     for r in runs.values():
         s = spec_snr(r["arm"])
-        if r["model"] == model and s is not None and s in r["by_snr"]:
+        if r["model"] == model and r["modem"] == modem and s is not None and s in r["by_snr"]:
             env[s] = r["by_snr"][s]
     return env
 
@@ -61,6 +67,7 @@ def envelope(runs: dict, model: str) -> dict[float, dict]:
 def series(runs: dict) -> list[tuple[str, dict[float, dict], str]]:
     """(label, {snr: metrics}, linestyle) in fixed colour-slot order."""
     out = []
+    runs = {n: r for n, r in runs.items() if r["modem"] == "analog"}
     dit = {n: r for n, r in runs.items() if r["model"] == "dit"}
     env = envelope(runs, "dit")
     if len(env) > 1:
@@ -78,10 +85,35 @@ def series(runs: dict) -> list[tuple[str, dict[float, dict], str]]:
     return out
 
 
+def digital_series(runs: dict) -> list[tuple[str, dict[float, dict], str]]:
+    """Analog vs M-QAM: the 0 dB DiT specialist per modulation, then the 16-QAM adaptive arms."""
+    out = []
+    order = sorted({r["modem"] for r in runs.values()}, key=lambda m: (m != "analog", len(m), m))
+    for modem in order:
+        for r in runs.values():
+            if r["model"] == "dit" and r["modem"] == modem and r["arm"] == "spec0":
+                out.append((f"DiT spec 0 dB, {modem}", r["by_snr"], "--" if modem == "analog" else "-"))
+    env = envelope(runs, "dit", "qam16")
+    if len(env) > 1:
+        out.append(("DiT 16-QAM specialists (each at its SNR)", env, "-"))
+    for kind in ("told", "blind"):
+        for r in runs.values():
+            if r["model"] == "dit" and r["modem"] == "qam16" and r["arm"].startswith(kind):
+                out.append((f"DiT {kind}, qam16", r["by_snr"], "-"))
+    return out
+
+
 def table(runs: dict, steps: int) -> str:
     snrs = sorted({s for r in runs.values() for s in r["by_snr"]})
-    env = envelope(runs, "dit")
     lines = [f"# Generative JSCC results (DiT at {steps} DDIM steps)\n"]
+    sym = {n: r["symbols"] for n, r in sorted(runs.items()) if r.get("symbols")}
+    if sym:
+        lines.append("## Transmitted symbols (digital runs, test images)\n")
+        lines.append("| run | usage entropy / log2 M | kurtosis | mean energy per symbol |")
+        lines.append("|---|---|---|---|")
+        for n, st in sym.items():
+            lines.append(f"| {n} | {st['qam_usage']:.3f} | {st['qam_kurtosis']:.3f} | {st['qam_power']:.3f} |")
+        lines.append("")
     for key, label, higher in METRICS:
         lines.append(f"## {label} ({'higher' if higher else 'lower'} is better)\n")
         lines.append("| run | " + " | ".join(f"{s:+g} dB" for s in snrs) + " |")
@@ -89,11 +121,14 @@ def table(runs: dict, steps: int) -> str:
         for name, r in sorted(runs.items()):
             cells = [f"{r['by_snr'][s][key]:.3f}" if s in r["by_snr"] else "" for s in snrs]
             lines.append(f"| {name} | " + " | ".join(cells) + " |")
-        if len(env) > 1:
-            lines.append("| **specialist envelope** | " + " | ".join(
+        for modem in sorted({r["modem"] for r in runs.values()}):
+            env = envelope(runs, "dit", modem)
+            if len(env) < 2:
+                continue
+            lines.append(f"| **specialist envelope ({modem})** | " + " | ".join(
                 f"**{env[s][key]:.3f}**" if s in env else "" for s in snrs) + " |")
             for name, r in sorted(runs.items()):
-                if r["model"] == "dit" and spec_snr(r["arm"]) is None:
+                if r["model"] == "dit" and r["modem"] == modem and spec_snr(r["arm"]) is None:
                     gap = [(r["by_snr"][s][key] - env[s][key]) * (1 if higher else -1)
                            if s in env and s in r["by_snr"] else None for s in snrs]
                     lines.append(f"| {name} vs envelope | " + " | ".join(
@@ -114,10 +149,10 @@ def style(ax, title: str):
     ax.tick_params(colors=MUTED, labelsize=8)
 
 
-def plot_metrics(runs: dict, path: Path, steps: int):
+def plot_metrics(runs: dict, path: Path, steps: int, ser=None, title=None):
     import matplotlib.pyplot as plt
 
-    ser = series(runs)
+    ser = series(runs) if ser is None else ser
     fig, axes = plt.subplots(1, 4, figsize=(15, 3.8), facecolor="#fcfcfb")
     for ax, (key, label, higher) in zip(axes, METRICS):
         style(ax, f"{label} ({'↑' if higher else '↓'})")
@@ -129,7 +164,7 @@ def plot_metrics(runs: dict, path: Path, steps: int):
         ax.set_xlabel("test SNR (dB)", color=MUTED, fontsize=8)
     handles, labels = axes[0].get_legend_handles_labels()
     fig.legend(handles, labels, loc="lower center", ncol=len(labels), frameon=False, fontsize=8)
-    fig.suptitle(f"Reconstruction quality vs channel SNR (DiT: {steps} DDIM steps, CBR 1/48, 128 px)",
+    fig.suptitle(title or f"Reconstruction quality vs channel SNR (DiT: {steps} DDIM steps, CBR 1/48, 128 px)",
                  color=INK, fontsize=11, x=0.01, ha="left")
     fig.tight_layout(rect=(0, 0.08, 1, 0.95))
     fig.savefig(path, dpi=150)
@@ -159,12 +194,19 @@ def plot_curves(runs: dict, path: Path):
     plt.close(fig)
 
 
+def plotted(runs: dict, family: str) -> dict:
+    """The runs the figures compare: CNN runs and DiT runs of one family (e.g. dit-S-v, the velocity
+    target), so an older DiT variant in the same folder is not drawn as a second line."""
+    return {n: r for n, r in runs.items() if r["model"] != "dit" or r["family"] == family}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", action="append", type=Path,
                     help="results folder(s) of run directories (default results/gen/p128)")
     ap.add_argument("--steps", type=int, default=20, help="DDIM steps to report for DiT runs")
     ap.add_argument("--out", type=Path, default=ROOT / "results" / "gen" / "report")
+    ap.add_argument("--family", default="dit-S-v", help="DiT run family drawn in the figures")
     args = ap.parse_args()
     runs = {}
     for root in args.root or [ROOT / "results" / "gen" / "p128"]:
@@ -173,8 +215,12 @@ def main() -> None:
         raise SystemExit("no eval.json found")
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "report.md").write_text(table(runs, args.steps), encoding="utf-8")
-    plot_metrics(runs, args.out / "metrics_vs_snr.png", args.steps)
+    shown = plotted(runs, args.family)
+    plot_metrics(shown, args.out / "metrics_vs_snr.png", args.steps)
     plot_curves(runs, args.out / "val_curves.png")
+    if any(r["modem"] != "analog" for r in runs.values()):
+        plot_metrics(shown, args.out / "digital_vs_snr.png", args.steps, digital_series(shown),
+                     f"Analog vs M-QAM channel symbols (DiT: {args.steps} DDIM steps, CBR 1/48, 128 px)")
     print(f"{len(runs)} runs -> {args.out}")
 
 
