@@ -206,7 +206,7 @@ def main() -> None:
                     help="results folder(s) of run directories (default results/gen/p128)")
     ap.add_argument("--steps", type=int, default=20, help="DDIM steps to report for DiT runs")
     ap.add_argument("--out", type=Path, default=ROOT / "results" / "gen" / "report")
-    ap.add_argument("--family", default="dit-S-v", help="DiT run family drawn in the figures")
+    ap.add_argument("--family", default="dit-S-v", help="DiT run family reported (tables and figures)")
     args = ap.parse_args()
     runs = {}
     for root in args.root or [ROOT / "results" / "gen" / "p128"]:
@@ -214,8 +214,10 @@ def main() -> None:
     if not runs:
         raise SystemExit("no eval.json found")
     args.out.mkdir(parents=True, exist_ok=True)
-    (args.out / "report.md").write_text(table(runs, args.steps), encoding="utf-8")
+    # One DiT family throughout, tables included: g-w1's noise-target specialist shares the folder
+    # and would otherwise stand in for the 0 dB point of the specialist envelope.
     shown = plotted(runs, args.family)
+    (args.out / "report.md").write_text(table(shown, args.steps), encoding="utf-8")
     plot_metrics(shown, args.out / "metrics_vs_snr.png", args.steps)
     plot_curves(runs, args.out / "val_curves.png")
     if any(r["modem"] != "analog" for r in runs.values()):
