@@ -38,6 +38,31 @@ def retry(fn, what: str, tries: int = 5, wait: float = 15.0):
             time.sleep(wait * 2**i)
 
 
+DINOV2_REPO = "https://github.com/facebookresearch/dinov2.git"
+
+
+def load_dinov2(model_name: str) -> nn.Module:
+    """DINOv2 from a local checkout of its repo, cloned with git into torch.hub's own folder.
+
+    torch.hub.load("facebookresearch/dinov2") fetches the code as a GitHub zip archive, and that
+    endpoint returned 504 for every retry over four minutes on Kaggle (job g-w3e) while git
+    clones from github.com kept working. The folder is the one torch.hub itself would use, so an
+    existing hub cache is reused as is; the weights still come from dl.fbaipublicfiles.com."""
+    import os
+    import shutil
+    import subprocess
+
+    repo = os.path.join(torch.hub.get_dir(), "facebookresearch_dinov2_main")
+    if not os.path.exists(os.path.join(repo, "hubconf.py")):
+        def clone():
+            shutil.rmtree(repo, ignore_errors=True)
+            os.makedirs(os.path.dirname(repo), exist_ok=True)
+            subprocess.run(["git", "clone", "--quiet", "--depth", "1", DINOV2_REPO, repo], check=True)
+
+        retry(clone, "DINOv2 clone")
+    return retry(lambda: torch.hub.load(repo, model_name, source="local", trust_repo=True), "DINOv2 weights")
+
+
 class FrozenVAE(nn.Module):
     """Images in [0, 1] <-> scaled latents (4 channels, 1/8 resolution)."""
 
@@ -69,11 +94,7 @@ class FrozenDINO(nn.Module):
 
     def __init__(self, model_name: str, input_size: int):
         super().__init__()
-        # An explicit ref and no validation: torch.hub otherwise asks github.com for the default
-        # branch and the repo's fork status on every load, which is what returned the 504.
-        self.model = retry(lambda: torch.hub.load("facebookresearch/dinov2:main", model_name, trust_repo=True,
-                                                  skip_validation=True), "DINOv2 download")
-        self.model = self.model.eval().requires_grad_(False)
+        self.model = load_dinov2(model_name).eval().requires_grad_(False)
         self.dim = DINO_DIMS[model_name]
         self.input_size = input_size
         self.register_buffer("mean", torch.tensor(IMAGENET_MEAN).view(1, 3, 1, 1))
