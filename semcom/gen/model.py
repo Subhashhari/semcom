@@ -117,7 +117,7 @@ class GenJSCC(nn.Module):
             cond_blocks_sem=cfg.cond_blocks_sem, cond_blocks_det=cfg.cond_blocks_det,
             snr_slot=cfg.snr_mode != "fixed",
         )
-        self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end)
+        self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction)
 
     def transmit(self, batch: dict) -> tuple[torch.Tensor, torch.Tensor]:
         """Channel inputs (z_sem, z_det), each (B, k, 2) at unit average power."""
@@ -134,7 +134,7 @@ class GenJSCC(nn.Module):
         return from_symbols(y_s, cfg.c_sem, g), from_symbols(y_d, cfg.c_det, g)
 
     def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
-        """Noise-prediction loss. `drop`: "train" drops the received symbols with probability
+        """Diffusion loss (noise or velocity target, cfg.prediction). `drop`: "train" drops the received symbols with probability
         cfg_dropout (for classifier-free guidance); "none" keeps them; "all" drops them for every
         image, which measures how much the receiver relies on the channel at all."""
         y_s, y_d = self.received(batch, snr_db)
@@ -147,9 +147,9 @@ class GenJSCC(nn.Module):
             mask = torch.full((b,), drop == "all", device=x0.device)
         else:
             raise ValueError(f"drop must be 'train', 'none' or 'all', got {drop!r}")
-        eps = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, snr_db), mask)
-        mse = F.mse_loss(eps.float(), noise.float())
-        return {"loss": mse, "eps_mse": mse.detach()}
+        out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, snr_db), mask)
+        mse = F.mse_loss(out.float(), self.diffusion.target(x0, noise, t).float())
+        return {"loss": mse}
 
     @torch.no_grad()
     def sample_latent(self, y_s, y_d, snr_db, steps, generator=None, eta=0.0, cfg_scale=1.0):

@@ -10,6 +10,8 @@ Run folder:
     config.yaml        the full config, derived fields included
     checkpoint.pt      model, EMA, optimiser, scaler, step (for resuming)
     final.pt           EMA weights + config, written when the step budget is reached
+    best.pt            the same at the validation with the lowest validation loss (500 held-out
+                       val images, never the test split); evaluation uses it by default
     history.json       summary + validation history; its presence means "finished"
     samples/           reconstruction grids during training
 """
@@ -45,6 +47,12 @@ def val_snrs(cfg: GenConfig) -> list[float]:
 
 def to_device(batch: dict, device: torch.device) -> dict:
     return {k: v.to(device, non_blocking=True) if torch.is_tensor(v) else v for k, v in batch.items()}
+
+
+def ema_decay(cfg: GenConfig, step: int) -> float:
+    if cfg.ema_warmup:
+        return min(cfg.ema_decay, (1 + step) / (10 + step))
+    return cfg.ema_decay if step >= cfg.warmup_steps else 0.0  # the g-w1 rule
 
 
 @torch.no_grad()
@@ -193,7 +201,7 @@ def train(cfg: GenConfig) -> dict | None:
         scaler.update()
         if use_amp and scaler.get_scale() < scale_before:
             skipped += 1  # inf/nan gradient: the scaler skipped this step
-        update_ema(ema, model, cfg.ema_decay if step >= cfg.warmup_steps else 0.0)
+        update_ema(ema, model, ema_decay(cfg, step))
         step += 1
         running += out["loss"].detach()
         gnorm_sum += torch.nan_to_num(gnorm.detach().float(), nan=0.0, posinf=0.0)
@@ -212,6 +220,12 @@ def train(cfg: GenConfig) -> dict | None:
         if step % cfg.val_every == 0 or step == cfg.steps:
             val = validate(ema, val_loader, cfg, device, use_amp)
             quality = val_quality(ema, cfg, quality_batch, vae, dino, val_snrs(cfg))
+            # The raw (non-EMA) weights too, so an EMA problem cannot pass for a model problem.
+            raw_val = validate(model, val_loader, cfg, device, use_amp)
+            raw_quality = val_quality(model, cfg, quality_batch, vae, dino, val_snrs(cfg))
+            quality.update({f"raw_{k}": v for k, v in raw_quality.items()})
+            quality["raw_val_loss"] = sum(v["loss"] for v in raw_val.values()) / len(raw_val)
+            quality["ema_decay"] = ema_decay(cfg, step)
             entry = {"step": step, "val_loss": sum(v["loss"] for v in val.values()) / len(val),
                      "val_by_snr": val, "quality": quality, "skipped": skipped,
                      "hours": (time.time() - t0) / 3600}
@@ -221,6 +235,9 @@ def train(cfg: GenConfig) -> dict | None:
                 fields["uncond"] = sum(v["uncond"] for v in val.values()) / len(val)
                 fields["cond_gain"] = entry["cond_gain"]
             history.append(entry)
+            if entry["val_loss"] < min((h["val_loss"] for h in history[:-1]), default=float("inf")):
+                torch.save({"ema": ema.state_dict(), "config": cfg.to_dict(), "step": step,
+                            "dino_dim": meta["dino_dim"]}, run_dir / "best.pt")
             print(f"VAL run={cfg.run_name} " + kv(step=step, **fields, **quality), flush=True)
             log(wandb_run, {f"val/{k}": v for k, v in {**fields, **quality}.items()}, step=step)
 
@@ -237,6 +254,8 @@ def train(cfg: GenConfig) -> dict | None:
         "run_name": cfg.run_name, "model": cfg.model, "arm": cfg.arm, "steps": step,
         "parameters": num_parameters(model), "k": cfg.k, "bandwidth_ratio": cfg.bandwidth_ratio,
         "final_val_loss": history[-1]["val_loss"] if history else None,
+        "best_step": min(history, key=lambda h: h["val_loss"])["step"] if history else None,
+        "best_val_loss": min(h["val_loss"] for h in history) if history else None,
         "final_quality": history[-1]["quality"] if history else None,
         "skipped_steps": skipped,
         "sanity": json.loads((run_dir / "sanity.json").read_text()) if (run_dir / "sanity.json").exists() else None,
@@ -247,7 +266,7 @@ def train(cfg: GenConfig) -> dict | None:
                                           encoding="utf-8")
     if wandb_run is not None:
         wandb_run.summary.update(summary)
-        for name in ("final.pt", "config.yaml", "history.json"):
+        for name in ("final.pt", "best.pt", "config.yaml", "history.json"):
             try:
                 wandb_run.save(str(run_dir / name), base_path=str(run_dir), policy="now")
             except Exception as exc:  # noqa: BLE001 - logging must never kill training

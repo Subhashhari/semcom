@@ -226,14 +226,19 @@ def cmd_logs(args) -> None:
     """Print the last lines of the job's execution log (works while it is running)."""
     job = load_job(args.name)
     text = kaggle("kernels", "logs", job["kernel"], token_file=_token(job), capture=True)
+    # Ignore CLI notices such as "Warning: Looks like you're using an outdated `kaggle` version":
+    # counted as log text, one silently disabled the streaming fallback below.
+    text = "\n".join(line for line in text.splitlines() if not line.startswith("Warning:"))
     if not text.strip():
         # A running job returns an empty log; only the streaming mode (-f) shows it, and it
         # never exits on its own, so stream for a few seconds and keep what arrived.
-        env = dict(os.environ, PYTHONUTF8="1")
+        # Unbuffered: piped, the CLI buffers its output, and the buffer dies with the timeout,
+        # which returned an empty log for a running job (g-w1's watcher saw nothing for an hour).
+        env = dict(os.environ, PYTHONUTF8="1", PYTHONUNBUFFERED="1")
         if _token(job) is not None:
             env["KAGGLE_API_TOKEN"] = _token(job).read_text(encoding="utf-8").strip()
         try:
-            subprocess.run([sys.executable, "-m", "kaggle", "kernels", "logs", "-f", job["kernel"]],
+            subprocess.run([sys.executable, "-u", "-m", "kaggle", "kernels", "logs", "-f", job["kernel"]],
                            env=env, capture_output=True, timeout=args.seconds)
         except subprocess.TimeoutExpired as e:
             text = (e.stdout or b"").decode("utf-8", errors="replace")

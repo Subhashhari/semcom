@@ -117,8 +117,16 @@ def val_quality(model, cfg: GenConfig, batch: dict, vae, dino, snrs, steps: int 
     for i, snr in enumerate(snrs):
         g = torch.Generator(device=x.device).manual_seed(1000 + i)
         s = torch.full((x.shape[0],), float(snr), device=x.device)
-        x_hat = model.reconstruct(batch, s, vae, steps=steps, channel_gen=g, sample_gen=g,
-                                  cfg_scale=cfg.cfg_scale).float()
+        if hasattr(model, "sample_latent"):
+            y_s, y_d = model.received(batch, s, g)
+            z = model.sample_latent(y_s, y_d, s, steps, g, cfg_scale=cfg.cfg_scale).float()
+            # Spread of the sampled latents relative to the true ones: far from 1 means the
+            # sampler produces latents the VAE never saw (saturated, meaningless images).
+            out[f"zstd@{snr:g}"] = (z.std() / batch["latent"].float().std()).item()
+            x_hat = vae.decode(z).float()
+        else:
+            x_hat = model.reconstruct(batch, s, vae, steps=steps, channel_gen=g, sample_gen=g,
+                                      cfg_scale=cfg.cfg_scale).float()
         _, cls_hat = dino(x_hat, cfg.grid)
         out[f"psnr@{snr:g}"] = psnr(x, x_hat).mean().item()
         out[f"dino@{snr:g}"] = F.cosine_similarity(cls.float(), cls_hat.float(), dim=1).mean().item()

@@ -55,6 +55,7 @@ def main() -> None:
     p.add_argument("--seeds", nargs="+", type=int, default=[0])
     p.add_argument("--steps", type=int, default=None, help="training steps per run")
     p.add_argument("--dit-size", choices=["S", "B", "L"], default=None)
+    p.add_argument("--prediction", choices=["eps", "v"], default=None, help="DiT target: noise or velocity")
     p.add_argument("--batch-size", type=int, default=None)
     p.add_argument("--max-hours", type=float, default=None, help="per-run wall-clock budget")
     p.add_argument("--eval-images", type=int, default=None)
@@ -65,7 +66,7 @@ def main() -> None:
     p.add_argument("--dry-run", action="store_true")
     args = p.parse_args()
 
-    overrides = {"steps": args.steps, "dit_size": args.dit_size, "batch_size": args.batch_size,
+    overrides = {"steps": args.steps, "dit_size": args.dit_size, "prediction": args.prediction, "batch_size": args.batch_size,
                  "max_hours": args.max_hours, "eval_images": args.eval_images,
                  "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode}
     if args.stage == "smoke":

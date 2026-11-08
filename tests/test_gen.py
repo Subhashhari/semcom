@@ -151,6 +151,25 @@ def test_ddim_with_an_oracle_denoiser_recovers_x0():
         assert torch.allclose(out, x0, atol=1e-3)
 
 
+def test_velocity_target_round_trips_and_its_oracle_recovers_x0():
+    d = Diffusion(prediction="v")
+    x0, noise = torch.randn(3, 4, 8, 8), torch.randn(3, 4, 8, 8)
+    t = torch.tensor([0, 500, 999])
+    x_t = d.q_sample(x0, t, noise)
+    eps, x0_hat = d.split(d.target(x0, noise, t), x_t, t)
+    assert torch.allclose(eps, noise, atol=1e-4) and torch.allclose(x0_hat, x0, atol=1e-4)
+
+    def oracle(x, t):  # the exact velocity, given x0
+        ab = d.alpha_bar[t].view(-1, 1, 1, 1)
+        n = (x - ab.sqrt() * x0[:1]) / (1 - ab).sqrt()
+        return ab.sqrt() * n - (1 - ab).sqrt() * x0[:1]
+
+    out = d.sample(oracle, (1, 4, 8, 8), 20, torch.device("cpu"), torch.Generator().manual_seed(0))
+    assert torch.allclose(out, x0[:1], atol=1e-3)
+    with pytest.raises(ValueError):
+        Diffusion(prediction="x0")
+
+
 def test_sampling_is_reproducible_with_a_generator():
     d = Diffusion()
     eps = lambda x, t: 0.1 * x  # noqa: E731
@@ -252,7 +271,10 @@ def test_validation_reports_how_much_the_receiver_uses_the_channel(tmp_path):
     last = hist["history"][-1]
     entry = last["val_by_snr"]["0.0"]
     assert entry["cond_gain"] == pytest.approx(entry["uncond"] - entry["loss"])
-    assert set(last["quality"]) == {"psnr@0", "dino@0"}
+    # EMA and raw weights both, with the sampled latents' spread, so an EMA problem shows up
+    assert set(last["quality"]) == {"psnr@0", "dino@0", "zstd@0", "raw_psnr@0", "raw_dino@0",
+                                    "raw_zstd@0", "raw_val_loss", "ema_decay"}
+    assert (cfg.run_dir / "best.pt").exists() and hist["summary"]["best_step"] in (2, 4)
     sanity = json.loads((cfg.run_dir / "sanity.json").read_text())
     assert set(sanity) == {"data", "vae_ceiling", "overfit"}
 
@@ -294,3 +316,42 @@ def test_watcher_rules_fire_on_the_failures_they_name():
     assert any(k.startswith("nonfinite") for k, _ in w.check([{"kind": "STEP", "run": "r", "step": 5.0,
                                                                "loss": float("nan")}], ""))
     assert any(k.startswith("error") for k, _ in w.check([], "Traceback (most recent call last):"))
+
+
+def test_watcher_quality_rules_catch_g_w1():
+    """The reconstruction-quality rules fire on g-w1's real validation numbers (EMA weights that
+    sampled meaningless images while the losses looked healthy) and stay quiet on a good run."""
+    w = _watch()
+    g_w1 = [(2000, 11.281, 0.022), (4000, 11.087, 0.020), (6000, 9.460, 0.005), (8000, 7.818, -0.009),
+            (10000, 7.028, -0.016)]
+    vals = lambda rows, **extra: [{"kind": "VAL", "run": "dit-r", "step": float(s), "val_loss": 0.18,  # noqa: E731
+                                   "cond_gain": 0.03, "psnr@0": p, "dino@0": d, **extra} for s, p, d in rows]
+    keys = lambda rows, **extra: {k.split(":")[0] for k, _ in w.check(vals(rows, **extra), "")}  # noqa: E731
+    assert "quality_drop" in keys(g_w1[:4])
+    assert "unrelated" in keys(g_w1)
+    good = [(2000 * i, 14.0 + i, 0.3 + 0.05 * i) for i in range(1, 7)]
+    assert keys(good, **{"zstd@0": 1.0, "raw_psnr@0": 20.0}) == set()
+    assert "zscale" in keys(good, **{"zstd@0": 3.1})
+    assert "ema_gap" in keys(good, **{"raw_psnr@0": 30.0})
+
+
+def test_ema_decay_ramps_up_to_its_cap():
+    from semcom.gen.train import ema_decay
+
+    cfg = GenConfig()
+    assert ema_decay(cfg, 0) == pytest.approx(0.1)
+    assert ema_decay(cfg, 10_000) == pytest.approx(10_001 / 10_010)
+    assert ema_decay(cfg, 10**6) == cfg.ema_decay
+    old = cfg.replace(ema_warmup=False)
+    assert (ema_decay(old, 999), ema_decay(old, 1000)) == (0.0, cfg.ema_decay)
+
+
+def test_velocity_dit_trains_evaluates_and_is_named_apart(tmp_path):
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cfg = tiny(tmp_path, prediction="v")
+    assert cfg.run_name == "dit-S-v_cbr48_spec0_s0"
+    train(cfg)
+    out = evaluate_run(cfg.run_dir, external=False)
+    assert out["checkpoint"] == "best" and all(v["psnr"] == v["psnr"] for v in out["results"].values())

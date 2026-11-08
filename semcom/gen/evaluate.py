@@ -44,7 +44,9 @@ def seed_of(*key) -> int:
 
 def load_run(run_dir: Path, device: torch.device) -> tuple[torch.nn.Module, GenConfig]:
     cfg = GenConfig.from_yaml(run_dir / "config.yaml")
-    ckpt = torch.load(run_dir / "final.pt", map_location=device, weights_only=False)
+    path = run_dir / ("best.pt" if cfg.eval_checkpoint == "best" and (run_dir / "best.pt").exists() else "final.pt")
+    ckpt = torch.load(path, map_location=device, weights_only=False)
+    print(f"evaluating {path.name} (step {ckpt.get('step')})", flush=True)
     model = build_model(cfg, ckpt["dino_dim"]).to(device)
     model.load_state_dict(ckpt["ema"])
     return model.eval(), cfg
@@ -115,7 +117,7 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
             print(f"EVAL run={cfg.run_name} " + kv(snr=float(snr), steps=steps or 0, **entry), flush=True)
 
     out = {"run_name": cfg.run_name, "model": cfg.model, "arm": cfg.arm, "snr_mode": cfg.snr_mode,
-           "seed": cfg.seed, "k": cfg.k, "bandwidth_ratio": cfg.bandwidth_ratio,
+           "seed": cfg.seed, "checkpoint": cfg.eval_checkpoint, "k": cfg.k, "bandwidth_ratio": cfg.bandwidth_ratio,
            "device": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
            "snrs": snrs, "steps": steps_list, "cfg_scale": cfg.cfg_scale, "results": results}
     (run_dir / "eval.json").write_text(json.dumps(out, indent=2), encoding="utf-8")

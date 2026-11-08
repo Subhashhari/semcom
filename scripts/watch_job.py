@@ -24,6 +24,15 @@ Rules (thresholds fixed here, before any run):
     skipped     the AMP scaler skipped more than 1% of steps
     slow        throughput below half its median for the run
     stall       no new STEP line for --stall-minutes while the job is running
+
+Reconstruction-quality rules, added after g-w1 (whose EMA weights sampled meaningless images
+while every loss looked healthy). They read the fixed validation batch's real reconstructions:
+    quality_drop  PSNR (by > 0.5 dB) or DINOv2 similarity (by > 0.02) fell at two consecutive
+                  validations, at step >= 4,000
+    unrelated     DiT only: DINOv2 similarity below 0.1 at step >= 10,000, outputs unrelated to the
+                  inputs (the VAE alone scores 0.77, an unrelated real photo 0.34, flat grey 0.0)
+    zscale        sampled latents' spread outside 0.5-2x the true latents' at step >= 4,000
+    ema_gap       the raw weights reconstruct > 2 dB better than the EMA at step >= 10,000
 """
 
 from __future__ import annotations
@@ -94,9 +103,40 @@ def check(records: list[dict], log_text: str, stall: bool = False) -> list[tuple
         if len(rates) >= 10 and rates[-1] < 0.5 * statistics.median(rates):
             alerts.append((f"slow:{run}:{steps[-1]['step']}",
                            f"{run}: {rates[-1]:.2f} it/s, median {statistics.median(rates):.2f}"))
+        alerts += quality_alerts(run, vals)
     if stall:
-        alerts.append((f"stall:{len(records)}", "no new STEP line within the stall window"))
+        alerts.append((f"stall:{len(records)}", "no new STEP line within the stall window" + (
+            "; no metric line read at all, so check the log reader" if not records else "")))
     return alerts
+
+
+QUALITY_TOL = {"psnr": 0.5, "dino": 0.02}
+
+
+def quality_alerts(run, vals: list[dict]) -> list[tuple[str, str]]:
+    if not vals:
+        return []
+    out, last, step = [], vals[-1], vals[-1]["step"]
+    for key in [k for k in last if re.match(r"^(psnr|dino)@", k)]:
+        seq = [v[key] for v in vals if key in v]
+        tol = QUALITY_TOL[key.split("@")[0]]
+        if step >= 4000 and len(seq) >= 3 and seq[-1] < seq[-2] - tol and seq[-2] < seq[-3] - tol:
+            out.append((f"quality_drop:{run}:{key}:{step}",
+                        f"{run} step {step:.0f}: {key} fell twice in a row: {[round(x, 3) for x in seq[-3:]]}"))
+        # DiT only: the CNN's blurry, noisy outputs score low DINOv2 similarity while clearly
+        # matching their inputs (g-w1 CNN at 18-19 dB: 0.05-0.10).
+        if key.startswith("dino@") and str(run).startswith("dit") and step >= 10_000 and last[key] < 0.1:
+            out.append((f"unrelated:{run}:{key}:{step}",
+                        f"{run} step {step:.0f}: {key}={last[key]:.3f}, outputs unrelated to the inputs"))
+        raw = last.get("raw_" + key)
+        if key.startswith("psnr@") and raw is not None and step >= 10_000 and raw - last[key] > 2:
+            out.append((f"ema_gap:{run}:{key}:{step}",
+                        f"{run} step {step:.0f}: raw {key}={raw:.2f} vs EMA {last[key]:.2f}"))
+    for key in [k for k in last if re.match(r"^(raw_)?zstd@", k)]:
+        if step >= 4000 and not 0.5 <= last[key] <= 2.0:
+            out.append((f"zscale:{run}:{key}:{step}",
+                        f"{run} step {step:.0f}: {key}={last[key]:.2f}, sampled latents have the wrong scale"))
+    return out
 
 
 def summary(records: list[dict]) -> str:

@@ -69,6 +69,7 @@ class GenConfig:
 
     # --- diffusion
     num_timesteps: int = 1000
+    prediction: str = "eps"  # network target: "eps" (noise, as DiT) or "v" (velocity)
     beta_start: float = 1e-4
     beta_end: float = 0.02
 
@@ -78,7 +79,11 @@ class GenConfig:
     warmup_steps: int = 1000
     batch_size: int = 64
     steps: int = 50_000
-    ema_decay: float = 0.9999
+    ema_decay: float = 0.9999  # cap on the EMA decay
+    # Ramp the EMA decay as min(ema_decay, (1 + step) / (10 + step)), so the average spans about
+    # the last tenth of training. A fixed 0.9999 from step 1000 keeps 41% of the barely-trained
+    # step-1000 weights at step 10k; in the first 40k-step run this broke sampling (g-w1).
+    ema_warmup: bool = True
     grad_clip: float = 1.0
     num_workers: int = 2
     amp: bool = True
@@ -96,6 +101,9 @@ class GenConfig:
     eval_snrs: list[float] = field(default_factory=lambda: [-5.0, 0.0, 5.0])
     sample_steps: list[int] = field(default_factory=lambda: [50, 20, 10])
     cfg_scale: float = 1.0
+    # Weights evaluated: "best" (lowest validation loss; early stopping, since Imagenette is small
+    # and the g-w1 CNN's validation loss rose from step 6k) or "final" (end of training).
+    eval_checkpoint: str = "best"
     eval_images: int = 1000  # test images per SNR point; None-like 0 means all
     eval_batch: int = 50
     val_every: int = 2_000  # steps between validation-loss passes
@@ -112,6 +120,10 @@ class GenConfig:
     def __post_init__(self):
         if self.model not in ("dit", "cnn"):
             raise ValueError(f"model must be 'dit' or 'cnn', got {self.model!r}")
+        if self.eval_checkpoint not in ("best", "final"):
+            raise ValueError(f"eval_checkpoint must be 'best' or 'final', got {self.eval_checkpoint!r}")
+        if self.prediction not in ("eps", "v"):
+            raise ValueError(f"prediction must be 'eps' or 'v', got {self.prediction!r}")
         if self.snr_mode not in SNR_MODES:
             raise ValueError(f"snr_mode must be one of {SNR_MODES}, got {self.snr_mode!r}")
         if self.snr_mode == "fixed" and self.snr_train_fixed is None:
@@ -167,8 +179,10 @@ class GenConfig:
 
     @property
     def run_name(self) -> str:
-        """e.g. dit-S_cbr48_spec0_s0, dit-S_cbr48_blind-5to5_s0, cnn_cbr48_spec0_s0."""
+        """e.g. dit-S_cbr48_spec0_s0, dit-S-v_cbr48_blind-5to5_s0 (velocity target), cnn_cbr48_spec0_s0."""
         family = f"dit-{self.dit_size}" if self.model == "dit" else "cnn"
+        if self.model == "dit" and self.prediction != "eps":
+            family += f"-{self.prediction}"
         parts = [family, f"cbr{round(1 / self.bandwidth_ratio)}", self.arm]
         if self.channel != "awgn":
             parts.append(self.channel)
