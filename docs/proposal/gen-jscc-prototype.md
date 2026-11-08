@@ -133,18 +133,31 @@ receiver with QAM symbols, and (with section 3's arms) told vs blind vs speciali
 - A KL-to-uniform penalty (weight 0.05, training only) counters codebook collapse. Symbol-usage
   entropy, kurtosis and mean transmit energy are logged at every validation.
 - The receiver conditions on the noisy received symbols, as an equaliser would hand them to a
-  demapper. There is no channel code. SNR is Es/N0 with Es = 1, the constellation's nominal energy;
-  if the encoder favours inner points, the actual transmit energy is slightly below 1, which
-  slightly handicaps digital against analog. It is reported with every run.
+  demapper. There is no channel code.
+- **SNR is Es/N0 with Es the energy the symbols actually carry** (`power_ref: actual`): the batch
+  mean in training, one constant measured on the test images at evaluation (a fixed constellation
+  scaled by one amplifier gain). Analog runs send exactly unit energy per image, so the two compare
+  at equal transmitted energy. The first digital job (g-w4) used DeepJSCC-Q's nominal Es = 1:
+  clipping onto the outer points left it sending 0.83, an unstated 0.8 dB handicap. It is kept as
+  the ablation of that convention.
 
-**Arms and jobs** (results in `results/gen/p128-qam`, 40k steps, v-target DiT-S as section 3):
+**First measurement (g-w4, nominal Es).** Mapping validation loss onto the analog specialists'
+curves (−5 / 0 / 5 dB, same step), the 16-QAM model trained at 0 dB behaves like analog at
+−1.9 dB, at 4k, 6k and 10k steps alike: about 0.8 dB from the energy convention and about 1.1 dB
+from quantisation (an untrained Gaussian latent would predict 0.5 dB: signal-to-quantisation-noise
+ratio 9.1 dB for 16-QAM, 3.9 dB for QPSK, 12.5 dB for 64-QAM). Constellation-constrained mutual
+information at 0 dB is 0.97 / 0.99 / 0.99 bits for 4 / 16 / 64-QAM against 1.00 for a Gaussian
+input, so the loss is in the uncoded mapping, not in what the constellation can carry.
 
-| Job | When | Runs | Question |
+**Arms and jobs** (40k steps, v-target DiT-S as section 3; actual-Es results in
+`results/gen/p128-qam-es`, the nominal-Es ablation in `results/gen/p128-qam`):
+
+| Job | Account | Runs | Question |
 |---|---|---|---|
-| g-w4 | 8 Nov | 16-QAM `spec0`, 16-QAM `told` | cost of going digital at 0 dB (vs analog `spec0`); does one told model still work with 16-QAM symbols |
-| g-w5 | 8 Nov, after g-w3 | 4-QAM `spec0`, 64-QAM `spec0` | modulation-order sweep at 0 dB: 4 / 16 / 64-QAM / analog |
-| g-w6 | after the 14 Nov quota reset | 16-QAM `blind`, `spec−5`, `spec5` | the full told/blind/specialist study with 16-QAM symbols |
-| g-w7 | after 14 Nov | CNN 16-QAM `spec0` (~3.9 h) | is the DiT's lead over the CNN preserved under digital transmission |
+| g-w4 | own | 16-QAM `spec0`, `told`, nominal Es | ablation: the energy convention |
+| g-d1 | teammate | 16-QAM `spec0`, `told` | cost of going digital at 0 dB; does one told model still work with 16-QAM symbols |
+| g-p2 | teammate | 0.3 h probes: 4-QAM, 64-QAM `spec0`; 16-QAM with DeepJSCC-Q's temperature rise (control) | are the other orders healthy; does the fixed temperature beat the rise; probes resume as full runs |
+| next | teammate | 4-QAM, 64-QAM `spec0` (resumed), 16-QAM `blind`, `spec−5`, `spec5`; CNN 16-QAM `spec0` | modulation sweep; full told/blind/specialist study with 16-QAM; DiT vs CNN under digital transmission |
 
 **What 18 Nov shows.** (1) Analog vs 4/16/64-QAM DiT at 0 dB, evaluated at −5, 0, 5 dB, on PSNR,
 LPIPS, DINOv2 and FID. (2) 16-QAM told vs the 16-QAM specialist(s), and blind if g-w6 finishes in
