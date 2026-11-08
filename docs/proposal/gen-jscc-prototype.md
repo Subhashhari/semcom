@@ -1,7 +1,8 @@
 # One Generative JSCC Receiver for Every SNR: a Small DiT-JSCC Prototype
 
-**Status (7 Nov 2026):** pipeline implemented and tested (`semcom/gen/`, `scripts/run_gen.py`,
-`tests/test_gen.py`); no GPU runs yet.
+**Status (8 Nov 2026):** week-1 gate passed (DiT-S beats the CNN at 0 dB on LPIPS, DINOv2 and
+FID); the week-2 SNR study (g-w3) is running; digital M-QAM transmission added (section 7), first
+digital job (g-w4) running.
 
 ## 1. Question
 
@@ -101,4 +102,51 @@ If it fails: (a) a larger receiver (DiT-B) or longer training, then (b) a refine
 |---|---|---|
 | Tue 10 Nov | short update | Design (this document): question, novelty position, architecture and deviations; pipeline implemented and tested; data cache built; first GPU run launched, with throughput and early loss curves |
 | Wed 11 Nov | short update | First results: DiT-S specialist vs CNN baseline at 0 dB (sample grid; LPIPS, DINOv2, PSNR, FID); decoding time at 50 / 20 / 10 steps; gate verdict |
-| Wed 18 Nov | comprehensive | The SNR study: three specialists vs `told` vs `blind` at −5, 0, 5 dB, with paired comparisons; CNN baselines; storage (1 model vs 3) and decoding-cost table; SNR-mismatch result (specialists away from their SNR); limitations and next steps (few-step distillation) |
+| Wed 18 Nov | comprehensive | The SNR study: three specialists vs `told` vs `blind` at −5, 0, 5 dB, with paired comparisons; CNN baselines; storage (1 model vs 3) and decoding-cost table; SNR-mismatch result (specialists away from their SNR); **digital transmission (section 7): the cost of sending 16-QAM instead of analog symbols, the modulation-order sweep, and the told/blind question with 16-QAM symbols**; limitations and next steps (few-step distillation) |
+
+## 7. Digital transmission (added 8 Nov)
+
+**Why.** DiT-JSCC, like every image-generating diffusion JSCC we found (DiffJSCC, CDM-JSCC, LRISC,
+DiffCom, SGD-JSCC, OSD-JSCC, CDDM), sends continuous-valued complex symbols, which no standard
+modulator can emit. Digital diffusion work either cleans up QAM symbols in a classical link (SCDM,
+SSCDM, CD3M) or uses a separation design (tokens or bits plus a generative decoder). We found no
+work that quantises a DiT-JSCC-style receiver's learned symbols, where diffusion starts from pure
+noise and the received symbols are only conditions, to M-QAM (`reports/Digital diffusion JSCC
+novelty.md`, gap 1).
+
+**What must not be claimed.** Quantising learned JSCC symbols to QAM is DeepJSCC-Q (Tung et al.,
+arXiv:2111.13042, 2206.08100), including one SNR-adaptive quantised model over 0–10 dB with a
+mismatch study, for a CNN decoder. MDJCM and SemQAM already do QAM-native JSCC with GAN-type or
+SNR-conditioned decoders. The new part is the combination: a pure-noise conditional diffusion
+receiver with QAM symbols, and (with section 3's arms) told vs blind vs specialists in that setting.
+
+**Design** (`semcom/gen/model.py`, `digital: true`):
+
+- Both branches are power-normalised as before, then every symbol is snapped to the nearest
+  point of one square M-QAM constellation with unit average energy under uniform use. Only exact
+  constellation points are transmitted; validation and evaluation verify this and refuse to report
+  otherwise.
+- Gradients use DeepJSCC-Q's softmax relaxation. Its inverse temperature is held fixed at
+  2/d_min² (5 for 16-QAM, DeepJSCC-Q's starting value) instead of DeepJSCC-Q's rise to 100. On
+  unit-power Gaussian inputs, the rise leaves 14% of 16-QAM symbols with a surrogate gradient
+  above 0.1; the fixed value leaves about 91% for 4-, 16- and 64-QAM alike.
+- A KL-to-uniform penalty (weight 0.05, training only) counters codebook collapse. Symbol-usage
+  entropy, kurtosis and mean transmit energy are logged at every validation.
+- The receiver conditions on the noisy received symbols, as an equaliser would hand them to a
+  demapper. There is no channel code. SNR is Es/N0 with Es = 1, the constellation's nominal energy;
+  if the encoder favours inner points, the actual transmit energy is slightly below 1, which
+  slightly handicaps digital against analog. It is reported with every run.
+
+**Arms and jobs** (results in `results/gen/p128-qam`, 40k steps, v-target DiT-S as section 3):
+
+| Job | When | Runs | Question |
+|---|---|---|---|
+| g-w4 | 8 Nov | 16-QAM `spec0`, 16-QAM `told` | cost of going digital at 0 dB (vs analog `spec0`); does one told model still work with 16-QAM symbols |
+| g-w5 | 8 Nov, after g-w3 | 4-QAM `spec0`, 64-QAM `spec0` | modulation-order sweep at 0 dB: 4 / 16 / 64-QAM / analog |
+| g-w6 | after the 14 Nov quota reset | 16-QAM `blind`, `spec−5`, `spec5` | the full told/blind/specialist study with 16-QAM symbols |
+| g-w7 | after 14 Nov | CNN 16-QAM `spec0` (~3.9 h) | is the DiT's lead over the CNN preserved under digital transmission |
+
+**What 18 Nov shows.** (1) Analog vs 4/16/64-QAM DiT at 0 dB, evaluated at −5, 0, 5 dB, on PSNR,
+LPIPS, DINOv2 and FID. (2) 16-QAM told vs the 16-QAM specialist(s), and blind if g-w6 finishes in
+time. (3) Symbol usage and transmit energy per run. Expected by 14–16 Nov at the current per-run
+cost of about 1.5 h of training plus about 0.3 h of evaluation on a T4.
