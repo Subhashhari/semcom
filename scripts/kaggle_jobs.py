@@ -323,7 +323,10 @@ def cmd_fetch(args) -> None:
     job = load_job(args.name)
     out = job_dir(args.name) / "output"
     out.mkdir(parents=True, exist_ok=True)
-    kaggle("kernels", "output", job["kernel"], "-p", str(out), "--force", token_file=_token(job))
+    # The kernel's output holds the whole cloned results/ tree; --only limits the download to
+    # files whose path matches a regex (e.g. the job's own out-dir), which is much faster.
+    pattern = (["--file-pattern", args.only] if args.only else [])
+    kaggle("kernels", "output", job["kernel"], "-p", str(out), "--force", *pattern, token_file=_token(job))
 
     # Per file, never overwriting unless --force: a run already present locally can still gain
     # files a later job added (e.g. blind_eval.json for an attached checkpoint). Generative runs
@@ -392,6 +395,8 @@ def main() -> None:
             sp.add_argument("--force", action="store_true", help="overwrite runs already present")
             sp.add_argument("--with-checkpoints", action="store_true",
                             help="also download generative runs' resumable checkpoint.pt")
+            sp.add_argument("--only", default=None, metavar="REGEX",
+                            help="download only output files whose path matches (e.g. 'p128-ft/|[.]log$')")
         sp.set_defaults(func=fn)
     logs = sub.add_parser("logs", help="tail a job's execution log, even while running")
     logs.add_argument("name")

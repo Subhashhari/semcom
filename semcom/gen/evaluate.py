@@ -1,6 +1,7 @@
 """Evaluate trained generative-JSCC runs on the test split.
 
     python -m semcom.gen.evaluate results/gen/p128/dit-S_cbr48_spec0_s0 [more runs...]
+    python -m semcom.gen.evaluate RUN --steps 1 2 4 --suffix fewstep   # keeps eval.json
 
 For each SNR in eval_snrs and (DiT only) each step count in sample_steps: PSNR, LPIPS,
 DINOv2 similarity and FID over the first `eval_images` test images, plus the receiver's
@@ -59,8 +60,12 @@ def _sync(device):
 
 @torch.no_grad()
 def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images: int | None = None,
-                 snrs=None, steps_list=None, external: bool = True) -> dict:
-    """`external=False` skips LPIPS and FID, whose networks download on first use."""
+                 snrs=None, steps_list=None, external: bool = True, suffix: str = "") -> dict:
+    """`external=False` skips LPIPS and FID, whose networks download on first use. A `suffix`
+    writes eval-<suffix>.json etc. next to the run's main evaluation instead of replacing it."""
+    if suffix and not all(c.isalnum() or c == "-" for c in suffix):
+        raise ValueError(f"suffix must be letters, digits and '-', got {suffix!r}")
+    tail = f"-{suffix}" if suffix else ""
     run_dir = Path(run_dir)
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, cfg = load_run(run_dir, device)
@@ -141,12 +146,12 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
            "digital": cfg.digital, "modulation_order": cfg.modulation_order if cfg.digital else None,
            "symbols": symbols,
            "snrs": snrs, "steps": steps_list, "cfg_scale": cfg.cfg_scale, "results": results}
-    (run_dir / "eval.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
-    np.savez_compressed(run_dir / "eval_images.npz", **images)
+    (run_dir / f"eval{tail}.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
+    np.savez_compressed(run_dir / f"eval_images{tail}.npz", **images)
     if first is not None:
         from torchvision.utils import save_image
 
-        save_image(torch.cat([first.cpu()] + sample_rows), run_dir / "eval_samples.png", nrow=first.shape[0])
+        save_image(torch.cat([first.cpu()] + sample_rows), run_dir / f"eval_samples{tail}.png", nrow=first.shape[0])
     return out
 
 
@@ -155,9 +160,13 @@ def main() -> None:
     p.add_argument("run_dirs", type=Path, nargs="+")
     p.add_argument("--eval-images", type=int, default=None)
     p.add_argument("--no-external", action="store_true", help="skip LPIPS and FID")
+    p.add_argument("--snrs", nargs="+", type=float, default=None)
+    p.add_argument("--steps", nargs="+", type=int, default=None, help="DiT sampling step counts")
+    p.add_argument("--suffix", default="", help="write eval-<suffix>.json etc. (keeps eval.json)")
     args = p.parse_args()
     for run_dir in args.run_dirs:
-        evaluate_run(run_dir, eval_images=args.eval_images, external=not args.no_external)
+        evaluate_run(run_dir, eval_images=args.eval_images, external=not args.no_external,
+                     snrs=args.snrs, steps_list=args.steps, suffix=args.suffix)
 
 
 if __name__ == "__main__":

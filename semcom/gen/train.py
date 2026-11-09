@@ -47,6 +47,18 @@ def init_weights(run_dir: str | Path, device: torch.device) -> dict:
     return torch.load(path, map_location=device, weights_only=False)["ema"]
 
 
+def load_init(model: torch.nn.Module, weights: dict) -> None:
+    """Load another run's weights. The only parameters allowed to be missing are the transmitter's
+    SNR FiLM layers (they start at the identity), so an SNR-aware transmitter can start from a
+    run without them; anything else that does not match is an error."""
+    missing, unexpected = model.load_state_dict(weights, strict=False)
+    bad = [n for n in missing if ".film." not in n]
+    if bad or unexpected:
+        raise ValueError(f"init weights do not match the model: missing {bad[:5]}, unexpected {unexpected[:5]}")
+    if missing:
+        print(f"init: {len(missing)} FiLM tensors start at the identity")
+
+
 #: Parameter-name prefixes of each part of the DiT-JSCC model.
 PARTS = {"transmitter": ("sem_enc.", "det_enc."), "receiver": ("dit.",)}
 
@@ -154,7 +166,7 @@ def train(cfg: GenConfig) -> dict | None:
 
     model = build_model(cfg, meta["dino_dim"]).to(device)
     if cfg.init_from:
-        model.load_state_dict(init_weights(cfg.init_from, device))
+        load_init(model, init_weights(cfg.init_from, device))
     set_trainable(model, cfg.train_parts)
     ema = copy.deepcopy(model).requires_grad_(False).eval()
     opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=cfg.lr,

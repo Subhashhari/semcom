@@ -70,25 +70,53 @@ def from_symbols(z: torch.Tensor, c: int, g: int) -> torch.Tensor:
     return z.reshape(z.shape[0], c, g, g)
 
 
+class SNRFiLM(nn.Module):
+    """Per-channel scale and shift from the SNR: h * (1 + gamma) + beta. The output layer starts
+    at zero, so the layer starts as the identity."""
+
+    def __init__(self, channels: int, hidden: int = 64):
+        super().__init__()
+        self.mlp = nn.Sequential(nn.Linear(1, hidden), nn.SiLU(), nn.Linear(hidden, 2 * channels))
+        nn.init.zeros_(self.mlp[-1].weight)
+        nn.init.zeros_(self.mlp[-1].bias)
+
+    def forward(self, h: torch.Tensor, snr_db: torch.Tensor) -> torch.Tensor:
+        gamma, beta = self.mlp((snr_db / SNR_SCALE_DB).to(h.dtype).view(-1, 1)).chunk(2, dim=1)
+        return h * (1 + gamma[:, :, None, None]) + beta[:, :, None, None]
+
+
+def _film_forward(net: nn.Sequential, films, h: torch.Tensor, snr_db) -> torch.Tensor:
+    """Run `net`, applying films[str(i)] after layer i when the encoder is SNR-aware."""
+    if films is not None and snr_db is None:
+        raise ValueError("this transmitter is SNR-aware: give it the SNR")
+    for i, layer in enumerate(net):
+        h = layer(h)
+        if films is not None and str(i) in films:
+            h = films[str(i)](h, snr_db)
+    return h
+
+
 class SemanticEncoder(nn.Module):
     """DINOv2 features on the symbol grid (B, D, g, g) -> (B, c_sem, g, g)."""
 
-    def __init__(self, dino_dim: int, c_sem: int, hidden: int = 256):
+    def __init__(self, dino_dim: int, c_sem: int, hidden: int = 256, snr_aware: bool = False):
         super().__init__()
         self.net = nn.Sequential(
             nn.Conv2d(dino_dim, hidden, 1), nn.GELU(),
             nn.Conv2d(hidden, hidden, 3, padding=1), nn.GELU(),
             nn.Conv2d(hidden, c_sem, 1),
         )
+        # After each hidden activation (layers 1 and 3).
+        self.film = nn.ModuleDict({"1": SNRFiLM(hidden), "3": SNRFiLM(hidden)}) if snr_aware else None
 
-    def forward(self, f: torch.Tensor) -> torch.Tensor:
-        return self.net(f)
+    def forward(self, f: torch.Tensor, snr_db: torch.Tensor | None = None) -> torch.Tensor:
+        return _film_forward(self.net, self.film, f, snr_db)
 
 
 class DetailEncoder(nn.Module):
     """Pixels (B, 3, S, S) -> (B, c_det, S/16, S/16): four stride-2 stages."""
 
-    def __init__(self, c_det: int, hidden: int = 128):
+    def __init__(self, c_det: int, hidden: int = 128, snr_aware: bool = False):
         super().__init__()
         layers, c = [], 3
         for _ in range(4):
@@ -96,9 +124,11 @@ class DetailEncoder(nn.Module):
             c = hidden
         layers += [nn.Conv2d(hidden, hidden, 3, padding=1), nn.GELU(), nn.Conv2d(hidden, c_det, 1)]
         self.net = nn.Sequential(*layers)
+        # After the second and fourth stride-2 stages and the last hidden activation (layers 3, 7, 9).
+        self.film = nn.ModuleDict({str(i): SNRFiLM(hidden) for i in (3, 7, 9)}) if snr_aware else None
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
-        return self.net(x)
+    def forward(self, x: torch.Tensor, snr_db: torch.Tensor | None = None) -> torch.Tensor:
+        return _film_forward(self.net, self.film, x, snr_db)
 
 
 def make_quantiser(cfg: GenConfig) -> SoftToHardQuantiser | None:
@@ -163,8 +193,8 @@ class GenJSCC(EnergyReference, nn.Module):
         super().__init__()
         self.cfg = cfg
         depth, hidden, heads = DIT_SIZES[cfg.dit_size]
-        self.sem_enc = SemanticEncoder(dino_dim, cfg.c_sem)
-        self.det_enc = DetailEncoder(cfg.c_det, cfg.det_hidden)
+        self.sem_enc = SemanticEncoder(dino_dim, cfg.c_sem, snr_aware=cfg.encoder_snr)
+        self.det_enc = DetailEncoder(cfg.c_det, cfg.det_hidden, snr_aware=cfg.encoder_snr)
         self.dit = ConditionalDiT(
             latent_size=cfg.image_size // 8, c_sem=cfg.c_sem, c_det=cfg.c_det,
             depth=depth, hidden=hidden, heads=heads, patch=cfg.patch_size,
@@ -176,11 +206,13 @@ class GenJSCC(EnergyReference, nn.Module):
         self._kl = None
         self._init_energy(cfg)
 
-    def transmit(self, batch: dict) -> tuple[torch.Tensor, torch.Tensor]:
+    def transmit(self, batch: dict, snr_db: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Channel inputs (z_sem, z_det), each (B, k, 2) at unit average power; exact M-QAM points
-        when digital (average power then varies a little per image with the points used)."""
-        z_s = power_normalise(to_symbols(self.sem_enc(batch["dino"])), self.cfg.avg_power)
-        z_d = power_normalise(to_symbols(self.det_enc(batch["image"])), self.cfg.avg_power)
+        when digital (average power then varies a little per image with the points used).
+        `snr_db` reaches the encoders only when cfg.encoder_snr (an SNR-aware transmitter)."""
+        s = snr_db if self.cfg.encoder_snr else None
+        z_s = power_normalise(to_symbols(self.sem_enc(batch["dino"], s)), self.cfg.avg_power)
+        z_d = power_normalise(to_symbols(self.det_enc(batch["image"], s)), self.cfg.avg_power)
         if self.quantiser is not None:
             (z_s, z_d), self._kl = quantise(self.quantiser, z_s, z_d)
         return z_s, z_d
@@ -192,7 +224,7 @@ class GenJSCC(EnergyReference, nn.Module):
     def received(self, batch, snr_db, generator=None):
         """Received symbol grids (y_sem, y_det) after the channel."""
         cfg, g = self.cfg, self.cfg.grid
-        z_s, z_d = self.transmit(batch)
+        z_s, z_d = self.transmit(batch, snr_db)
         es = self.signal_energy(torch.cat([z_s, z_d], dim=1))
         y_s = channel(z_s, snr_db, cfg.channel, es, generator)
         y_d = channel(z_d, snr_db, cfg.channel, es, generator)

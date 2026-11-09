@@ -5,6 +5,7 @@
     python scripts/run_gen.py --stage week2 --evaluate           # 3 specialists + told + blind
     python scripts/run_gen.py --models dit --arms told blind --seeds 0 --steps 40000 --evaluate
     python scripts/run_gen.py --models dit --arms spec0 told --qam 16 --out-dir results/gen/p128-qam --evaluate
+    python scripts/run_gen.py --models dit --arms blind --evaluate --sample-steps 1 2 4 --eval-suffix fewstep
 
 Arms: spec<SNR> (a specialist trained at that SNR, e.g. spec0, spec-5), told (one model for
 U[min, max] with the SNR in its slot), blind (the same model with a constant in the slot).
@@ -75,6 +76,11 @@ def main() -> None:
     p.add_argument("--tag", default=None, help="appended to the run name")
     p.add_argument("--eval-snrs", nargs="+", type=float, default=None)
     p.add_argument("--sample-steps", nargs="+", type=int, default=None)
+    p.add_argument("--encoder-snr", action="store_true",
+                   help="DiT: SNR-aware transmitter (FiLM on the SNR in both encoders)")
+    p.add_argument("--eval-suffix", default="",
+                   help="with --evaluate: write eval-<suffix>.json (at --eval-snrs / --sample-steps), "
+                        "keeping a run's main eval.json; for re-evaluating finished runs")
     args = p.parse_args()
 
     overrides = {"steps": args.steps, "dit_size": args.dit_size, "prediction": args.prediction, "batch_size": args.batch_size,
@@ -82,7 +88,7 @@ def main() -> None:
                  "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode,
                  "anneal_period": args.anneal_period, "init_from": args.init_from,
                  "train_parts": args.train_parts, "tag": args.tag, "eval_snrs": args.eval_snrs,
-                 "sample_steps": args.sample_steps}
+                 "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:
@@ -121,8 +127,10 @@ def main() -> None:
                 continue
         else:
             print("already trained; skipping")
-        if args.evaluate and not (cfg.run_dir / "eval.json").exists():
-            evaluate_run(cfg.run_dir, external=cfg.dataset != "synthetic")
+        tail = f"-{args.eval_suffix}" if args.eval_suffix else ""
+        if args.evaluate and not (cfg.run_dir / f"eval{tail}.json").exists():
+            evaluate_run(cfg.run_dir, external=cfg.dataset != "synthetic", snrs=args.eval_snrs,
+                         steps_list=args.sample_steps, suffix=args.eval_suffix)
 
 
 if __name__ == "__main__":

@@ -645,3 +645,60 @@ def test_fine_tune_options_are_validated():
     with pytest.raises(ValueError):
         GenConfig(tag="a_b")
     assert GenConfig().run_name == "dit-S_cbr48_spec0_s0"
+
+
+def test_snr_aware_transmitter_starts_from_a_blind_run_and_learns_to_use_the_snr(tmp_path):
+    from semcom.gen.model import GenJSCC
+    from semcom.gen.train import train
+
+    src = tiny(tmp_path, prediction="v", snr_mode="blank")
+    train(src)
+    start = torch.load(src.run_dir / "best.pt", weights_only=False)["ema"]
+    ft = src.replace(init_from=str(src.run_dir), encoder_snr=True, train_parts="transmitter",
+                     tag="ft-tx", steps=4, lr=1e-2)
+    assert ft.run_name == "dit-S-v_cbr48_blind-5to5_txsnr_ft-tx_s0"
+    # FiLM layers start at the identity: before any step the SNR-aware transmitter sends exactly
+    # what the blind run's transmitter sends, at every SNR.
+    m = GenJSCC(ft, 32).eval()
+    from semcom.gen.train import load_init
+
+    load_init(m, start)
+    ref = GenJSCC(src, 32).eval()
+    ref.load_state_dict(start)
+    batch = _batch(src, 4)
+    for snr in (-5.0, 5.0):
+        s = torch.full((4,), snr)
+        for a, b in zip(m.transmit(batch, s), ref.transmit(batch)):
+            assert torch.allclose(a, b, atol=1e-6)
+    with pytest.raises(ValueError):
+        m.transmit(batch)  # an SNR-aware transmitter must be given the SNR
+    train(ft)
+    end = torch.load(ft.run_dir / "final.pt", weights_only=False)["ema"]
+    moved = {n for n in end if end[n].is_floating_point() and (n not in start or not torch.equal(start[n], end[n]))}
+    assert any(".film." in n for n in moved) and not any(n.startswith("dit.") for n in moved)
+    m.load_state_dict(end)
+    lo, hi = (m.transmit(batch, torch.full((4,), v))[1] for v in (-5.0, 5.0))
+    assert not torch.allclose(lo, hi)  # after training, what is sent depends on the SNR
+
+
+def test_snr_aware_transmitter_options_are_validated():
+    with pytest.raises(ValueError):
+        GenConfig(model="cnn", encoder_snr=True)
+    with pytest.raises(ValueError):
+        GenConfig(digital=True, modulation_order=16, encoder_snr=True)
+
+
+def test_suffixed_evaluation_keeps_the_main_one(tmp_path):
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank")
+    train(cfg)
+    evaluate_run(cfg.run_dir, external=False)
+    main = (cfg.run_dir / "eval.json").read_text()
+    out = evaluate_run(cfg.run_dir, external=False, snrs=[-5.0], steps_list=[1], suffix="fewstep")
+    assert set(out["results"]) == {"-5_1"}
+    assert (cfg.run_dir / "eval.json").read_text() == main
+    assert (cfg.run_dir / "eval-fewstep.json").exists() and (cfg.run_dir / "eval_images-fewstep.npz").exists()
+    with pytest.raises(ValueError):
+        evaluate_run(cfg.run_dir, external=False, suffix="a_b")
