@@ -6,7 +6,7 @@ real separate design at this bandwidth. The sender picks, per image, the downsca
 with the highest PSNR whose payload fits (container overhead not counted: 290 bytes for AVIF,
 40 for WebP, measured on a flat 1x1 image); the receiver upsamples bicubically to 128 px. If
 nothing fits, the receiver shows the test set's mean colour.
-usage: separation.py OUT.json N codec[,codec] [first|spread]
+usage: separation.py OUT.json N codec[,codec] [first|spread] [capacity|fbl]
 "spread" takes N evenly spaced test images (every class), as semcom.gen.evaluate --subset spread;
 it needs the whole test split cached (cache_test.py all). Per-image metrics, including the
 retrieval rank (semcom.gen.metrics.retrieval_rank), go to OUT_<codec>_<snr>.npz.
@@ -32,7 +32,21 @@ imgs = np.asarray(all_imgs[idx])
 OVERHEAD = {"webp": 40, "avif": 290}
 SCALES = [128, 96, 64, 48, 32, 24, 16, 12, 8]
 QUALS = list(range(0, 101, 5))
-budgets = {snr: cfg.k * math.log2(1 + 10 ** (snr / 10)) / 8 for snr in (-5, 0, 5)}
+def rate_bits(snr_db: float, n: int, mode: str) -> float:
+    """Bits per image over n complex AWGN uses. "capacity": n*C (infinite block length).
+    "fbl": the normal approximation at block error 1e-3 (Polyanskiy-Poor-Verdu 2010),
+    n*C - sqrt(n*V)*Qinv(1e-3) + log2(n)/2, with V the complex AWGN dispersion."""
+    p = 10 ** (snr_db / 10)
+    c = math.log2(1 + p)
+    if mode == "capacity":
+        return n * c
+    v = p * (p + 2) / (p + 1) ** 2 * math.log2(math.e) ** 2
+    return n * c - math.sqrt(n * v) * 3.090232 + math.log2(n) / 2
+
+
+budget_mode = sys.argv[5] if len(sys.argv) > 5 else "capacity"
+budgets = {snr: rate_bits(snr, cfg.k, budget_mode) / 8 for snr in (-5, 0, 5)}
+print("budget bytes:", {s: round(b, 1) for s, b in budgets.items()}, budget_mode, flush=True)
 
 def psnr(a, b):
     return 10 * np.log10(255 ** 2 / max(np.mean((a.astype(float) - b.astype(float)) ** 2), 1e-9))

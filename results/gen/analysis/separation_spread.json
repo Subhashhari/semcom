@@ -1,0 +1,83 @@
+{
+ "note": "Separate design on 1000 class-spread test images (scripts/gen_analysis/separation.py ... spread): AVIF at the channel's capacity budget (infinite block length) and at the finite-block-length budget (normal approximation, block error 1e-3, n = 1024 complex uses); container overhead excluded; sender knows the SNR. 'failure' (failure_floor.py): what the receiver shows when decoding fails, i.e. below the design SNR.",
+ "capacity": {
+  "avif_-5": {
+   "psnr": 18.873117446899414,
+   "lpips": 0.7467541098594666,
+   "dino_sim": 0.08196484297513962,
+   "retrieval_rank": 239.60499572753906,
+   "retrieval_top1": 0.027000000700354576,
+   "retrieval_top5": 0.09300000220537186,
+   "budget_bytes": 50.740372628878575,
+   "fit_fraction": 1.0,
+   "median_scale": 32.0
+  },
+  "avif_0": {
+   "psnr": 21.11517906188965,
+   "lpips": 0.5613643527030945,
+   "dino_sim": 0.23886412382125854,
+   "retrieval_rank": 62.012001037597656,
+   "retrieval_top1": 0.19900000095367432,
+   "retrieval_top5": 0.44200000166893005,
+   "budget_bytes": 128.0,
+   "fit_fraction": 1.0,
+   "median_scale": 48.0
+  },
+  "avif_5": {
+   "psnr": 23.225082397460938,
+   "lpips": 0.38959866762161255,
+   "dino_sim": 0.4677937626838684,
+   "retrieval_rank": 8.47700023651123,
+   "retrieval_top1": 0.6010000109672546,
+   "retrieval_top5": 0.8209999799728394,
+   "budget_bytes": 263.34377070166977,
+   "fit_fraction": 1.0,
+   "median_scale": 64.0
+  }
+ },
+ "finite_blocklength": {
+  "avif_-5": {
+   "psnr": 18.30925178527832,
+   "lpips": 0.7847435474395752,
+   "dino_sim": 0.062343209981918335,
+   "retrieval_rank": 284.22698974609375,
+   "retrieval_top1": 0.017999999225139618,
+   "retrieval_top5": 0.052000001072883606,
+   "budget_bytes": 39.769986925738635,
+   "fit_fraction": 1.0,
+   "median_scale": 24.0
+  },
+  "avif_0": {
+   "psnr": 20.82762908935547,
+   "lpips": 0.5902283787727356,
+   "dino_sim": 0.21319949626922607,
+   "retrieval_rank": 77.3010025024414,
+   "retrieval_top1": 0.18000000715255737,
+   "retrieval_top5": 0.3700000047683716,
+   "budget_bytes": 113.18112608320408,
+   "fit_fraction": 1.0,
+   "median_scale": 48.0
+  },
+  "avif_5": {
+   "psnr": 23.004535675048828,
+   "lpips": 0.4037852883338928,
+   "dino_sim": 0.4428122639656067,
+   "retrieval_rank": 11.173999786376953,
+   "retrieval_top1": 0.5699999928474426,
+   "retrieval_top5": 0.7929999828338623,
+   "budget_bytes": 246.6580460828121,
+   "fit_fraction": 1.0,
+   "median_scale": 64.0
+  }
+ },
+ "failure": {
+  "psnr": 11.404282569885254,
+  "lpips": 0.9444827437400818,
+  "dino_sim": -0.004960170015692711,
+  "retrieval_top1": 0.0010000000474974513,
+  "retrieval_top5": 0.004999999888241291,
+  "n_images": 1000,
+  "subset": "spread",
+  "note": "decoding failure: the test set's mean colour"
+ }
+}
