@@ -617,3 +617,31 @@ def test_report_envelope_is_per_seed(tmp_path):
     assert "| dit-S-v_cbr48_told-5to5_s0 vs envelope | +3.000 | -1.000 |" in text
     assert "| dit-S-v_cbr48_told-5to5_s1 vs envelope | +4.000 | -2.000 |" in text
     assert set(rep.first_seed(runs)) == {n for n in runs if n.endswith("_s0")}
+
+
+@pytest.mark.parametrize("parts", ["receiver", "transmitter"])
+def test_fine_tune_starts_from_a_run_and_trains_only_its_part(tmp_path, parts):
+    from semcom.gen.train import train
+
+    src = tiny(tmp_path, prediction="v", snr_mode="snr")
+    train(src)
+    start = torch.load(src.run_dir / "best.pt", weights_only=False)["ema"]
+    ft = src.replace(init_from=str(src.run_dir), train_parts=parts, tag=f"ft-{parts[:2]}",
+                     snr_train_min=-5.0, snr_train_max=-5.0, steps=2, val_every=2)
+    assert ft.run_name == f"dit-S-v_cbr48_told-5to-5_ft-{parts[:2]}_s0" and ft.run_dir != src.run_dir
+    train(ft)
+    end = torch.load(ft.run_dir / "final.pt", weights_only=False)["ema"]
+    frozen = ("dit.",) if parts == "transmitter" else ("sem_enc.", "det_enc.")
+    moved = {n for n in start if start[n].is_floating_point() and not torch.equal(start[n], end[n])}
+    assert moved and all(not n.startswith(frozen) for n in moved)
+    assert any(n.startswith("dit." if parts == "receiver" else "det_enc.") for n in moved)
+
+
+def test_fine_tune_options_are_validated():
+    with pytest.raises(ValueError):
+        GenConfig(train_parts="decoder")
+    with pytest.raises(ValueError):
+        GenConfig(model="cnn", train_parts="receiver")
+    with pytest.raises(ValueError):
+        GenConfig(tag="a_b")
+    assert GenConfig().run_name == "dit-S_cbr48_spec0_s0"

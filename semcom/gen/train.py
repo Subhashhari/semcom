@@ -39,6 +39,30 @@ def sample_snr(cfg: GenConfig, b: int, device: torch.device) -> torch.Tensor:
     return torch.rand(b, device=device) * (cfg.snr_train_max - cfg.snr_train_min) + cfg.snr_train_min
 
 
+def init_weights(run_dir: str | Path, device: torch.device) -> dict:
+    """The EMA weights another run is evaluated with (best.pt, else final.pt)."""
+    run_dir = Path(run_dir)
+    path = run_dir / "best.pt" if (run_dir / "best.pt").exists() else run_dir / "final.pt"
+    print(f"initialising from {path}")
+    return torch.load(path, map_location=device, weights_only=False)["ema"]
+
+
+#: Parameter-name prefixes of each part of the DiT-JSCC model.
+PARTS = {"transmitter": ("sem_enc.", "det_enc."), "receiver": ("dit.",)}
+
+
+def set_trainable(model: torch.nn.Module, parts: str) -> None:
+    """Freeze everything outside `parts` ("all" trains every parameter)."""
+    if parts == "all":
+        return
+    names = [n for n, _ in model.named_parameters()]
+    covered = {n for n in names if n.startswith(PARTS["transmitter"] + PARTS["receiver"])}
+    if covered != set(names):
+        raise ValueError(f"parameters outside the transmitter/receiver split: {sorted(set(names) - covered)[:5]}")
+    for n, p in model.named_parameters():
+        p.requires_grad_(n.startswith(PARTS[parts]))
+
+
 def val_snrs(cfg: GenConfig) -> list[float]:
     if cfg.snr_mode == "fixed":
         return [float(cfg.snr_train_fixed)]
@@ -129,8 +153,12 @@ def train(cfg: GenConfig) -> dict | None:
     cfg.save(run_dir / "config.yaml")
 
     model = build_model(cfg, meta["dino_dim"]).to(device)
+    if cfg.init_from:
+        model.load_state_dict(init_weights(cfg.init_from, device))
+    set_trainable(model, cfg.train_parts)
     ema = copy.deepcopy(model).requires_grad_(False).eval()
-    opt = torch.optim.AdamW(model.parameters(), lr=cfg.lr, weight_decay=cfg.weight_decay)
+    opt = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad], lr=cfg.lr,
+                            weight_decay=cfg.weight_decay)
     use_amp = cfg.amp and device.type == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     train_loader, val_loader, _ = loaders(cfg)

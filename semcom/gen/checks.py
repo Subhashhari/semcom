@@ -80,7 +80,9 @@ def overfit_check(model, batch: dict, cfg: GenConfig, device, steps: int = 150,
     """Train a throwaway copy on one batch with frozen randomness; the loss must fall by
     `min_drop` (fraction; default per model), and the encoders must receive gradient."""
     min_drop = MIN_DROP[cfg.model] if min_drop is None else min_drop
-    probe = copy.deepcopy(model).train()
+    # Every parameter trains in the probe, also when a fine-tune freezes part of the model: the
+    # check is about the pipeline (does gradient reach the encoders through the channel).
+    probe = copy.deepcopy(model).train().requires_grad_(True)
     opt = torch.optim.Adam(probe.parameters(), lr=1e-3)
     snr = torch.full((batch["image"].shape[0],), float(cfg.snr_train_fixed or 0.0), device=device)
     losses = []

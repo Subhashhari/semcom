@@ -115,6 +115,12 @@ class GenConfig:
     # would outlive a Kaggle session resumes in the next job instead of being killed. None: off.
     max_hours: float | None = None
 
+    # --- fine-tuning diagnostics: start from another run's weights and train only some parts.
+    # Used to locate where one SNR-adaptive model loses to a specialist (transmitter or receiver).
+    init_from: str | None = None  # run folder whose best.pt (else final.pt) EMA weights start training
+    train_parts: str = "all"  # "all", "transmitter" (the encoders) or "receiver" (the DiT); DiT only
+    tag: str = ""  # appended to the run name, so fine-tunes never collide with trained-from-scratch runs
+
     # --- correctness checks (semcom.gen.checks)
     sanity: bool = True  # pre-flight data / VAE-ceiling / overfit checks before step 1
     sanity_steps: int = 150  # optimiser steps of the one-batch overfit check
@@ -148,6 +154,12 @@ class GenConfig:
             raise ValueError(f"eval_checkpoint must be 'best' or 'final', got {self.eval_checkpoint!r}")
         if self.prediction not in ("eps", "v"):
             raise ValueError(f"prediction must be 'eps' or 'v', got {self.prediction!r}")
+        if self.train_parts not in ("all", "transmitter", "receiver"):
+            raise ValueError(f"train_parts must be 'all', 'transmitter' or 'receiver', got {self.train_parts!r}")
+        if self.train_parts != "all" and self.model != "dit":
+            raise ValueError("train_parts applies to the DiT model only")
+        if self.tag and not all(c.isalnum() or c == "-" for c in self.tag):
+            raise ValueError(f"tag must be letters, digits and '-', got {self.tag!r}")
         if self.snr_mode not in SNR_MODES:
             raise ValueError(f"snr_mode must be one of {SNR_MODES}, got {self.snr_mode!r}")
         if self.snr_mode == "fixed" and self.snr_train_fixed is None:
@@ -229,6 +241,8 @@ class GenConfig:
         parts.append(self.arm)
         if self.channel != "awgn":
             parts.append(self.channel)
+        if self.tag:
+            parts.append(self.tag)
         parts.append(f"s{self.seed}")
         return "_".join(parts)
 
