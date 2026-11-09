@@ -61,13 +61,14 @@ def _sync(device):
 @torch.no_grad()
 def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images: int | None = None,
                  snrs=None, steps_list=None, external: bool = True, suffix: str = "",
-                 subset: str = "first") -> dict:
+                 subset: str = "first", cfg_scale: float | None = None) -> dict:
     """`external=False` skips LPIPS and FID, whose networks download on first use. A `suffix`
     writes eval-<suffix>.json etc. next to the run's main evaluation instead of replacing it.
 
     `subset`: which n test images. "first" (the original setting) takes the first n; the test
     split is stored in class order, so the first 1000 cover only 3 of Imagenette's 10 classes.
     "spread" takes n evenly spaced images, covering every class in proportion."""
+    # Classifier-free guidance scale for DiT sampling; default: the run's own (1.0 = none).
     if subset not in ("first", "spread"):
         raise ValueError(f"subset must be 'first' or 'spread', got {subset!r}")
     if suffix and not all(c.isalnum() or c == "-" for c in suffix):
@@ -76,6 +77,8 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
     run_dir = Path(run_dir)
     device = device or torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model, cfg = load_run(run_dir, device)
+    if cfg_scale is not None:
+        cfg = cfg.replace(cfg_scale=float(cfg_scale))
     prepare(cfg, device)
     vae, dino = load_frozen(cfg, device)
     metrics = Metrics(dino, device, fid=external, lpips_net=external)
@@ -177,12 +180,14 @@ def main() -> None:
     p.add_argument("--snrs", nargs="+", type=float, default=None)
     p.add_argument("--steps", nargs="+", type=int, default=None, help="DiT sampling step counts")
     p.add_argument("--suffix", default="", help="write eval-<suffix>.json etc. (keeps eval.json)")
+    p.add_argument("--cfg-scale", type=float, default=None, help="classifier-free guidance scale (DiT)")
     p.add_argument("--subset", choices=["first", "spread"], default="first",
                    help="first n test images, or n evenly spaced (all classes)")
     args = p.parse_args()
     for run_dir in args.run_dirs:
         evaluate_run(run_dir, eval_images=args.eval_images, external=not args.no_external,
-                     snrs=args.snrs, steps_list=args.steps, suffix=args.suffix, subset=args.subset)
+                     snrs=args.snrs, steps_list=args.steps, suffix=args.suffix, subset=args.subset,
+                     cfg_scale=args.cfg_scale)
 
 
 if __name__ == "__main__":

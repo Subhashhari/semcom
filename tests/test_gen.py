@@ -743,3 +743,15 @@ def test_perceptual_cnn_baseline_adds_the_weighted_lpips_term(tmp_path):
     out = m.loss(batch, torch.zeros(2))
     assert torch.isclose(out["loss"], out["pixel_mse"] + 0.5 * 2.0)
     assert not any("lpips" in k for k in m.state_dict())
+
+
+def test_evaluation_can_override_the_guidance_scale(tmp_path):
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank")
+    train(cfg)
+    a = evaluate_run(cfg.run_dir, external=False, snrs=[0.0], steps_list=[2], suffix="g1")
+    b = evaluate_run(cfg.run_dir, external=False, snrs=[0.0], steps_list=[2], suffix="g3", cfg_scale=3.0)
+    assert a["cfg_scale"] == 1.0 and b["cfg_scale"] == 3.0
+    assert a["results"]["0_2"]["psnr"] != b["results"]["0_2"]["psnr"]
