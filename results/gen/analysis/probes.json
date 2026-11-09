@@ -1,0 +1,225 @@
+{
+ "note": "CPU eval-only probes (scripts/gen_analysis/probe.py) on the first 200 test images, 9 Nov 2026. Keys: run|channel SNR|SNR in the receiver's slot|sampling steps. Paired with each other, not with the Kaggle GPU evals (CPU and CUDA generators differ).",
+ "n_images": 200,
+ "mismatch": {
+  "dit-S-v_cbr48_blind-5to5_s0|-5|-5|20": {
+   "dino_sim": 0.0917,
+   "lpips": 0.3974,
+   "psnr": 14.8977
+  },
+  "dit-S-v_cbr48_blind-5to5_s0|0|0|20": {
+   "dino_sim": 0.1969,
+   "lpips": 0.284,
+   "psnr": 17.4342
+  },
+  "dit-S-v_cbr48_blind-5to5_s0|5|5|20": {
+   "dino_sim": 0.3231,
+   "lpips": 0.2237,
+   "psnr": 18.9312
+  },
+  "dit-S-v_cbr48_spec-5_s0|-5|-5|20": {
+   "dino_sim": 0.1245,
+   "lpips": 0.3715,
+   "psnr": 15.5894
+  },
+  "dit-S-v_cbr48_spec-5_s0|0|0|20": {
+   "dino_sim": 0.1746,
+   "lpips": 0.3612,
+   "psnr": 16.597
+  },
+  "dit-S-v_cbr48_spec-5_s0|5|5|20": {
+   "dino_sim": 0.1769,
+   "lpips": 0.3589,
+   "psnr": 16.8204
+  },
+  "dit-S-v_cbr48_spec0_s0|-5|-5|20": {
+   "dino_sim": 0.0469,
+   "lpips": 0.4139,
+   "psnr": 13.6949
+  },
+  "dit-S-v_cbr48_spec0_s0|0|0|20": {
+   "dino_sim": 0.2077,
+   "lpips": 0.2803,
+   "psnr": 17.521
+  },
+  "dit-S-v_cbr48_spec0_s0|5|5|20": {
+   "dino_sim": 0.2667,
+   "lpips": 0.2677,
+   "psnr": 18.4183
+  },
+  "dit-S-v_cbr48_spec5_s0|-5|-5|20": {
+   "dino_sim": 0.0166,
+   "lpips": 0.4679,
+   "psnr": 12.3045
+  },
+  "dit-S-v_cbr48_spec5_s0|0|0|20": {
+   "dino_sim": 0.135,
+   "lpips": 0.2907,
+   "psnr": 16.6752
+  },
+  "dit-S-v_cbr48_spec5_s0|5|5|20": {
+   "dino_sim": 0.2887,
+   "lpips": 0.2231,
+   "psnr": 18.8566
+  },
+  "dit-S-v_cbr48_told-5to5_s0|-5|-10|20": {
+   "dino_sim": 0.078,
+   "lpips": 0.3893,
+   "psnr": 14.7355
+  },
+  "dit-S-v_cbr48_told-5to5_s0|-5|-5|20": {
+   "dino_sim": 0.0863,
+   "lpips": 0.3994,
+   "psnr": 14.7952
+  },
+  "dit-S-v_cbr48_told-5to5_s0|-5|0|20": {
+   "dino_sim": 0.0597,
+   "lpips": 0.3997,
+   "psnr": 14.0672
+  },
+  "dit-S-v_cbr48_told-5to5_s0|-5|5|20": {
+   "dino_sim": 0.0305,
+   "lpips": 0.446,
+   "psnr": 12.8967
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|-5|20": {
+   "dino_sim": 0.1378,
+   "lpips": 0.374,
+   "psnr": 16.4082
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|0|20": {
+   "dino_sim": 0.1972,
+   "lpips": 0.2848,
+   "psnr": 17.3902
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|5|20": {
+   "dino_sim": 0.166,
+   "lpips": 0.272,
+   "psnr": 17.1138
+  },
+  "dit-S-v_cbr48_told-5to5_s0|5|-5|20": {
+   "dino_sim": 0.1412,
+   "lpips": 0.3714,
+   "psnr": 16.7623
+  },
+  "dit-S-v_cbr48_told-5to5_s0|5|0|20": {
+   "dino_sim": 0.2617,
+   "lpips": 0.27,
+   "psnr": 18.4108
+  },
+  "dit-S-v_cbr48_told-5to5_s0|5|10|20": {
+   "dino_sim": 0.3183,
+   "lpips": 0.23,
+   "psnr": 18.954
+  },
+  "dit-S-v_cbr48_told-5to5_s0|5|5|20": {
+   "dino_sim": 0.3339,
+   "lpips": 0.2213,
+   "psnr": 18.9541
+  }
+ },
+ "steps": {
+  "dit-S-v_cbr48_spec0_s0|0|0|10": {
+   "dino_sim": 0.2286,
+   "lpips": 0.2802,
+   "psnr": 18.0974
+  },
+  "dit-S-v_cbr48_spec0_s0|0|0|1": {
+   "dino_sim": 0.2801,
+   "lpips": 0.3098,
+   "psnr": 19.2085
+  },
+  "dit-S-v_cbr48_spec0_s0|0|0|20": {
+   "dino_sim": 0.2077,
+   "lpips": 0.2803,
+   "psnr": 17.521
+  },
+  "dit-S-v_cbr48_spec0_s0|0|0|2": {
+   "dino_sim": 0.2803,
+   "lpips": 0.3097,
+   "psnr": 19.2071
+  },
+  "dit-S-v_cbr48_spec0_s0|0|0|4": {
+   "dino_sim": 0.2669,
+   "lpips": 0.2993,
+   "psnr": 18.8684
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|0|10": {
+   "dino_sim": 0.2277,
+   "lpips": 0.2842,
+   "psnr": 17.9647
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|0|1": {
+   "dino_sim": 0.2784,
+   "lpips": 0.3113,
+   "psnr": 19.1505
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|0|20": {
+   "dino_sim": 0.1972,
+   "lpips": 0.2848,
+   "psnr": 17.3902
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|0|2": {
+   "dino_sim": 0.278,
+   "lpips": 0.311,
+   "psnr": 19.1517
+  },
+  "dit-S-v_cbr48_told-5to5_s0|0|0|4": {
+   "dino_sim": 0.2766,
+   "lpips": 0.2998,
+   "psnr": 18.8712
+  }
+ },
+ "range": {
+  "dit-S-v_cbr48_blind-5to5_s0|-10|-10|20": {
+   "dino_sim": 0.0286,
+   "lpips": 0.5432,
+   "psnr": 11.8832
+  },
+  "dit-S-v_cbr48_blind-5to5_s0|10|10|20": {
+   "dino_sim": 0.3838,
+   "lpips": 0.2005,
+   "psnr": 19.7286
+  },
+  "dit-S-v_cbr48_spec-5_s0|-10|-10|20": {
+   "dino_sim": 0.0334,
+   "lpips": 0.4939,
+   "psnr": 12.3
+  },
+  "dit-S-v_cbr48_spec-5_s0|10|10|20": {
+   "dino_sim": 0.1923,
+   "lpips": 0.3585,
+   "psnr": 16.9777
+  },
+  "dit-S-v_cbr48_spec0_s0|-10|-10|20": {
+   "dino_sim": 0.0011,
+   "lpips": 0.5468,
+   "psnr": 9.9442
+  },
+  "dit-S-v_cbr48_spec0_s0|10|10|20": {
+   "dino_sim": 0.2868,
+   "lpips": 0.2691,
+   "psnr": 18.7772
+  },
+  "dit-S-v_cbr48_spec5_s0|-10|-10|20": {
+   "dino_sim": -0.0084,
+   "lpips": 0.6678,
+   "psnr": 9.4977
+  },
+  "dit-S-v_cbr48_spec5_s0|10|10|20": {
+   "dino_sim": 0.3573,
+   "lpips": 0.2119,
+   "psnr": 19.5937
+  },
+  "dit-S-v_cbr48_told-5to5_s0|-10|-10|20": {
+   "dino_sim": 0.0132,
+   "lpips": 0.5241,
+   "psnr": 10.7655
+  },
+  "dit-S-v_cbr48_told-5to5_s0|10|10|20": {
+   "dino_sim": 0.3551,
+   "lpips": 0.2237,
+   "psnr": 19.5526
+  }
+ }
+}

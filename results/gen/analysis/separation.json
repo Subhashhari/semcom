@@ -1,0 +1,38 @@
+{
+ "note": "Ideal separation baseline (scripts/gen_analysis/separation.py): image codec at the AWGN capacity of the k=1024 channel uses, k*log2(1+SNR) bits, container overhead excluded; first 300 test images. An upper bound on any separate design, not a practical system.",
+ "avif_-5": {
+  "psnr": 19.181852340698242,
+  "lpips": 0.8267688751220703,
+  "dino_sim": 0.03323593735694885,
+  "budget_bytes": 50.740372628878575,
+  "fit_fraction": 1.0,
+  "median_scale": 24.0
+ },
+ "avif_0": {
+  "psnr": 21.20902442932129,
+  "lpips": 0.6601095795631409,
+  "dino_sim": 0.14640213549137115,
+  "budget_bytes": 128.0,
+  "fit_fraction": 1.0,
+  "median_scale": 48.0
+ },
+ "avif_5": {
+  "psnr": 23.03818702697754,
+  "lpips": 0.47865596413612366,
+  "dino_sim": 0.38753125071525574,
+  "budget_bytes": 263.34377070166977,
+  "fit_fraction": 1.0,
+  "median_scale": 64.0
+ },
+ "webp_psnr_only": {
+  "webp_-5": {
+   "psnr": 18.91
+  },
+  "webp_0": {
+   "psnr": 20.563
+  },
+  "webp_5": {
+   "psnr": 22.428
+  }
+ }
+}
