@@ -44,6 +44,7 @@ def load(root: Path, steps: int) -> dict[str, dict]:
         modem = f"qam{e['modulation_order']}" if e.get("digital") else "analog"
         runs[e["run_name"]] = {"model": e["model"], "arm": e["arm"], "by_snr": by_snr, "modem": modem,
                                "family": e["run_name"].split("_")[0],
+                               "seed": int(re.search(r"_s(\d+)$", e["run_name"]).group(1)),
                                "symbols": e.get("symbols"),
                                "history": json.loads(hist.read_text())["history"] if hist.exists() else []}
     return runs
@@ -54,12 +55,13 @@ def spec_snr(arm: str) -> float | None:
     return float(m.group(1)) if m else None
 
 
-def envelope(runs: dict, model: str, modem: str = "analog") -> dict[float, dict]:
-    """Each specialist of `model` with this modulation scored at its own training SNR."""
+def envelope(runs: dict, model: str, modem: str = "analog", seed: int = 0) -> dict[float, dict]:
+    """Each specialist of `model` with this modulation and training seed scored at its own SNR."""
     env = {}
     for r in runs.values():
         s = spec_snr(r["arm"])
-        if r["model"] == model and r["modem"] == modem and s is not None and s in r["by_snr"]:
+        if (r["model"] == model and r["modem"] == modem and r["seed"] == seed and s is not None
+                and s in r["by_snr"]):
             env[s] = r["by_snr"][s]
     return env
 
@@ -121,20 +123,22 @@ def table(runs: dict, steps: int) -> str:
         for name, r in sorted(runs.items()):
             cells = [f"{r['by_snr'][s][key]:.3f}" if s in r["by_snr"] else "" for s in snrs]
             lines.append(f"| {name} | " + " | ".join(cells) + " |")
-        for modem in sorted({r["modem"] for r in runs.values()}):
-            env = envelope(runs, "dit", modem)
+        for modem, seed in sorted({(r["modem"], r["seed"]) for r in runs.values()}):
+            env = envelope(runs, "dit", modem, seed)
             if len(env) < 2:
                 continue
-            lines.append(f"| **specialist envelope ({modem})** | " + " | ".join(
+            lines.append(f"| **specialist envelope ({modem}, seed {seed})** | " + " | ".join(
                 f"**{env[s][key]:.3f}**" if s in env else "" for s in snrs) + " |")
             for name, r in sorted(runs.items()):
-                if r["model"] == "dit" and r["modem"] == modem and spec_snr(r["arm"]) is None:
+                if (r["model"] == "dit" and r["modem"] == modem and r["seed"] == seed
+                        and spec_snr(r["arm"]) is None):
                     gap = [(r["by_snr"][s][key] - env[s][key]) * (1 if higher else -1)
                            if s in env and s in r["by_snr"] else None for s in snrs]
                     lines.append(f"| {name} vs envelope | " + " | ".join(
                         "" if g is None else f"{g:+.3f}" for g in gap) + " |")
         lines.append("")
-    lines.append("Gap rows are signed so that positive means the adaptive arm is better than the specialist.\n")
+    lines.append("Gap rows are signed so that positive means the adaptive arm is better than the specialist; "
+                 "each adaptive arm is compared with the specialists of its own training seed.\n")
     return "\n".join(lines)
 
 
@@ -200,6 +204,11 @@ def plotted(runs: dict, family: str) -> dict:
     return {n: r for n, r in runs.items() if r["model"] != "dit" or r["family"] == family}
 
 
+def first_seed(runs: dict) -> dict:
+    """The runs the figures draw: seed 0 only, so replicate seeds do not add duplicate lines."""
+    return {n: r for n, r in runs.items() if r["seed"] == 0}
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--root", action="append", type=Path,
@@ -218,10 +227,11 @@ def main() -> None:
     # and would otherwise stand in for the 0 dB point of the specialist envelope.
     shown = plotted(runs, args.family)
     (args.out / "report.md").write_text(table(shown, args.steps), encoding="utf-8")
-    plot_metrics(shown, args.out / "metrics_vs_snr.png", args.steps)
+    drawn = first_seed(shown)
+    plot_metrics(drawn, args.out / "metrics_vs_snr.png", args.steps)
     plot_curves(runs, args.out / "val_curves.png")
     if any(r["modem"] != "analog" for r in runs.values()):
-        plot_metrics(shown, args.out / "digital_vs_snr.png", args.steps, digital_series(shown),
+        plot_metrics(drawn, args.out / "digital_vs_snr.png", args.steps, digital_series(drawn),
                      f"Analog vs M-QAM channel symbols (DiT: {args.steps} DDIM steps, CBR 1/48, 128 px)")
     print(f"{len(runs)} runs -> {args.out}")
 

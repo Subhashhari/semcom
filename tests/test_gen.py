@@ -590,3 +590,30 @@ def test_kaggle_runner_restores_uploaded_run_folders(tmp_path):
     assert (src / Path(*run) / "best.pt").read_bytes() == b"weights"
     assert (src / Path(*run) / "config.yaml").read_text() == "from git"
     assert not (src / "unrelated.txt").exists()
+
+
+def test_report_envelope_is_per_seed(tmp_path):
+    """A replicate seed's specialists must not replace seed 0's in the envelope, and each told arm
+    is compared with the specialists of its own seed."""
+    import importlib.util
+    from pathlib import Path
+
+    path = Path(__file__).resolve().parent.parent / "scripts" / "gen_report.py"
+    spec = importlib.util.spec_from_file_location("gen_report", path)
+    rep = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rep)
+    psnr = {("spec-5", 0): 15.0, ("spec5", 0): 19.0, ("spec-5", 1): 14.0, ("spec5", 1): 20.0,
+            ("told-5to5", 0): 18.0, ("told-5to5", 1): 18.0}
+    for (arm, seed), v in psnr.items():
+        name = f"dit-S-v_cbr48_{arm}_s{seed}"
+        (tmp_path / name).mkdir()
+        res = {f"{s}_20": {"psnr": v, "lpips": 0.3, "dino_sim": 0.2, "fid": 100.0} for s in (-5, 5)}
+        (tmp_path / name / "eval.json").write_text(json.dumps(
+            {"run_name": name, "model": "dit", "arm": arm, "results": res}))
+    runs = rep.load(tmp_path, 20)
+    assert rep.envelope(runs, "dit", seed=0) == {-5.0: runs["dit-S-v_cbr48_spec-5_s0"]["by_snr"][-5.0],
+                                                 5.0: runs["dit-S-v_cbr48_spec5_s0"]["by_snr"][5.0]}
+    text = rep.table(runs, 20)
+    assert "| dit-S-v_cbr48_told-5to5_s0 vs envelope | +3.000 | -1.000 |" in text
+    assert "| dit-S-v_cbr48_told-5to5_s1 vs envelope | +4.000 | -2.000 |" in text
+    assert set(rep.first_seed(runs)) == {n for n in runs if n.endswith("_s0")}

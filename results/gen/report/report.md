@@ -28,13 +28,18 @@
 | dit-S-v_cbr48_qam4_spec0_s0 | 13.999 | 16.525 | 17.293 |
 | dit-S-v_cbr48_qam64_spec0_s0 | 13.785 | 17.172 | 18.059 |
 | dit-S-v_cbr48_spec-5_s0 | 15.585 | 16.469 | 16.696 |
+| dit-S-v_cbr48_spec-5_s1 | 15.554 | 16.460 | 16.668 |
 | dit-S-v_cbr48_spec0_s0 | 13.484 | 17.491 | 18.454 |
 | dit-S-v_cbr48_spec5_s0 | 11.973 | 16.574 | 18.986 |
+| dit-S-v_cbr48_spec5_s1 | 12.282 | 16.673 | 18.924 |
 | dit-S-v_cbr48_told-5to5_s0 | 14.860 | 17.480 | 19.131 |
-| **specialist envelope (analog)** | **15.585** | **17.491** | **18.986** |
+| dit-S-v_cbr48_told-5to5_s1 | 14.896 | 17.512 | 19.173 |
+| **specialist envelope (analog, seed 0)** | **15.585** | **17.491** | **18.986** |
 | dit-S-v_cbr48_blind-5to5_s0 vs envelope | -0.667 | +0.026 | +0.129 |
 | dit-S-v_cbr48_told-5to5_s0 vs envelope | -0.725 | -0.011 | +0.145 |
-| **specialist envelope (qam16)** | **15.203** | **16.926** | **18.230** |
+| **specialist envelope (analog, seed 1)** | **15.554** |  | **18.924** |
+| dit-S-v_cbr48_told-5to5_s1 vs envelope | -0.658 |  | +0.249 |
+| **specialist envelope (qam16, seed 0)** | **15.203** | **16.926** | **18.230** |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 vs envelope | -0.572 | +0.018 | +0.088 |
 | dit-S-v_cbr48_qam16_told-5to5_s0 vs envelope | -0.618 | +0.034 | +0.174 |
 
@@ -53,13 +58,18 @@
 | dit-S-v_cbr48_qam4_spec0_s0 | 0.433 | 0.307 | 0.278 |
 | dit-S-v_cbr48_qam64_spec0_s0 | 0.410 | 0.279 | 0.263 |
 | dit-S-v_cbr48_spec-5_s0 | 0.365 | 0.347 | 0.350 |
+| dit-S-v_cbr48_spec-5_s1 | 0.367 | 0.347 | 0.351 |
 | dit-S-v_cbr48_spec0_s0 | 0.421 | 0.266 | 0.253 |
 | dit-S-v_cbr48_spec5_s0 | 0.475 | 0.279 | 0.209 |
+| dit-S-v_cbr48_spec5_s1 | 0.472 | 0.279 | 0.210 |
 | dit-S-v_cbr48_told-5to5_s0 | 0.386 | 0.269 | 0.208 |
-| **specialist envelope (analog)** | **0.365** | **0.266** | **0.209** |
+| dit-S-v_cbr48_told-5to5_s1 | 0.382 | 0.267 | 0.206 |
+| **specialist envelope (analog, seed 0)** | **0.365** | **0.266** | **0.209** |
 | dit-S-v_cbr48_blind-5to5_s0 vs envelope | -0.020 | -0.001 | -0.000 |
 | dit-S-v_cbr48_told-5to5_s0 vs envelope | -0.020 | -0.003 | +0.001 |
-| **specialist envelope (qam16)** | **0.380** | **0.285** | **0.234** |
+| **specialist envelope (analog, seed 1)** | **0.367** |  | **0.210** |
+| dit-S-v_cbr48_told-5to5_s1 vs envelope | -0.015 |  | +0.004 |
+| **specialist envelope (qam16, seed 0)** | **0.380** | **0.285** | **0.234** |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 vs envelope | -0.014 | -0.003 | -0.003 |
 | dit-S-v_cbr48_qam16_told-5to5_s0 vs envelope | -0.014 | -0.002 | +0.002 |
 
@@ -78,13 +88,18 @@
 | dit-S-v_cbr48_qam4_spec0_s0 | 0.047 | 0.131 | 0.173 |
 | dit-S-v_cbr48_qam64_spec0_s0 | 0.046 | 0.159 | 0.212 |
 | dit-S-v_cbr48_spec-5_s0 | 0.093 | 0.131 | 0.137 |
+| dit-S-v_cbr48_spec-5_s1 | 0.095 | 0.132 | 0.136 |
 | dit-S-v_cbr48_spec0_s0 | 0.042 | 0.170 | 0.229 |
 | dit-S-v_cbr48_spec5_s0 | 0.027 | 0.121 | 0.251 |
+| dit-S-v_cbr48_spec5_s1 | 0.027 | 0.121 | 0.247 |
 | dit-S-v_cbr48_told-5to5_s0 | 0.074 | 0.166 | 0.271 |
-| **specialist envelope (analog)** | **0.093** | **0.170** | **0.251** |
+| dit-S-v_cbr48_told-5to5_s1 | 0.074 | 0.168 | 0.273 |
+| **specialist envelope (analog, seed 0)** | **0.093** | **0.170** | **0.251** |
 | dit-S-v_cbr48_blind-5to5_s0 vs envelope | -0.020 | -0.002 | +0.018 |
 | dit-S-v_cbr48_told-5to5_s0 vs envelope | -0.020 | -0.003 | +0.020 |
-| **specialist envelope (qam16)** | **0.090** | **0.155** | **0.207** |
+| **specialist envelope (analog, seed 1)** | **0.095** |  | **0.247** |
+| dit-S-v_cbr48_told-5to5_s1 vs envelope | -0.020 |  | +0.026 |
+| **specialist envelope (qam16, seed 0)** | **0.090** | **0.155** | **0.207** |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 vs envelope | -0.018 | -0.014 | +0.017 |
 | dit-S-v_cbr48_qam16_told-5to5_s0 vs envelope | -0.016 | -0.008 | +0.018 |
 
@@ -103,14 +118,19 @@
 | dit-S-v_cbr48_qam4_spec0_s0 | 247.683 | 171.030 | 144.658 |
 | dit-S-v_cbr48_qam64_spec0_s0 | 246.088 | 152.680 | 131.172 |
 | dit-S-v_cbr48_spec-5_s0 | 190.780 | 162.277 | 159.997 |
+| dit-S-v_cbr48_spec-5_s1 | 189.579 | 162.082 | 158.439 |
 | dit-S-v_cbr48_spec0_s0 | 253.516 | 149.341 | 126.453 |
 | dit-S-v_cbr48_spec5_s0 | 270.838 | 192.504 | 130.017 |
+| dit-S-v_cbr48_spec5_s1 | 268.802 | 195.136 | 130.259 |
 | dit-S-v_cbr48_told-5to5_s0 | 209.355 | 154.104 | 117.679 |
-| **specialist envelope (analog)** | **190.780** | **149.341** | **130.017** |
+| dit-S-v_cbr48_told-5to5_s1 | 211.037 | 149.571 | 116.697 |
+| **specialist envelope (analog, seed 0)** | **190.780** | **149.341** | **130.017** |
 | dit-S-v_cbr48_blind-5to5_s0 vs envelope | -23.069 | -2.701 | +12.183 |
 | dit-S-v_cbr48_told-5to5_s0 vs envelope | -18.575 | -4.763 | +12.339 |
-| **specialist envelope (qam16)** | **188.410** | **155.028** | **143.395** |
+| **specialist envelope (analog, seed 1)** | **189.579** |  | **130.259** |
+| dit-S-v_cbr48_told-5to5_s1 vs envelope | -21.457 |  | +13.562 |
+| **specialist envelope (qam16, seed 0)** | **188.410** | **155.028** | **143.395** |
 | dit-S-v_cbr48_qam16_blind-5to5_s0 vs envelope | -25.806 | -7.275 | +10.217 |
 | dit-S-v_cbr48_qam16_told-5to5_s0 vs envelope | -20.274 | -5.072 | +13.352 |
 
-Gap rows are signed so that positive means the adaptive arm is better than the specialist.
+Gap rows are signed so that positive means the adaptive arm is better than the specialist; each adaptive arm is compared with the specialists of its own training seed.

@@ -1,8 +1,10 @@
 # One Generative JSCC Receiver for Every SNR: a Small DiT-JSCC Prototype
 
-**Status (8 Nov 2026):** week-1 gate passed (DiT-S beats the CNN at 0 dB on LPIPS, DINOv2 and
-FID); the week-2 SNR study (g-w3) is running; digital M-QAM transmission added (section 7), first
-digital job (g-w4) running.
+**Status (9 Nov 2026):** week-1 gate passed (DiT-S beats the CNN at 0 dB on LPIPS, DINOv2 and
+FID). Every run planned for 18 Nov is trained and evaluated (`results/gen/report/report.md`):
+the analog SNR study (specialists, told, blind; told and the ±5 dB specialists replicated with a
+second training seed), the CNN baselines, and the digital arm (section 7: 4/16/64-QAM at 0 dB,
+16-QAM specialists, told and blind, CNN with 16-QAM, and the energy-convention ablation).
 
 ## 1. Question
 
@@ -157,7 +159,21 @@ input, so the loss is in the uncoded mapping, not in what the constellation can 
 | g-w4 | own | 16-QAM `spec0`, `told`, nominal Es | ablation: the energy convention |
 | g-d1 | teammate | 16-QAM `spec0`, `told` | cost of going digital at 0 dB; does one told model still work with 16-QAM symbols |
 | g-p2 | teammate | 0.3 h probes: 4-QAM, 64-QAM `spec0`; 16-QAM with DeepJSCC-Q's temperature rise (control) | are the other orders healthy; does the fixed temperature beat the rise; probes resume as full runs |
-| next | teammate | 4-QAM, 64-QAM `spec0` (resumed), 16-QAM `blind`, `spec−5`, `spec5`; CNN 16-QAM `spec0` | modulation sweep; full told/blind/specialist study with 16-QAM; DiT vs CNN under digital transmission |
+| g-d2, g-d3; g-w5b | teammate; own | 4-QAM, 64-QAM `spec0` (resumed), 16-QAM `blind`, `spec−5`, `spec5`; CNN 16-QAM `spec0` | modulation sweep; full told/blind/specialist study with 16-QAM; DiT vs CNN under digital transmission |
+| g-d4 | teammate | analog `spec−5`, `spec5`, `told`, seed 1 | do the told-vs-specialist gaps survive retraining |
+
+**Results (9 Nov, paired 95% bootstrap intervals over 1,000 test images, 20 DDIM steps).**
+
+- *Cost of 16-QAM at 0 dB* (spec0 minus analog spec0): DiT −0.57 dB PSNR, +0.019 LPIPS,
+  −0.015 DINOv2; CNN −0.42 dB, +0.015, −0.031. QPSK and 64-QAM cost DiT −0.97 and −0.32 dB.
+  DiT keeps its LPIPS lead over the CNN (−0.156 with 16-QAM, −0.160 analog), and its DINOv2 lead
+  becomes significant (+0.024; analog +0.009, not significant). Both 0 dB digital models are
+  better than their analog versions when tested at −5 dB (+0.54 / +0.33 dB); not yet explained.
+- *Told vs specialists, analog, two seeds:* at −5 dB −0.73 (seed 0) and −0.66 dB (seed 1);
+  at +5 dB +0.15 and +0.25 dB; at 0 dB −0.01 (not significant, seed 0 only). Retraining the
+  same arm moves PSNR by at most 0.06 dB, so the gaps are properties of the arms, not of one seed.
+- *With 16-QAM:* told minus specialist −0.62 / +0.03 (not significant) / +0.17 dB; blind within
+  0.09 dB of told (analog: within 0.06 dB).
 
 **What 18 Nov shows.** (1) Analog vs 4/16/64-QAM DiT at 0 dB, evaluated at −5, 0, 5 dB, on PSNR,
 LPIPS, DINOv2 and FID. (2) 16-QAM told vs the 16-QAM specialist(s), and blind if g-w6 finishes in
