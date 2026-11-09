@@ -9,7 +9,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
-R = Path(r"C:\Users\Subhash\Documents\VScodeProjects\SemCom")
+R = Path(__file__).resolve().parents[2]  # repo root
 sys.path.insert(0, str(R))
 from semcom.gen.evaluate import load_run, seed_of  # noqa: E402
 from semcom.gen.frozen import load_frozen  # noqa: E402
