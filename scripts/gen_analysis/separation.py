@@ -6,7 +6,10 @@ real separate design at this bandwidth. The sender picks, per image, the downsca
 with the highest PSNR whose payload fits (container overhead not counted: 290 bytes for AVIF,
 40 for WebP, measured on a flat 1x1 image); the receiver upsamples bicubically to 128 px. If
 nothing fits, the receiver shows the test set's mean colour.
-usage: separation.py OUT.json N codec[,codec]
+usage: separation.py OUT.json N codec[,codec] [first|spread]
+"spread" takes N evenly spaced test images (every class), as semcom.gen.evaluate --subset spread;
+it needs the whole test split cached (cache_test.py all). Per-image metrics, including the
+retrieval rank (semcom.gen.metrics.retrieval_rank), go to OUT_<codec>_<snr>.npz.
 """
 import io, sys, json, math
 import numpy as np, torch
@@ -15,11 +18,17 @@ ROOT = __import__("pathlib").Path(__file__).resolve().parents[2]  # repo root
 sys.path.insert(0, str(ROOT))
 from semcom.gen.config import GenConfig
 from semcom.gen.frozen import load_frozen
-from semcom.gen.metrics import Metrics
+from semcom.gen.metrics import Metrics, retrieval_rank
 torch.set_num_threads(8)
 out, n, codecs = sys.argv[1], int(sys.argv[2]), sys.argv[3].split(",")
 cfg = GenConfig.from_yaml(ROOT / "results/gen/p128/dit-S-v_cbr48_told-5to5_s0/config.yaml")
-imgs = np.asarray(np.load(cfg.cache_dir / "test_images.npy", mmap_mode="r")[:n])
+subset = sys.argv[4] if len(sys.argv) > 4 else "first"
+all_imgs = np.load(cfg.cache_dir / "test_images.npy", mmap_mode="r")
+idx = (np.arange(n) if subset == "first"
+       else np.linspace(0, 3425 - 1, n).round().astype(int))  # 3425 = test split size
+if idx.max() >= len(all_imgs):
+    raise SystemExit(f"cache holds {len(all_imgs)} test images; run cache_test.py all for 'spread'")
+imgs = np.asarray(all_imgs[idx])
 OVERHEAD = {"webp": 40, "avif": 290}
 SCALES = [128, 96, 64, 48, 32, 24, 16, 12, 8]
 QUALS = list(range(0, 101, 5))
@@ -61,14 +70,18 @@ for codec in codecs:
             else:
                 recs.append(grey)
         xh = torch.from_numpy(np.stack(recs)).float() / 255
-        per = {}
+        per, embs = {}, {"_cls": [], "_cls_hat": []}
         for a in range(0, n, 50):
-            for k, v in metrics.per_image(x[a:a + 50], xh[a:a + 50], cfg.grid).items():
-                per.setdefault(k, []).append(v)
-        r = {k: float(torch.cat(v).mean()) for k, v in per.items()}
+            for k, v in metrics.per_image(x[a:a + 50], xh[a:a + 50], cfg.grid, embeddings=True).items():
+                (embs[k] if k in embs else per.setdefault(k, [])).append(v)
+        per["retrieval_rank"] = [retrieval_rank(torch.cat(embs["_cls"]), torch.cat(embs["_cls_hat"]))]
+        r = {k: float(torch.cat(v).float().mean()) for k, v in per.items()}
+        ranks = torch.cat(per["retrieval_rank"])
+        r.update(retrieval_top1=float((ranks < 1).float().mean()), retrieval_top5=float((ranks < 5).float().mean()))
         r.update(budget_bytes=budget, fit_fraction=fits / n,
                  median_scale=float(np.median(scales)) if scales else None)
         res[f"{codec}_{snr}"] = r
-        np.save(out.replace(".json", f"_{codec}_{snr}_psnr.npy"), torch.cat(per["psnr"]).numpy())
+        np.savez_compressed(out.replace(".json", f"_{codec}_{snr}.npz"),
+                            **{k: torch.cat(v).numpy() for k, v in per.items()}, index=idx)
         print(codec, snr, {k: round(v, 4) if isinstance(v, float) else v for k, v in r.items()}, flush=True)
 json.dump(res, open(out, "w"), indent=2)

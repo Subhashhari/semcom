@@ -24,14 +24,17 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 METRICS = [("psnr", "PSNR (dB)", True), ("lpips", "LPIPS", False), ("dino_sim", "DINOv2 similarity", True),
            ("fid", "FID", False)]
+#: Chance-normalised semantic metric, present in evaluations made with retrieval (eval-spread.json).
+RETRIEVAL = [("retrieval_top1", "Retrieval top-1 (own original closest of the evaluated set)", True),
+             ("retrieval_top5", "Retrieval top-5", True)]
 # Reference categorical palette (dataviz skill), fixed slot order: envelope, told, blind, CNN, extra.
 COLORS = ["#2a78d6", "#eb6834", "#1baf7a", "#6250d6", "#e87ba4", "#008300", "#e34948", "#eda100"]
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 
 
-def load(root: Path, steps: int) -> dict[str, dict]:
+def load(root: Path, steps: int, eval_name: str = "eval") -> dict[str, dict]:
     runs = {}
-    for ev in sorted(root.glob("*/eval.json")):
+    for ev in sorted(root.glob(f"*/{eval_name}.json")):
         e = json.loads(ev.read_text())
         by_snr = {}
         for key, r in e["results"].items():
@@ -66,6 +69,16 @@ def envelope(runs: dict, model: str, modem: str = "analog", seed: int = 0) -> di
     return env
 
 
+def label(name: str, r: dict) -> str:
+    """Legend label of a non-specialist DiT arm or a CNN run."""
+    if r["model"] == "cnn":
+        w = re.search(r"_lpips([0-9.]+)", name)
+        return f"CNN spec 0 dB ({'MSE + ' + w.group(1) + ' LPIPS' if w else 'MSE'})"
+    kind = "told" if r["arm"].startswith("told") else "blind"
+    rng = r["arm"][len(kind):]
+    return f"DiT {kind} ({rng} dB)" + (", SNR-aware transmitter" if "_txsnr" in name else "")
+
+
 def series(runs: dict) -> list[tuple[str, dict[float, dict], str]]:
     """(label, {snr: metrics}, linestyle) in fixed colour-slot order."""
     out = []
@@ -77,10 +90,10 @@ def series(runs: dict) -> list[tuple[str, dict[float, dict], str]]:
     for kind in ("told", "blind"):
         for n, r in dit.items():
             if r["arm"].startswith(kind):
-                out.append((f"DiT {kind} ({r['arm'][len(kind):]} dB)", r["by_snr"], "-"))
+                out.append((label(n, r), r["by_snr"], "-"))
     for n, r in runs.items():
         if r["model"] == "cnn" and r["arm"] == "spec0":
-            out.append(("CNN spec 0 dB", r["by_snr"], "-"))
+            out.append((label(n, r), r["by_snr"], "-"))
     for n, r in dit.items():
         if r["arm"] == "spec0":
             out.append(("DiT spec 0 dB (all SNRs)", r["by_snr"], "--"))
@@ -105,9 +118,9 @@ def digital_series(runs: dict) -> list[tuple[str, dict[float, dict], str]]:
     return out
 
 
-def table(runs: dict, steps: int) -> str:
+def table(runs: dict, steps: int, eval_name: str = "eval") -> str:
     snrs = sorted({s for r in runs.values() for s in r["by_snr"]})
-    lines = [f"# Generative JSCC results (DiT at {steps} DDIM steps)\n"]
+    lines = [f"# Generative JSCC results (DiT at {steps} DDIM steps, {eval_name}.json)\n"]
     sym = {n: r["symbols"] for n, r in sorted(runs.items()) if r.get("symbols")}
     if sym:
         lines.append("## Transmitted symbols (digital runs, test images)\n")
@@ -116,15 +129,18 @@ def table(runs: dict, steps: int) -> str:
         for n, st in sym.items():
             lines.append(f"| {n} | {st['qam_usage']:.3f} | {st['qam_kurtosis']:.3f} | {st['qam_power']:.3f} |")
         lines.append("")
-    for key, label, higher in METRICS:
-        lines.append(f"## {label} ({'higher' if higher else 'lower'} is better)\n")
+    have = {k for r in runs.values() for v in r["by_snr"].values() for k in v}
+    for key, title, higher in METRICS + RETRIEVAL:
+        if key not in have:
+            continue
+        lines.append(f"## {title} ({'higher' if higher else 'lower'} is better)\n")
         lines.append("| run | " + " | ".join(f"{s:+g} dB" for s in snrs) + " |")
         lines.append("|---" * (len(snrs) + 1) + "|")
         for name, r in sorted(runs.items()):
-            cells = [f"{r['by_snr'][s][key]:.3f}" if s in r["by_snr"] else "" for s in snrs]
+            cells = [f"{r['by_snr'][s][key]:.3f}" if key in r["by_snr"].get(s, {}) else "" for s in snrs]
             lines.append(f"| {name} | " + " | ".join(cells) + " |")
         for modem, seed in sorted({(r["modem"], r["seed"]) for r in runs.values()}):
-            env = envelope(runs, "dit", modem, seed)
+            env = {s: v for s, v in envelope(runs, "dit", modem, seed).items() if key in v}
             if len(env) < 2:
                 continue
             lines.append(f"| **specialist envelope ({modem}, seed {seed})** | " + " | ".join(
@@ -133,7 +149,7 @@ def table(runs: dict, steps: int) -> str:
                 if (r["model"] == "dit" and r["modem"] == modem and r["seed"] == seed
                         and spec_snr(r["arm"]) is None):
                     gap = [(r["by_snr"][s][key] - env[s][key]) * (1 if higher else -1)
-                           if s in env and s in r["by_snr"] else None for s in snrs]
+                           if s in env and key in r["by_snr"].get(s, {}) else None for s in snrs]
                     lines.append(f"| {name} vs envelope | " + " | ".join(
                         "" if g is None else f"{g:+.3f}" for g in gap) + " |")
         lines.append("")
@@ -216,20 +232,24 @@ def main() -> None:
     ap.add_argument("--steps", type=int, default=20, help="DDIM steps to report for DiT runs")
     ap.add_argument("--out", type=Path, default=ROOT / "results" / "gen" / "report")
     ap.add_argument("--family", default="dit-S-v", help="DiT run family reported (tables and figures)")
+    ap.add_argument("--eval-name", default="eval",
+                    help="evaluation file per run: eval (first 1000 test images) or e.g. eval-spread")
+    ap.add_argument("--no-curves", action="store_true", help="skip the validation-curve figure")
     args = ap.parse_args()
     runs = {}
     for root in args.root or [ROOT / "results" / "gen" / "p128"]:
-        runs.update(load(root, args.steps))
+        runs.update(load(root, args.steps, args.eval_name))
     if not runs:
         raise SystemExit("no eval.json found")
     args.out.mkdir(parents=True, exist_ok=True)
     # One DiT family throughout, tables included: g-w1's noise-target specialist shares the folder
     # and would otherwise stand in for the 0 dB point of the specialist envelope.
     shown = plotted(runs, args.family)
-    (args.out / "report.md").write_text(table(shown, args.steps), encoding="utf-8")
+    (args.out / "report.md").write_text(table(shown, args.steps, args.eval_name), encoding="utf-8")
     drawn = first_seed(shown)
     plot_metrics(drawn, args.out / "metrics_vs_snr.png", args.steps)
-    plot_curves(runs, args.out / "val_curves.png")
+    if not args.no_curves:
+        plot_curves(runs, args.out / "val_curves.png")
     if any(r["modem"] != "analog" for r in runs.values()):
         plot_metrics(drawn, args.out / "digital_vs_snr.png", args.steps, digital_series(drawn),
                      f"Analog vs M-QAM channel symbols (DiT: {args.steps} DDIM steps, CBR 1/48, 128 px)")
