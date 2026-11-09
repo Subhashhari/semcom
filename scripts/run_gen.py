@@ -92,8 +92,7 @@ def main() -> None:
                  "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode,
                  "anneal_period": args.anneal_period, "init_from": args.init_from,
                  "train_parts": args.train_parts, "tag": args.tag, "eval_snrs": args.eval_snrs,
-                 "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
-                 "cnn_lpips_weight": args.cnn_lpips_weight}
+                 "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:
@@ -109,6 +108,10 @@ def main() -> None:
     else:
         p.error("give --stage, or both --models and --arms")
     cfgs = [arm_config(base, m, a, s) for s in args.seeds for m, a in pairs]
+    if args.cnn_lpips_weight is not None:
+        if not any(c.model == "cnn" for c in cfgs):
+            p.error("--cnn-lpips-weight needs a CNN run in the plan")
+        cfgs = [c.replace(cnn_lpips_weight=args.cnn_lpips_weight) if c.model == "cnn" else c for c in cfgs]
 
     names = [c.run_name for c in cfgs]
     if len(set(names)) != len(names):
