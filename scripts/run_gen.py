@@ -76,6 +76,10 @@ def main() -> None:
     p.add_argument("--tag", default=None, help="appended to the run name")
     p.add_argument("--eval-snrs", nargs="+", type=float, default=None)
     p.add_argument("--sample-steps", nargs="+", type=int, default=None)
+    p.add_argument("--eval-subset", choices=["first", "spread"], default="first",
+                   help="with --evaluate: first n test images, or n evenly spaced over all classes")
+    p.add_argument("--cnn-lpips-weight", type=float, default=None,
+                   help="CNN baseline: add this weight x LPIPS(VGG) to the pixel MSE loss")
     p.add_argument("--encoder-snr", action="store_true",
                    help="DiT: SNR-aware transmitter (FiLM on the SNR in both encoders)")
     p.add_argument("--eval-suffix", default="",
@@ -88,7 +92,8 @@ def main() -> None:
                  "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode,
                  "anneal_period": args.anneal_period, "init_from": args.init_from,
                  "train_parts": args.train_parts, "tag": args.tag, "eval_snrs": args.eval_snrs,
-                 "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None}
+                 "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
+                 "cnn_lpips_weight": args.cnn_lpips_weight}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:
@@ -130,7 +135,7 @@ def main() -> None:
         tail = f"-{args.eval_suffix}" if args.eval_suffix else ""
         if args.evaluate and not (cfg.run_dir / f"eval{tail}.json").exists():
             evaluate_run(cfg.run_dir, external=cfg.dataset != "synthetic", snrs=args.eval_snrs,
-                         steps_list=args.sample_steps, suffix=args.eval_suffix)
+                         steps_list=args.sample_steps, suffix=args.eval_suffix, subset=args.eval_subset)
 
 
 if __name__ == "__main__":

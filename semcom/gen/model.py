@@ -309,8 +309,24 @@ class CNNBaseline(EnergyReference, nn.Module):
         z = self.jscc.transmit(x, snr_db)
         self._kl = self.quantiser.kl_to_uniform() if self.quantiser is not None else None
         y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z))
-        mse = F.mse_loss(self.jscc.decode(y, snr_db, z).float(), x)
-        return {**with_kl(self, mse), "pixel_mse": mse.detach()}
+        x_hat = self.jscc.decode(y, snr_db, z).float()
+        mse = F.mse_loss(x_hat, x)
+        out = {**with_kl(self, mse), "pixel_mse": mse.detach()}
+        if self.cfg.cnn_lpips_weight:
+            lp = self._lpips(x.device)(x_hat * 2 - 1, x * 2 - 1).mean()
+            out["loss"] = out["loss"] + self.cfg.cnn_lpips_weight * lp
+            out["lpips_vgg"] = lp.detach()
+        return out
+
+    def _lpips(self, device):
+        """Frozen LPIPS(VGG), created on first use and kept out of the state dict and parameters."""
+        net = self.__dict__.get("_lpips_net")
+        if net is None:
+            import lpips
+
+            net = lpips.LPIPS(net="vgg", verbose=False).to(device).eval().requires_grad_(False)
+            self.__dict__["_lpips_net"] = net
+        return net
 
     @torch.no_grad()
     def reconstruct(self, batch, snr_db, vae=None, steps=None, channel_gen=None, sample_gen=None,

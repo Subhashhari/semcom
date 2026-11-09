@@ -57,6 +57,10 @@ class GenConfig:
     det_hidden: int = 128  # width of the detail encoder
     cnn_c_out: int = 2  # CNN baseline: k = (image_size/4)^2 * c_out / 2
     cnn_hidden: int = 256
+    #: CNN baseline only: loss = pixel MSE + cnn_lpips_weight * LPIPS(VGG). A perceptual baseline:
+    #: does a feed-forward decoder trained for perceptual quality get the DiT's LPIPS/FID? VGG for
+    #: training, AlexNet (the eval metric) for scoring, so it is not trained on the test metric.
+    cnn_lpips_weight: float = 0.0
 
     # --- channel and SNR
     channel: str = "awgn"
@@ -169,6 +173,10 @@ class GenConfig:
             raise ValueError("encoder_snr applies to the DiT model only")
         if self.encoder_snr and self.digital:
             raise ValueError("encoder_snr is analog-only for now")
+        if self.cnn_lpips_weight and self.model != "cnn":
+            raise ValueError("cnn_lpips_weight applies to the CNN baseline only")
+        if self.cnn_lpips_weight < 0:
+            raise ValueError("cnn_lpips_weight must be >= 0")
         if self.snr_mode not in SNR_MODES:
             raise ValueError(f"snr_mode must be one of {SNR_MODES}, got {self.snr_mode!r}")
         if self.snr_mode == "fixed" and self.snr_train_fixed is None:
@@ -250,6 +258,8 @@ class GenConfig:
         parts.append(self.arm)
         if self.encoder_snr:
             parts.append("txsnr")
+        if self.cnn_lpips_weight:
+            parts.append(f"lpips{self.cnn_lpips_weight:g}")
         if self.channel != "awgn":
             parts.append(self.channel)
         if self.tag:

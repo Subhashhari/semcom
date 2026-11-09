@@ -34,7 +34,7 @@ from .checks import kv, symbol_stats
 from .config import GenConfig
 from .data import CachedSplit, prepare
 from .frozen import load_frozen
-from .metrics import Metrics
+from .metrics import Metrics, retrieval_rank
 from .model import build_model
 
 
@@ -60,9 +60,16 @@ def _sync(device):
 
 @torch.no_grad()
 def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images: int | None = None,
-                 snrs=None, steps_list=None, external: bool = True, suffix: str = "") -> dict:
+                 snrs=None, steps_list=None, external: bool = True, suffix: str = "",
+                 subset: str = "first") -> dict:
     """`external=False` skips LPIPS and FID, whose networks download on first use. A `suffix`
-    writes eval-<suffix>.json etc. next to the run's main evaluation instead of replacing it."""
+    writes eval-<suffix>.json etc. next to the run's main evaluation instead of replacing it.
+
+    `subset`: which n test images. "first" (the original setting) takes the first n; the test
+    split is stored in class order, so the first 1000 cover only 3 of Imagenette's 10 classes.
+    "spread" takes n evenly spaced images, covering every class in proportion."""
+    if subset not in ("first", "spread"):
+        raise ValueError(f"subset must be 'first' or 'spread', got {subset!r}")
     if suffix and not all(c.isalnum() or c == "-" for c in suffix):
         raise ValueError(f"suffix must be letters, digits and '-', got {suffix!r}")
     tail = f"-{suffix}" if suffix else ""
@@ -76,7 +83,10 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
     n = eval_images if eval_images is not None else cfg.eval_images
     test = CachedSplit(cfg.cache_dir, "test")
     if n:
-        test = Subset(test, range(min(n, len(test))))
+        n = min(n, len(test))
+        idx = (range(n) if subset == "first"
+               else np.linspace(0, len(test) - 1, n).round().astype(int).tolist())
+        test = Subset(test, idx)
     loader = DataLoader(test, batch_size=cfg.eval_batch, shuffle=False, num_workers=0)
     snrs = list(cfg.eval_snrs if snrs is None else snrs)
     steps_list = list(cfg.sample_steps if steps_list is None else steps_list) if cfg.model == "dit" else [None]
@@ -105,7 +115,7 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
     for snr in snrs:
         for steps in steps_list:
             key = f"{snr:g}" + ("" if steps is None else f"_{steps}")
-            per = {}
+            per, embs = {}, {"_cls": [], "_cls_hat": []}
             fid_acc = metrics.new_fid()
             seconds, count = 0.0, 0
             for b, batch in enumerate(loader):
@@ -123,14 +133,18 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
                 _sync(device)
                 seconds += time.time() - t0
                 count += x.shape[0]
-                for k, v in metrics.per_image(x, x_hat, cfg.grid).items():
-                    per.setdefault(k, []).append(v.cpu())
+                for k, v in metrics.per_image(x, x_hat, cfg.grid, embeddings=True).items():
+                    (embs[k] if k in embs else per.setdefault(k, [])).append(v.cpu())
                 if fid_acc is not None:
                     fid_acc.update(x, real=True)
                     fid_acc.update(x_hat, real=False)
                 if b == 0:
                     sample_rows.append(x_hat[:8].cpu())
-            entry = {k: float(torch.cat(v).mean()) for k, v in per.items()}
+            per["retrieval_rank"] = [retrieval_rank(torch.cat(embs["_cls"]), torch.cat(embs["_cls_hat"]))]
+            entry = {k: float(torch.cat(v).float().mean()) for k, v in per.items()}
+            ranks = torch.cat(per["retrieval_rank"])
+            entry["retrieval_top1"] = float((ranks < 1).float().mean())
+            entry["retrieval_top5"] = float((ranks < 5).float().mean())
             if fid_acc is not None:
                 entry["fid"] = float(fid_acc.compute())
             entry["seconds_per_image"] = seconds / max(count, 1)
@@ -140,7 +154,7 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
                 images[f"{k}_{key}"] = torch.cat(v).numpy()
             print(f"EVAL run={cfg.run_name} " + kv(snr=float(snr), steps=steps or 0, **entry), flush=True)
 
-    out = {"run_name": cfg.run_name, "model": cfg.model, "arm": cfg.arm, "snr_mode": cfg.snr_mode,
+    out = {"run_name": cfg.run_name, "subset": subset, "n_images": len(test), "model": cfg.model, "arm": cfg.arm, "snr_mode": cfg.snr_mode,
            "seed": cfg.seed, "checkpoint": cfg.eval_checkpoint, "k": cfg.k, "bandwidth_ratio": cfg.bandwidth_ratio,
            "device": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
            "digital": cfg.digital, "modulation_order": cfg.modulation_order if cfg.digital else None,
@@ -163,10 +177,12 @@ def main() -> None:
     p.add_argument("--snrs", nargs="+", type=float, default=None)
     p.add_argument("--steps", nargs="+", type=int, default=None, help="DiT sampling step counts")
     p.add_argument("--suffix", default="", help="write eval-<suffix>.json etc. (keeps eval.json)")
+    p.add_argument("--subset", choices=["first", "spread"], default="first",
+                   help="first n test images, or n evenly spaced (all classes)")
     args = p.parse_args()
     for run_dir in args.run_dirs:
         evaluate_run(run_dir, eval_images=args.eval_images, external=not args.no_external,
-                     snrs=args.snrs, steps_list=args.steps, suffix=args.suffix)
+                     snrs=args.snrs, steps_list=args.steps, suffix=args.suffix, subset=args.subset)
 
 
 if __name__ == "__main__":

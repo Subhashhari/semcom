@@ -46,11 +46,26 @@ class Metrics:
             return None
 
     @torch.no_grad()
-    def per_image(self, x: torch.Tensor, x_hat: torch.Tensor, grid: int) -> dict[str, torch.Tensor]:
+    def per_image(self, x: torch.Tensor, x_hat: torch.Tensor, grid: int,
+                  embeddings: bool = False) -> dict[str, torch.Tensor]:
+        """Per-image PSNR, LPIPS, DINOv2 CLS cosine. `embeddings` also returns the unit-norm CLS
+        embeddings of x and x_hat under "_cls" / "_cls_hat" (for retrieval, see retrieval_rank)."""
         out = {"psnr": psnr(x, x_hat)}
         if self.lpips is not None:
             out["lpips"] = self.lpips(x * 2 - 1, x_hat * 2 - 1).flatten()
         _, cls = self.dino(x, grid)
         _, cls_hat = self.dino(x_hat, grid)
         out["dino_sim"] = F.cosine_similarity(cls.float(), cls_hat.float(), dim=1)
+        if embeddings:
+            out["_cls"] = F.normalize(cls.float(), dim=1)
+            out["_cls_hat"] = F.normalize(cls_hat.float(), dim=1)
         return out
+
+
+def retrieval_rank(cls: torch.Tensor, cls_hat: torch.Tensor) -> torch.Tensor:
+    """For each reconstruction, how many of the evaluated originals are closer to it (DINOv2 CLS
+    cosine) than its own original: 0 means its original is retrieved first. Unlike the raw cosine,
+    whose floor is high (two unrelated natural images score about 0.5), this is chance-normalised:
+    a reconstruction that carries nothing image-specific has rank about N/2."""
+    sim = cls_hat @ cls.T
+    return (sim > sim.diag()[:, None]).sum(1)

@@ -702,3 +702,44 @@ def test_suffixed_evaluation_keeps_the_main_one(tmp_path):
     assert (cfg.run_dir / "eval-fewstep.json").exists() and (cfg.run_dir / "eval_images-fewstep.npz").exists()
     with pytest.raises(ValueError):
         evaluate_run(cfg.run_dir, external=False, suffix="a_b")
+
+
+def test_retrieval_rank_is_zero_for_a_perfect_copy_and_counts_closer_originals():
+    from semcom.gen.metrics import retrieval_rank
+
+    cls = torch.nn.functional.normalize(torch.randn(6, 16), dim=1)
+    assert retrieval_rank(cls, cls).tolist() == [0] * 6
+    # Reconstruction 0 points exactly at original 3: originals 3 (and possibly others) beat its own.
+    hat = cls.clone()
+    hat[0] = cls[3]
+    assert retrieval_rank(cls, hat)[0] >= 1 and retrieval_rank(cls, hat)[1:].tolist() == [0] * 5
+
+
+def test_spread_subset_covers_the_whole_test_split(tmp_path):
+    import numpy as np
+
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank")
+    train(cfg)
+    out = evaluate_run(cfg.run_dir, external=False, snrs=[0.0], steps_list=[1], suffix="spread", subset="spread")
+    r = out["results"]["0_1"]
+    assert out["subset"] == "spread" and 0 <= r["retrieval_top1"] <= r["retrieval_top5"] <= 1
+    assert "retrieval_rank_0_1" in np.load(cfg.run_dir / "eval_images-spread.npz").files
+    with pytest.raises(ValueError):
+        evaluate_run(cfg.run_dir, external=False, subset="random")
+
+
+def test_perceptual_cnn_baseline_adds_the_weighted_lpips_term(tmp_path):
+    cfg = tiny(tmp_path, model="cnn", cnn_lpips_weight=0.5)
+    assert cfg.run_name == "cnn_cbr48_spec0_lpips0.5_s0"
+    with pytest.raises(ValueError):
+        tiny(tmp_path, cnn_lpips_weight=0.5)  # DiT: not applicable
+    m = CNNBaseline(cfg)
+    # Stand-in for LPIPS(VGG) so the test needs no download: a constant 2 per image.
+    m.__dict__["_lpips_net"] = lambda a, b: torch.full((a.shape[0], 1, 1, 1), 2.0)
+    batch = {"image": torch.rand(2, 3, 128, 128)}
+    out = m.loss(batch, torch.zeros(2))
+    assert torch.isclose(out["loss"], out["pixel_mse"] + 0.5 * 2.0)
+    assert not any("lpips" in k for k in m.state_dict())
