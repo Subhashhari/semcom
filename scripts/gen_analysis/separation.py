@@ -6,7 +6,7 @@ real separate design at this bandwidth. The sender picks, per image, the downsca
 with the highest PSNR whose payload fits (container overhead not counted: 290 bytes for AVIF,
 40 for WebP, measured on a flat 1x1 image); the receiver upsamples bicubically to 128 px. If
 nothing fits, the receiver shows the test set's mean colour.
-usage: separation.py OUT.json N codec[,codec] [first|spread] [capacity|fbl]
+usage: separation.py OUT.json N codec[,codec] [first|spread] [capacity|fbl] [SNR,SNR,...]
 "spread" takes N evenly spaced test images (every class), as semcom.gen.evaluate --subset spread;
 it needs the whole test split cached (cache_test.py all). Per-image metrics, including the
 retrieval rank (semcom.gen.metrics.retrieval_rank), go to OUT_<codec>_<snr>.npz.
@@ -45,7 +45,8 @@ def rate_bits(snr_db: float, n: int, mode: str) -> float:
 
 
 budget_mode = sys.argv[5] if len(sys.argv) > 5 else "capacity"
-budgets = {snr: rate_bits(snr, cfg.k, budget_mode) / 8 for snr in (-5, 0, 5)}
+snr_list = [float(v) for v in sys.argv[6].split(",")] if len(sys.argv) > 6 else [-5, 0, 5]
+budgets = {snr: max(rate_bits(snr, cfg.k, budget_mode), 0) / 8 for snr in snr_list}
 print("budget bytes:", {s: round(b, 1) for s, b in budgets.items()}, budget_mode, flush=True)
 
 def psnr(a, b):
@@ -94,8 +95,8 @@ for codec in codecs:
         r.update(retrieval_top1=float((ranks < 1).float().mean()), retrieval_top5=float((ranks < 5).float().mean()))
         r.update(budget_bytes=budget, fit_fraction=fits / n,
                  median_scale=float(np.median(scales)) if scales else None)
-        res[f"{codec}_{snr}"] = r
-        np.savez_compressed(out.replace(".json", f"_{codec}_{snr}.npz"),
+        res[f"{codec}_{snr:g}"] = r
+        np.savez_compressed(out.replace(".json", f"_{codec}_{snr:g}.npz"),
                             **{k: torch.cat(v).numpy() for k, v in per.items()}, index=idx)
         print(codec, snr, {k: round(v, 4) if isinstance(v, float) else v for k, v in r.items()}, flush=True)
 json.dump(res, open(out, "w"), indent=2)
