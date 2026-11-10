@@ -1,0 +1,8 @@
+{
+ "reference": "cnn_cbr48_spec0_lpips0.1_ft_s0",
+ "eval": "spread",
+ "runs": {
+  "dit-S-v_cbr48_blind-5to5_s0": {},
+  "dit-S-v_cbr48_blind-5to5_s0:spread-g15": {}
+ }
+}
