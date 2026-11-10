@@ -67,13 +67,16 @@ for ax, (m, ylabel, hint) in zip(axes, METRICS):
         y = [val(m, sep[d]) if s >= d else val(m, fail) for s in fine]
         ax.plot(fine, y, color=SEP_COLOUR, lw=1.5, ls=["-", "--", ":"][j],
                 label=f"Separate (AVIF + code), designed at {d:g} dB")
+    ax.plot(xs, [val(m, sep[s]) for s in xs], color=MUTED, lw=1, ls=(0, (4, 2)), marker=".", ms=4,
+            label="Separate, re-designed for every SNR (needs the SNR at the sender)")
     for run, label, colour in RUNS:
         pts = run_points(R / run)
         if pts:
             ax.plot(list(pts), [val(m, v) for v in pts.values()], color=colour, lw=2,
                     marker="o", ms=4, label=label)
     ax.axhline(val(m, fail), color=MUTED, lw=0.8, ls=(0, (1, 2)))
-    ax.text(hi, val(m, fail), " decoding failure", color=MUTED, fontsize=7, va="bottom", ha="right")
+    ax.text(lo, val(m, fail), "decoding failure", color=MUTED, fontsize=7,
+            va="top" if m == "lpips" else "bottom", ha="left")
     ax.set_xlabel("Actual channel SNR (dB)")
     ax.set_ylabel(ylabel)
     ax.set_title(f"{ylabel.split(' (')[0]} ({hint})", fontsize=9, color=INK, loc="left")

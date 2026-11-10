@@ -1,0 +1,101 @@
+{
+  "avif_-10": {
+    "psnr": 15.370458602905273,
+    "lpips": 0.8597515821456909,
+    "dino_sim": 0.006389026530086994,
+    "retrieval_rank": 451.2099914550781,
+    "retrieval_top1": 0.004999999888241291,
+    "retrieval_top5": 0.008999999612569809,
+    "budget_bytes": 10.796242010304583,
+    "fit_fraction": 1.0,
+    "median_scale": 8.0
+  },
+  "avif_-7.5": {
+    "psnr": 17.01474380493164,
+    "lpips": 0.8355416655540466,
+    "dino_sim": 0.035032398998737335,
+    "retrieval_rank": 365.66900634765625,
+    "retrieval_top1": 0.007000000216066837,
+    "retrieval_top5": 0.027000000700354576,
+    "budget_bytes": 21.4272168130488,
+    "fit_fraction": 1.0,
+    "median_scale": 16.0
+  },
+  "avif_-5": {
+    "psnr": 18.30925178527832,
+    "lpips": 0.7847435474395752,
+    "dino_sim": 0.062343209981918335,
+    "retrieval_rank": 284.22698974609375,
+    "retrieval_top1": 0.017999999225139618,
+    "retrieval_top5": 0.052000001072883606,
+    "budget_bytes": 39.769986925738635,
+    "fit_fraction": 1.0,
+    "median_scale": 24.0
+  },
+  "avif_-2.5": {
+    "psnr": 19.60732078552246,
+    "lpips": 0.6932748556137085,
+    "dino_sim": 0.11581877619028091,
+    "retrieval_rank": 173.5749969482422,
+    "retrieval_top1": 0.054999999701976776,
+    "retrieval_top5": 0.1379999965429306,
+    "budget_bytes": 69.31833603253003,
+    "fit_fraction": 1.0,
+    "median_scale": 32.0
+  },
+  "avif_0": {
+    "psnr": 20.82762908935547,
+    "lpips": 0.5902283787727356,
+    "dino_sim": 0.21319949626922607,
+    "retrieval_rank": 77.3010025024414,
+    "retrieval_top1": 0.18000000715255737,
+    "retrieval_top5": 0.3700000047683716,
+    "budget_bytes": 113.18112608320408,
+    "fit_fraction": 1.0,
+    "median_scale": 48.0
+  },
+  "avif_2.5": {
+    "psnr": 21.93174171447754,
+    "lpips": 0.4883265495300293,
+    "dino_sim": 0.3265606760978699,
+    "retrieval_rank": 29.972000122070312,
+    "retrieval_top1": 0.36800000071525574,
+    "retrieval_top5": 0.6079999804496765,
+    "budget_bytes": 172.68370543807634,
+    "fit_fraction": 1.0,
+    "median_scale": 64.0
+  },
+  "avif_5": {
+    "psnr": 23.004535675048828,
+    "lpips": 0.4037852883338928,
+    "dino_sim": 0.4428122639656067,
+    "retrieval_rank": 11.173999786376953,
+    "retrieval_top1": 0.5699999928474426,
+    "retrieval_top5": 0.7929999828338623,
+    "budget_bytes": 246.6580460828121,
+    "fit_fraction": 1.0,
+    "median_scale": 64.0
+  },
+  "avif_7.5": {
+    "psnr": 23.982582092285156,
+    "lpips": 0.33442991971969604,
+    "dino_sim": 0.5370363593101501,
+    "retrieval_rank": 3.742000102996826,
+    "retrieval_top1": 0.7350000143051147,
+    "retrieval_top5": 0.9070000052452087,
+    "budget_bytes": 332.12595670682805,
+    "fit_fraction": 1.0,
+    "median_scale": 96.0
+  },
+  "avif_10": {
+    "psnr": 24.85328483581543,
+    "lpips": 0.27885088324546814,
+    "dino_sim": 0.6107653975486755,
+    "retrieval_rank": 0.9340000152587891,
+    "retrieval_top1": 0.8330000042915344,
+    "retrieval_top5": 0.9570000171661377,
+    "budget_bytes": 425.6730408315592,
+    "fit_fraction": 1.0,
+    "median_scale": 96.0
+  }
+}
