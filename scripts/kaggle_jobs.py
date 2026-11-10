@@ -273,7 +273,11 @@ def upload_runs(name: str, run_dirs: list[Path], user: str, token_file: Path | N
         {"title": slug, "id": f"{user}/{slug}", "licenses": [{"name": "CC0-1.0"}]}), encoding="utf-8")
     kaggle("datasets", "create", "-p", str(folder), token_file=token_file)  # private by default
     for _ in range(60):  # the dataset must be processed before a kernel can mount it
-        status = kaggle("datasets", "status", f"{user}/{slug}", token_file=token_file, capture=True)
+        try:  # the status call can 403 for a while just after creation (g-g1)
+            status = kaggle("datasets", "status", f"{user}/{slug}", token_file=token_file, capture=True)
+        except SystemExit as e:
+            print(f"  dataset status: {str(e).splitlines()[-1]} (retrying)")
+            status = ""
         if "ready" in status.lower():
             return f"{user}/{slug}"
         time.sleep(10)
