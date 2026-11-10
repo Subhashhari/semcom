@@ -35,6 +35,18 @@ def load(spec: str) -> tuple[str, dict]:
     return f"{Path(run).name}{':' + ev if ev != name else ''}", per
 
 
+def match(k: str, other: dict) -> str | None:
+    """The key of `other` for the same metric and SNR: DiT keys are METRIC_SNR_STEPS, CNN keys
+    METRIC_SNR, so a DiT run compares with a CNN at every sampling-step count."""
+    if k in other:
+        return k
+    m, snr = k.split("_")[:2]
+    if len(k.split("_")) == 3:  # DiT key against a CNN reference
+        return f"{m}_{snr}" if f"{m}_{snr}" in other else None
+    hits = [o for o in other if o.startswith(f"{m}_{snr}_")]  # CNN key against a DiT reference
+    return hits[0] if len(hits) == 1 else None
+
+
 def ci(diff: np.ndarray) -> tuple[float, float, float]:
     idx = rng.integers(0, len(diff), (B, len(diff)))
     boots = diff[idx].mean(1)
@@ -48,11 +60,11 @@ for spec in runs:
     rows = {}
     print(f"\n{run_name}  minus  {ref_name}")
     for m in ["psnr", "lpips", "top1", "top5"]:
-        for k in sorted((k for k in b if k.startswith(m + "_") and k in a),
-                        key=lambda k: float(k.split("_")[-2])):
-            mean, lo, hi = ci(b[k] - a[k])
+        for k in sorted((k for k in b if k.startswith(m + "_") and match(k, a)),
+                        key=lambda k: float(k.split("_")[1])):
+            mean, lo, hi = ci(b[k] - a[match(k, a)])
             scale = 100 if m.startswith("top") else 1
-            rows[k] = {"diff": mean * scale, "lo": lo * scale, "hi": hi * scale, "n": len(a[k])}
+            rows[k] = {"diff": mean * scale, "lo": lo * scale, "hi": hi * scale, "n": len(b[k])}
             sig = "*" if lo > 0 or hi < 0 else " "
             print(f"  {k:<16} {mean * scale:+8.3f}  [{lo * scale:+.3f}, {hi * scale:+.3f}] {sig}")
     res["runs"][run_name] = rows
