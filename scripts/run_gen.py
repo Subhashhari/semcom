@@ -88,6 +88,9 @@ def main() -> None:
                    help="with --evaluate: write eval-<suffix>.json (at --eval-snrs / --sample-steps), "
                         "keeping a run's main eval.json; for re-evaluating finished runs")
     args = p.parse_args()
+    # Checked here as well as in evaluate_run, so a --dry-run (kaggle_jobs push) catches it (g-g1).
+    if args.eval_suffix and not all(c.isalnum() or c == "-" for c in args.eval_suffix):
+        p.error(f"--eval-suffix must be letters, digits and '-', got {args.eval_suffix!r}")
 
     overrides = {"steps": args.steps, "dit_size": args.dit_size, "prediction": args.prediction, "batch_size": args.batch_size,
                  "max_hours": args.max_hours, "eval_images": args.eval_images,
