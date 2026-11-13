@@ -52,7 +52,8 @@ for ax, (title, path) in zip(axes[0], panels):
     for j, (label, pick, colour) in enumerate(ARMS):
         xs, ys, lo, hi = [], [], [], []
         for i, s in enumerate(SNRS):
-            hits = [r for r in runs if pick(r, s)]
+            seed = d["reference"].rsplit("_", 1)[-1]  # the reference's own seed (e.g. s0)
+            hits = [r for r in runs if pick(r, s) and r.endswith(f"_{seed}")]
             key = next((k for k in (f"{metric}_{s}_{steps}", f"{metric}_{s}") if hits and k in runs[hits[0]]), None)
             if len(hits) != 1 or key is None:
                 continue
@@ -74,7 +75,7 @@ for ax, (title, path) in zip(axes[0], panels):
     ax.set_xticks(range(len(SNRS)), [f"{s:+g} dB" for s in SNRS])
     ax.set_xlabel("Test SNR")
     ax.set_ylabel(f"{metric.upper()} minus blind receiver{f' ({unit})' if unit else ''}")
-    ax.set_title(f"{title} (vs {d['reference']})", fontsize=8, color=INK, loc="left")
+    ax.set_title(f"{title} (seed {d['reference'].rsplit('_s', 1)[-1]})", fontsize=9, color=INK, loc="left")
     ax.grid(axis="y", color=GRID, lw=0.6, zorder=0)
     ax.spines[["top", "right"]].set_visible(False)
 ymin = min(a.get_ylim()[0] for a in axes[0])

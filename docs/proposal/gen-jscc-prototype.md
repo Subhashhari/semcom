@@ -275,26 +275,38 @@ So the claim is about what a diffusion JSCC receiver needs: digital symbols, no 
 receiver, one model for all SNRs, and few steps. It is not a claim that the DiT beats CNN or
 separate designs at a fixed SNR.
 
-**Digital 16-QAM: the same picture** (g-q1; `results/gen/analysis/paired_first_qam16_vs_blind_s0.json`,
-first 1,000 images, 10 steps). Every transmitted symbol is a 16-QAM point. PSNR differences
-against the blind 16-QAM receiver:
+**Digital 16-QAM: the same picture** (g-q1, g-q2; `results/gen/analysis/paired_spread_qam16_vs_blind_s0.json`,
+10-class set, 10 steps; figure `results/gen/analysis/snr_placement.png`). Every transmitted symbol
+is a 16-QAM point. PSNR differences against the blind 16-QAM receiver (seed 0):
 
 | 16-QAM model | −5 dB | 0 dB | +5 dB |
 |---|---|---|---|
-| told | −0.02 (ns) | 0.00 (ns) | +0.08 |
-| specialist at −5 / 0 / +5 dB | +0.63 | −0.02 (ns) | −0.08 |
-| SNR-aware transmitter, blind receiver | **+0.38** [0.31, 0.46] | +0.02 (ns) | −0.05 |
+| told | −0.04 | 0.00 (ns) | +0.07 |
+| specialist at −5 / 0 / +5 dB | +0.57 | −0.03 (ns) | −0.02 (ns) |
+| SNR-aware transmitter, blind receiver, seed 0 | **+0.37** [0.31, 0.45] | 0.00 (ns) | −0.06 |
+| SNR-aware transmitter, blind receiver, seed 1 | **+0.36** [0.30, 0.42] | −0.01 (ns) | −0.04 |
 
-The SNR-aware transmitter recovers about 60% of the −5 dB gap. It also lowers LPIPS at every SNR
-(−0.011 at −5 dB). Energy is held fair:
-- each training batch has one SNR;
-- evaluation measures Es separately at every SNR (0.92 / 0.91 / 0.89 at −5 / 0 / +5 dB);
-- the transmitter therefore cannot buy SNR by choosing higher-energy points.
+- **The analog findings carry over to digital.** Telling the receiver adds nothing; one blind
+  model matches the specialists at 0 and +5 dB.
+- **The SNR-aware transmitter recovers about 65% of the −5 dB gap** in both seeds. It also lowers
+  LPIPS at every SNR (−0.013 at −5 dB).
+- **Energy is held fair.**
+  - Each training batch has one SNR.
+  - Evaluation measures Es separately at every SNR: 0.92 / 0.90 / 0.89 (seed 0) and
+    0.93 / 0.91 / 0.90 (seed 1) at −5 / 0 / +5 dB.
+  - The transmitter therefore cannot buy SNR by choosing higher-energy points.
+  - The first 1,000 images give the same result: +0.38 and +0.34 dB at −5 dB
+    (`paired_first_qam16_vs_blind_s0.json`).
+- **The price of digital symbols** (blind receiver, analog minus 16-QAM): 0.31 / 0.53 / 0.76 dB
+  PSNR and 0.016 / 0.024 / 0.029 LPIPS at −5 / 0 / +5 dB.
+- **The 16-QAM CNN at 0 dB** (MSE) has +3.1 dB PSNR at 0 dB, but much worse LPIPS (0.45 vs 0.30)
+  and retrieval top-1 (5.4% vs 10.0%). Below its training SNR it loses on every metric
+  (−0.5 dB at −5 dB).
+- Tables: `results/gen/report-spread-qam16/report.md`; analog tables:
+  `results/gen/report-spread/report.md`.
 
 **Running next** (job plans and pinned commits: `results/gen/kaggle_jobs.json`):
 
-- **g-q2:** seed 1 of the 16-QAM SNR-aware transmitter; 10-class evaluation of every 16-QAM arm and
-  the 16-QAM CNN.
 - **g-q3:** −10 to +10 dB curves of the 16-QAM blind, SNR-aware and CNN models; guidance 1.5 for the
   16-QAM blind and SNR-aware models.
 - **g-e1** (after the 14 Nov quota reset): −10 to +10 dB curves of the analog runs for the cliff

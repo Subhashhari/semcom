@@ -112,9 +112,10 @@ def digital_series(runs: dict) -> list[tuple[str, dict[float, dict], str]]:
     if len(env) > 1:
         out.append(("DiT 16-QAM specialists (each at its SNR)", env, "-"))
     for kind in ("told", "blind"):
-        for r in runs.values():
-            if r["model"] == "dit" and r["modem"] == "qam16" and r["arm"].startswith(kind):
-                out.append((f"DiT {kind}, qam16", r["by_snr"], "-"))
+        for n, r in sorted(runs.items()):  # seed 0, like the specialist envelope
+            if (r["model"] == "dit" and r["modem"] == "qam16" and r["arm"].startswith(kind)
+                    and n.endswith("_s0")):
+                out.append((label(n, r).replace("DiT ", "DiT 16-QAM ", 1), r["by_snr"], "-"))
     return out
 
 
@@ -173,6 +174,8 @@ def plot_metrics(runs: dict, path: Path, steps: int, ser=None, title=None):
     import matplotlib.pyplot as plt
 
     ser = series(runs) if ser is None else ser
+    if not ser:  # e.g. a digital-only root: nothing for this figure (digital_vs_snr covers it)
+        return
     fig, axes = plt.subplots(1, 4, figsize=(15, 3.8), facecolor="#fcfcfb")
     for ax, (key, label, higher) in zip(axes, METRICS):
         style(ax, f"{label} ({'↑' if higher else '↓'})")
