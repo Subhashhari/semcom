@@ -82,6 +82,12 @@ def main() -> None:
                    help="with --evaluate: first n test images, or n evenly spaced over all classes")
     p.add_argument("--cnn-lpips-weight", type=float, default=None,
                    help="CNN baseline: add this weight x LPIPS(VGG) to the pixel MSE loss")
+    p.add_argument("--channel", choices=["awgn", "rayleigh"], default=None,
+                   help="channel for training and evaluation (rayleigh: equalised slow fading per image)")
+    p.add_argument("--c-sem", type=int, default=None,
+                   help="DiT: semantic channels per grid cell (bandwidth split; with --c-det, keep c_sem + c_det "
+                        "to keep k; name the run with --tag)")
+    p.add_argument("--c-det", type=int, default=None, help="DiT: detail channels per grid cell")
     p.add_argument("--encoder-snr", action="store_true",
                    help="DiT: SNR-aware transmitter (FiLM on the SNR in both encoders)")
     p.add_argument("--eval-suffix", default="",
@@ -97,7 +103,8 @@ def main() -> None:
                  "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode,
                  "anneal_period": args.anneal_period, "init_from": args.init_from,
                  "train_parts": args.train_parts, "tag": args.tag, "eval_snrs": args.eval_snrs,
-                 "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None}
+                 "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
+                 "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:
