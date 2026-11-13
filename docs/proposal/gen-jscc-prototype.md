@@ -179,3 +179,90 @@ input, so the loss is in the uncoded mapping, not in what the constellation can 
 LPIPS, DINOv2 and FID. (2) 16-QAM told vs the 16-QAM specialist(s), and blind if g-w6 finishes in
 time. (3) Symbol usage and transmit energy per run. Expected by 14–16 Nov at the current per-run
 cost of about 1.5 h of training plus about 0.3 h of evaluation on a T4.
+
+## 8. Status on 13 Nov: results since 9 Nov and what runs next
+
+All numbers below come from paired comparisons over the same test images, with the same channel
+noise and the same sampling seeds; brackets are 95% bootstrap intervals. Unless stated otherwise,
+they use the **10-class set**: 1,000 test images spaced evenly over the whole test split
+(`--eval-subset spread`, files `eval-spread*.json`). The first 1,000 test images, used up to 9 Nov,
+cover only 3 classes. Sampling uses 10 DDIM steps: on this set, 10 steps gives better LPIPS and FID
+than 20 or 50 (`eval-fewstep.json`).
+
+To recompute a comparison, run
+`python scripts/gen_analysis/paired.py spread REF_RUN RUN [RUN:EVAL_NAME ...]`.
+It reads the per-image metrics in each run's `eval_images-*.npz`.
+
+**Where the receiver needs the SNR** (`results/gen/analysis/paired_spread_vs_blind_s0.json`).
+PSNR differences against the blind receiver at −5 / 0 / +5 dB:
+
+| Model | −5 dB | 0 dB | +5 dB |
+|---|---|---|---|
+| told (receiver given the SNR) | −0.04 | −0.03 | +0.02 |
+| best specialist at that SNR | +0.64 | +0.005 (ns) | −0.07 |
+| SNR-aware transmitter, blind receiver | **+0.48** [0.40, 0.56] | −0.03 (ns) | −0.16 |
+
+So telling the receiver the SNR adds nothing. One blind model matches the specialists everywhere
+except at −5 dB. Feeding the SNR to the transmitter instead (FiLM, 117k parameters) recovers about
+75% of that −5 dB gap.
+
+Seed 1 replicates every row on the first 1,000 images
+(`results/gen/analysis/paired_first_txsnr_vs_blind_s{0,1}.json`), within 0.06 dB:
+
+| SNR-aware minus blind | −5 dB | 0 dB | +5 dB |
+|---|---|---|---|
+| seed 0 | +0.51 | −0.06 | −0.14 |
+| seed 1 | +0.51 | −0.07 | −0.15 |
+
+The fine-tunes from told and from blind (`results/gen/p128-ft`) explain why. The gap belongs to the
+transmitter: after fine-tuning, the transmitter accounts for 78% of the gain and the receiver 11%.
+
+**A wrong SNR at the transmitter** (`results/gen/analysis/feedback_cpu200.json`, CPU, 200 images):
+
+- **Too low is safe.** It trades PSNR for LPIPS.
+- **2 dB too high still beats blind.**
+- **5 dB or more too high is worse than blind**, so feedback should be conservative.
+- **Below the training range the gain grows.** At −10 dB the SNR-aware transmitter beats blind by
+  +1.67 dB.
+
+**Guidance at the receiver** (`eval-spread-g15.json`;
+`results/gen/analysis/paired_spread_guidance15_s0.json`). Classifier-free guidance 1.5, with no
+retraining:
+
+| | −5 dB | 0 dB | +5 dB |
+|---|---|---|---|
+| LPIPS | −0.046 | −0.034 | −0.025 |
+| FID | 187 → 173 | 142 → 129 | 112 → 100 |
+| retrieval top-1 | +1.0 pt (ns) | +2.7 pts | +8.0 pts |
+| PSNR | −0.13 dB | −0.16 dB | −0.18 dB |
+
+Retrieval top-1 counts the images whose DINOv2 embedding is nearest to their own original among
+the 1,000. The SNR-aware transmitter gets the same gains.
+
+**Baselines: what limits the claim.**
+
+- *Separation* (`results/gen/analysis/separation_curve_fbl.json`, `cliff.png`). The separate design
+  is AVIF plus an ideal channel code at the finite-blocklength rate for n = 1024 and
+  block error 10⁻³.
+  - *Re-designed for every SNR* (it needs the SNR at the sender), it wins PSNR at every SNR and
+    retrieval from 0 dB up.
+  - *The generative receiver wins LPIPS* up to about +10 dB: 0.27 vs 0.59 at 0 dB.
+  - *A fixed separate design falls to the mean-colour floor below its design SNR.* The generative
+    receiver degrades gracefully and needs no SNR at the sender.
+- *Perceptual CNN* (`results/gen/p128-perc`). The 0 dB CNN, fine-tuned with MSE + 0.1·LPIPS-VGG,
+  beats the DiT at 0 dB: +2.3 dB PSNR, FID 104 vs 142, retrieval top-1 36% vs 14%. LPIPS is about a
+  tie. The DiT wins away from the CNN's training SNR: +1.1 dB PSNR and −0.15 LPIPS at −5 dB, −0.09
+  LPIPS at +5 dB (`paired_spread_dit_vs_cnnperc.json`).
+
+So the claim is about what a diffusion JSCC receiver needs: digital symbols, no SNR at the
+receiver, one model for all SNRs, and few steps. It is not a claim that the DiT beats CNN or
+separate designs at a fixed SNR.
+
+**Running next** (job plans and pinned commits: `results/gen/kaggle_jobs.json`):
+
+- **16-QAM SNR-aware transmitter with a blind receiver, seeds 0 and 1.** One blind 16-QAM model has
+  the same −5 dB gap as analog: 14.63 vs 15.20 dB for the −5 dB specialist (first 1,000 images).
+  Energy is held fair: each training batch has one SNR, and evaluation measures Es separately at
+  every SNR. The transmitter therefore cannot buy SNR by choosing higher-energy points.
+- **10-class re-evaluation** of the 16-QAM arms, the analog seed-1 runs, and −10 to +10 dB curves
+  for the cliff figure.

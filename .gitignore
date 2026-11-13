@@ -19,6 +19,9 @@ results/**
 !results/**/*.png
 !results/**/*.pdf
 !results/**/*.csv
+# Per-image metrics of an evaluation (~70 KB): what the paired comparisons
+# (scripts/gen_analysis/paired.py) are computed from.
+!results/**/eval_images*.npz
 
 data/
 wandb/

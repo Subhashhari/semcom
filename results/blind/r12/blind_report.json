@@ -1,0 +1,960 @@
+{
+  "runs": {
+    "B|qam16": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "B|analog": [
+      0,
+      1
+    ],
+    "C-att|qam16": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "C-att|analog": [
+      0,
+      1
+    ]
+  },
+  "gate_qam16": {
+    "outcome": "decoder insensitive",
+    "action": "Drop the mechanism study; ship plain SI-JSCC-Q and the capacity map",
+    "G": {
+      "ci95": {
+        "n": 5,
+        "mean": 0.0222198486328125,
+        "lo": -0.0008440514118257594,
+        "hi": 0.04528374867745076,
+        "confidence": 0.95
+      },
+      "ci90": {
+        "n": 5,
+        "mean": 0.0222198486328125,
+        "lo": 0.004510619987062498,
+        "hi": 0.0399290772785625,
+        "confidence": 0.9
+      },
+      "clearly_nonzero": false,
+      "equivalent": true,
+      "verdict": "equivalent"
+    },
+    "P": {
+      "ci95": {
+        "n": 5,
+        "mean": 0.035732269287109375,
+        "lo": 0.019699926093129174,
+        "hi": 0.05176461248108957,
+        "confidence": 0.95
+      },
+      "ci90": {
+        "n": 5,
+        "mean": 0.035732269287109375,
+        "lo": 0.023422103582270867,
+        "hi": 0.04804243499194788,
+        "confidence": 0.9
+      },
+      "clearly_nonzero": true,
+      "equivalent": true,
+      "verdict": "nonzero+equivalent"
+    },
+    "P_equivalent_to_zero_everywhere": true,
+    "P_clearly_positive_somewhere": true,
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "modulation": "qam16"
+  },
+  "gaps_to_B": {
+    "qam16": {
+      "C-att": {
+        "seeds": [
+          0,
+          1,
+          2,
+          3,
+          4
+        ],
+        "by_snr": {
+          "0.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.011462783813476563,
+              "lo": 0.000438619915841142,
+              "hi": 0.022486947711111982,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.011462783813476563,
+              "lo": 0.002998064545980698,
+              "hi": 0.01992750308097243,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": true,
+            "equivalent": true,
+            "verdict": "nonzero+equivalent"
+          },
+          "1.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.008788299560546876,
+              "lo": -0.0002786324031990757,
+              "hi": 0.017855231524292827,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.008788299560546876,
+              "lo": 0.001826407991875949,
+              "hi": 0.015750191129217803,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "2.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.0077304840087890625,
+              "lo": -0.009670767990304974,
+              "hi": 0.0251317360078831,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.0077304840087890625,
+              "lo": -0.00563077535228375,
+              "hi": 0.021091743369861873,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "3.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.008087921142578124,
+              "lo": -0.017211560256701938,
+              "hi": 0.03338740254185819,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.008087921142578124,
+              "lo": -0.011337861134123418,
+              "hi": 0.027513703419279667,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "4.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.0113311767578125,
+              "lo": -0.016344688890642556,
+              "hi": 0.03900704240626755,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.0113311767578125,
+              "lo": -0.009919272289788542,
+              "hi": 0.032581625805413544,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "5.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.011913299560546875,
+              "lo": -0.018277926442930723,
+              "hi": 0.04210452556402447,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.011913299560546875,
+              "lo": -0.011268526728862176,
+              "hi": 0.03509512584995593,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "6.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.010153579711914062,
+              "lo": -0.019444905533420966,
+              "hi": 0.03975206495724909,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.010153579711914062,
+              "lo": -0.012573120532321107,
+              "hi": 0.03288027995614923,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "7.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.010052490234375,
+              "lo": -0.017826403660377323,
+              "hi": 0.03793138412912732,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.010052490234375,
+              "lo": -0.011353850645408163,
+              "hi": 0.03145883111415816,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "8.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.008413314819335938,
+              "lo": -0.017594852424287037,
+              "hi": 0.03442148206295891,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.008413314819335938,
+              "lo": -0.0115566199914637,
+              "hi": 0.028383249630135575,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "9.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.008943557739257812,
+              "lo": -0.018944150199642,
+              "hi": 0.03683126567815763,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.008943557739257812,
+              "lo": -0.012469550856427671,
+              "hi": 0.030356666334943296,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "10.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.009432601928710937,
+              "lo": -0.014563156289077638,
+              "hi": 0.03342836014649951,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.009432601928710937,
+              "lo": -0.008992138379064596,
+              "hi": 0.02785734223648647,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "11.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.0122711181640625,
+              "lo": -0.011072773532033717,
+              "hi": 0.03561500986015872,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.0122711181640625,
+              "lo": -0.005653097373105407,
+              "hi": 0.03019533370123041,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "12.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.014064788818359375,
+              "lo": -0.008291409510013097,
+              "hi": 0.03642098714673185,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.014064788818359375,
+              "lo": -0.003101042939523256,
+              "hi": 0.031230620576242006,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "13.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.01676788330078125,
+              "lo": -0.0034674939080610485,
+              "hi": 0.03700326050962355,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.01676788330078125,
+              "lo": 0.001230488452953064,
+              "hi": 0.03230527814860944,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "14.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.017542266845703126,
+              "lo": -0.004007094864833867,
+              "hi": 0.03909162855624012,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.017542266845703126,
+              "lo": 0.0009959510464119734,
+              "hi": 0.03408858264499428,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "15.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.019149398803710936,
+              "lo": -0.0026772918503820825,
+              "hi": 0.040976089457803955,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.019149398803710936,
+              "lo": 0.002390140628585141,
+              "hi": 0.03590865697883673,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "16.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.02042236328125,
+              "lo": -0.002454805865164396,
+              "hi": 0.0432995324276644,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.02042236328125,
+              "lo": 0.0028565128224272984,
+              "hi": 0.037988213740072704,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "17.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.021659469604492186,
+              "lo": -0.0010123808040812879,
+              "hi": 0.04433132001306566,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.021659469604492186,
+              "lo": 0.004251269693349817,
+              "hi": 0.039067669515634555,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "18.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.0222198486328125,
+              "lo": -0.0008440514118257594,
+              "hi": 0.04528374867745076,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.0222198486328125,
+              "lo": 0.004510619987062498,
+              "hi": 0.0399290772785625,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "19.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.0215789794921875,
+              "lo": -0.0019181183867226538,
+              "hi": 0.04507607737109766,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.0215789794921875,
+              "lo": 0.003537127158287752,
+              "hi": 0.03962083182608725,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "20.0": {
+            "ci95": {
+              "n": 5,
+              "mean": 0.02066650390625,
+              "lo": -0.0031347198156003,
+              "hi": 0.044467727628100306,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 5,
+              "mean": 0.02066650390625,
+              "lo": 0.0023911336469653564,
+              "hi": 0.03894187416553464,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          }
+        }
+      }
+    },
+    "analog": {
+      "C-att": {
+        "seeds": [
+          0,
+          1
+        ],
+        "by_snr": {
+          "0.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.0043792724609375,
+              "lo": -0.09362772360437481,
+              "hi": 0.10238626852624981,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.0043792724609375,
+              "lo": -0.044320699930850686,
+              "hi": 0.053079244852725686,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "1.0": {
+            "ci95": {
+              "n": 2,
+              "mean": -0.002685546875,
+              "lo": -0.08518203911197406,
+              "hi": 0.07981094536197406,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": -0.002685546875,
+              "lo": -0.04367830306235089,
+              "hi": 0.03830720931235089,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "2.0": {
+            "ci95": {
+              "n": 2,
+              "mean": -0.0028018951416015625,
+              "lo": -0.05963335057512218,
+              "hi": 0.054029560291919056,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": -0.0028018951416015625,
+              "lo": -0.03104161701567261,
+              "hi": 0.025437826732469485,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "3.0": {
+            "ci95": {
+              "n": 2,
+              "mean": -0.004248619079589844,
+              "lo": -0.0840428907277206,
+              "hi": 0.07554565256854091,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": -0.004248619079589844,
+              "lo": -0.04389863369382393,
+              "hi": 0.03540139553464424,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "4.0": {
+            "ci95": {
+              "n": 2,
+              "mean": -0.0009613037109375,
+              "lo": -0.048704573307541174,
+              "hi": 0.046781965885666174,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": -0.0009613037109375,
+              "lo": -0.024685078590221066,
+              "hi": 0.022762471168346066,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "5.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.000141143798828125,
+              "lo": -0.03892593771879884,
+              "hi": 0.03920822531645509,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.000141143798828125,
+              "lo": -0.019271407016098325,
+              "hi": 0.019553694613754575,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "6.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.0024356842041015625,
+              "lo": -0.028633793777038494,
+              "hi": 0.03350516218524162,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.0024356842041015625,
+              "lo": -0.013002833255411905,
+              "hi": 0.01787420166361503,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "7.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.0039310455322265625,
+              "lo": -0.011118990213707896,
+              "hi": 0.01898108127816102,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.0039310455322265625,
+              "lo": -0.003547362691141506,
+              "hi": 0.011409453755594632,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "8.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.0078887939453125,
+              "lo": -0.022041631410933966,
+              "hi": 0.037819219301558966,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.0078887939453125,
+              "lo": -0.006983724824187604,
+              "hi": 0.022761312714812604,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "9.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.009477615356445312,
+              "lo": -0.055278738126866886,
+              "hi": 0.07423396883975751,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.009477615356445312,
+              "lo": -0.022700012297080414,
+              "hi": 0.04165524300997104,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "10.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.009768486022949219,
+              "lo": -0.06428205217625003,
+              "hi": 0.08381902422214847,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.009768486022949219,
+              "lo": -0.027027450090579178,
+              "hi": 0.046564422136477615,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "11.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.009464263916015625,
+              "lo": -0.08992413639650806,
+              "hi": 0.10885266422853931,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.009464263916015625,
+              "lo": -0.039922132418980266,
+              "hi": 0.058850660251011516,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "12.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.009984016418457031,
+              "lo": -0.07608716224770437,
+              "hi": 0.09605519508461843,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.009984016418457031,
+              "lo": -0.03278501225351027,
+              "hi": 0.05275304509042433,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "13.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.013095855712890625,
+              "lo": -0.09857977185114478,
+              "hi": 0.12477148327692603,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.013095855712890625,
+              "lo": -0.042396100959057936,
+              "hi": 0.06858781238483919,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "14.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.015233993530273438,
+              "lo": -0.09765339214535089,
+              "hi": 0.12812137920589778,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.015233993530273438,
+              "lo": -0.040860089407646794,
+              "hi": 0.07132807646819367,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "15.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.021462440490722656,
+              "lo": -0.11964679160380776,
+              "hi": 0.16257167258525307,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.021462440490722656,
+              "lo": -0.04865516318167763,
+              "hi": 0.09158004416312295,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "16.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.026062965393066406,
+              "lo": -0.14012965961135476,
+              "hi": 0.19225559039748757,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.026062965393066406,
+              "lo": -0.05651865198494732,
+              "hi": 0.10864458277108013,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "17.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.032502174377441406,
+              "lo": -0.14418427587333985,
+              "hi": 0.20918862462822266,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.032502174377441406,
+              "lo": -0.055293856463886945,
+              "hi": 0.12029820521876976,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "18.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.038496971130371094,
+              "lo": -0.14519344100539414,
+              "hi": 0.22218738326613632,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.038496971130371094,
+              "lo": -0.052779349528273456,
+              "hi": 0.12977329178901564,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "19.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.04194164276123047,
+              "lo": -0.14555368984492398,
+              "hi": 0.22943697536738492,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.04194164276123047,
+              "lo": -0.051225354372565104,
+              "hi": 0.13510863989502603,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": true,
+            "verdict": "equivalent"
+          },
+          "20.0": {
+            "ci95": {
+              "n": 2,
+              "mean": 0.04351520538330078,
+              "lo": -0.17800629499627074,
+              "hi": 0.2650367057628723,
+              "confidence": 0.95
+            },
+            "ci90": {
+              "n": 2,
+              "mean": 0.04351520538330078,
+              "lo": -0.06655949729897914,
+              "hi": 0.1535899080655807,
+              "confidence": 0.9
+            },
+            "clearly_nonzero": false,
+            "equivalent": false,
+            "verdict": "inconclusive"
+          }
+        }
+      }
+    }
+  },
+  "rq2_qam16": {
+    "outcome": "not discriminable",
+    "best_cue": "energy",
+    "best_win_rate": 0.9845,
+    "fit": {
+      "energy": 0.15746771217254663,
+      "dd": 0.7021459943661819,
+      "hybrid": 0.1655383908080062,
+      "m2m4": 0.5659004121897508
+    },
+    "rms_residual_best": 0.22910529760537812,
+    "margin_m": 0.10987760168862795,
+    "discriminable": false,
+    "r_mean": [
+      -0.1701630797958374,
+      -0.4209704556274414,
+      -0.5405388902664184
+    ],
+    "prediction_means": {
+      "energy": [
+        -0.3007519804763794,
+        -0.6630822459793091,
+        -0.8265391213226319
+      ],
+      "dd": [
+        0.009746171646118164,
+        0.05057594554901123,
+        0.12835769901275634
+      ],
+      "hybrid": [
+        -0.3043561199188232,
+        -0.6777939395141601,
+        -0.8261475682067871
+      ],
+      "m2m4": [
+        0.010050000686645508,
+        0.02256516830444336,
+        0.03971950744628906
+      ]
+    },
+    "seeds": [
+      0,
+      1,
+      2,
+      3,
+      4
+    ],
+    "snr": 18.0,
+    "alphas": [
+      1.1,
+      1.2,
+      1.3
+    ],
+    "modulation": "qam16"
+  },
+  "notes": [
+    "Primary: 16-QAM at 18 dB. Analog is secondary: with 3 seeds it can support 'clearly nonzero' claims, not 'no penalty' claims.",
+    "P is an upper bound on the energy penalty (B was trained on the true SNR)."
+  ]
+}
