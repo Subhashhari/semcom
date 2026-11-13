@@ -5,9 +5,10 @@ A separate design fixed at d sends its d-budget payload: at an actual SNR >= d i
 gains nothing from the extra SNR); below d it fails and the receiver shows the mean colour (the
 failure floor). JSCC curves come from the runs' eval files, at whatever SNRs they were scored.
 
-usage: cliff.py OUT.png SEPARATION_CURVE.json [STEPS] [EVAL_NAME[,EVAL_NAME...]]
+usage: cliff.py OUT.png SEPARATION_CURVE.json [STEPS] [EVAL_NAME[,EVAL_NAME...]] [--digital]
   e.g. cliff.py results/gen/analysis/cliff.png results/gen/analysis/separation_curve_fbl.json 10 eval-spread
-Several eval names are merged per run (e.g. eval-spread,eval-spread-curve)."""
+Several eval names are merged per run (e.g. eval-spread,eval-spread-curve).
+--digital draws the 16-QAM runs (every symbol a constellation point) instead of the analog ones."""
 import json
 import sys
 from pathlib import Path
@@ -18,6 +19,9 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt  # noqa: E402
 
 R = Path(__file__).resolve().parents[2]  # repo root
+digital = "--digital" in sys.argv
+if digital:
+    sys.argv.remove("--digital")
 out, curve_path = Path(sys.argv[1]), Path(sys.argv[2])
 steps = int(sys.argv[3]) if len(sys.argv) > 3 else 10
 names = sys.argv[4].split(",") if len(sys.argv) > 4 else ["eval-spread"]
@@ -33,6 +37,13 @@ RUNS = [  # (run dir, label, colour)
     ("results/gen/p128/dit-S-v_cbr48_blind-5to5_txsnr_s0", "Generative JSCC, SNR-aware transmitter", "#eb6834"),
     ("results/gen/p128/cnn_cbr48_spec0_s0", "CNN JSCC (MSE), trained at 0 dB", "#1baf7a"),
 ]
+if digital:
+    RUNS = [
+        ("results/gen/p128-qam-es/dit-S-v_cbr48_qam16_blind-5to5_s0", "Generative JSCC 16-QAM, blind receiver", "#2a78d6"),
+        ("results/gen/p128-qam-es/dit-S-v_cbr48_qam16_blind-5to5_txsnr_s0",
+         "Generative JSCC 16-QAM, SNR-aware transmitter", "#eb6834"),
+        ("results/gen/p128-qam-es/cnn_cbr48_qam16_spec0_s0", "CNN JSCC 16-QAM (MSE), trained at 0 dB", "#1baf7a"),
+    ]
 SEP_COLOUR = "#6250d6"
 METRICS = [("psnr", "PSNR (dB)", "higher is better"), ("lpips", "LPIPS", "lower is better"),
            ("retrieval_top1", "Retrieval top-1 (%)", "higher is better")]
@@ -84,7 +95,7 @@ for ax, (m, ylabel, hint) in zip(axes, METRICS):
     ax.spines[["top", "right"]].set_visible(False)
 handles, labels = axes[0].get_legend_handles_labels()
 fig.legend(handles, labels, loc="outside lower center", ncol=3, frameon=False, fontsize=8)
-fig.suptitle(f"Quality vs actual SNR, 1000 test images from all 10 classes, k = 1024 symbols "
+fig.suptitle(f"{'Digital (16-QAM) JSCC: q' if digital else 'Q'}uality vs actual SNR, 1000 test images from all 10 classes, k = 1024 symbols "
              f"(DiT: {steps} sampling steps)", fontsize=10, color=INK, x=0.01, ha="left")
 out.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(out, dpi=160)
