@@ -239,6 +239,23 @@ retraining:
 Retrieval top-1 counts the images whose DINOv2 embedding is nearest to their own original among
 the 1,000. The SNR-aware transmitter gets the same gains.
 
+**Sampling steps are a receiver-side setting, not a cost** (`results/gen/analysis/steps.png`,
+`steps.json`). These numbers are for the blind analog model on the first 1,000 images, on a T4,
+with batched decoding:
+
+| Steps | PSNR at 0 dB | LPIPS at 0 dB | FID at 0 dB | Time per image |
+|---|---|---|---|---|
+| 1 | **19.22** | 0.290 | 176 | 41 ms |
+| 10 | 18.06 | **0.267** | **146** | 51 ms |
+| 50 | 17.08 | 0.275 | 165 | 103 ms |
+
+- One step gives the best PSNR: it behaves like a posterior-mean (MMSE-like) decoder.
+- Ten steps give the best LPIPS and FID.
+- More steps make every metric worse and double the decoding time.
+- The same trained model therefore covers distortion-first and perception-first decoding, chosen
+  at the receiver.
+- Guidance (above) is a second setting of this kind.
+
 **Baselines: what limits the claim.**
 
 - *Separation* (`results/gen/analysis/separation_curve_fbl.json`, `cliff.png`). The separate design
