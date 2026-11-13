@@ -171,8 +171,9 @@ class GenConfig:
             raise ValueError(f"tag must be letters, digits and '-', got {self.tag!r}")
         if self.encoder_snr and self.model != "dit":
             raise ValueError("encoder_snr applies to the DiT model only")
-        if self.encoder_snr and self.digital:
-            raise ValueError("encoder_snr is analog-only for now")
+        if self.encoder_snr and self.digital and self.power_ref != "actual":
+            # The transmitter could otherwise buy SNR by picking higher-energy points at low SNR.
+            raise ValueError("a digital SNR-aware transmitter needs power_ref='actual'")
         if self.cnn_lpips_weight and self.model != "cnn":
             raise ValueError("cnn_lpips_weight applies to the CNN baseline only")
         if self.cnn_lpips_weight < 0:

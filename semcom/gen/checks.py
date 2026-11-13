@@ -138,7 +138,7 @@ def val_quality(model, cfg: GenConfig, batch: dict, vae, dino, snrs, steps: int 
 
 
 @torch.no_grad()
-def symbol_stats(model, batch: dict) -> dict:
+def symbol_stats(model, batch: dict, snr_db: float | None = None) -> dict:
     """Digital models only: what actually goes over the air for a fixed batch. Raises SanityError
     if any symbol is off the constellation (the property the digital claim rests on).
 
@@ -150,7 +150,11 @@ def symbol_stats(model, batch: dict) -> dict:
         return {}
     was = model.training
     model.eval()
-    z = model.channel_input(batch).float()
+    if snr_db is None:
+        z = model.channel_input(batch).float()
+    else:  # an SNR-aware transmitter: what it sends at this SNR
+        s = torch.full((batch["image"].shape[0],), float(snr_db), device=batch["image"].device)
+        z = model.channel_input(batch, s).float()
     model.train(was)
     if not q.is_on_constellation(z):
         raise SanityError("transmitted symbols are not exact constellation points")

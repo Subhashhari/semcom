@@ -217,9 +217,9 @@ class GenJSCC(EnergyReference, nn.Module):
             (z_s, z_d), self._kl = quantise(self.quantiser, z_s, z_d)
         return z_s, z_d
 
-    def channel_input(self, batch: dict) -> torch.Tensor:
-        """Every transmitted symbol of each image, (B, k, 2)."""
-        return torch.cat(self.transmit(batch), dim=1)
+    def channel_input(self, batch: dict, snr_db: torch.Tensor | None = None) -> torch.Tensor:
+        """Every transmitted symbol of each image, (B, k, 2) (at snr_db for an SNR-aware transmitter)."""
+        return torch.cat(self.transmit(batch, snr_db), dim=1)
 
     def received(self, batch, snr_db, generator=None):
         """Received symbol grids (y_sem, y_det) after the channel."""

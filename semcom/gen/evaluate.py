@@ -97,14 +97,19 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
     results, images, sample_rows = {}, {}, []
     first = None
     symbols = None
-    if getattr(model, "quantiser", None) is not None:
-        # Digital runs: every transmitted symbol of the evaluated images must be an exact
-        # constellation point (symbol_stats raises otherwise); usage statistics go in eval.json.
+    def measure(snr_db=None) -> dict:
         stats = []
         for batch in loader:
             batch = {k: v.to(device) if torch.is_tensor(v) else v for k, v in batch.items()}
-            stats.append(symbol_stats(model, batch))
-        symbols = {k: float(np.mean([st[k] for st in stats])) for k in stats[0]}
+            stats.append(symbol_stats(model, batch, snr_db))
+        return {k: float(np.mean([st[k] for st in stats])) for k in stats[0]}
+
+    per_snr_energy = cfg.digital and cfg.encoder_snr
+    if getattr(model, "quantiser", None) is not None:
+        # Digital runs: every transmitted symbol of the evaluated images must be an exact
+        # constellation point (symbol_stats raises otherwise); usage statistics go in eval.json.
+        # An SNR-aware transmitter sends different points at each SNR: measured per SNR below.
+        symbols = measure(None if not per_snr_energy else float(snrs[0]))
         symbols.update(on_constellation=True, modulation_order=cfg.modulation_order)
         symbols["power_ref"] = cfg.power_ref
         if hasattr(model, "es_ref"):
@@ -116,6 +121,12 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
                                                     if k not in ("on_constellation", "power_ref")}),
               flush=True)
     for snr in snrs:
+        if per_snr_energy:
+            # Es/N0 against the energy sent at this SNR (one amplifier gain per operating point).
+            st = measure(float(snr))
+            symbols.update({f"{k}@{snr:g}": v for k, v in st.items()})
+            model.es_ref.fill_(st["qam_power"])
+            print(f"SYMBOLS run={cfg.run_name} snr={snr:g} " + kv(**st), flush=True)
         for steps in steps_list:
             key = f"{snr:g}" + ("" if steps is None else f"_{steps}")
             per, embs = {}, {"_cls": [], "_cls_hat": []}

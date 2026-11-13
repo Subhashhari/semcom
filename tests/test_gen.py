@@ -755,3 +755,49 @@ def test_evaluation_can_override_the_guidance_scale(tmp_path):
     b = evaluate_run(cfg.run_dir, external=False, snrs=[0.0], steps_list=[2], suffix="g3", cfg_scale=3.0)
     assert a["cfg_scale"] == 1.0 and b["cfg_scale"] == 3.0
     assert a["results"]["0_2"]["psnr"] != b["results"]["0_2"]["psnr"]
+
+
+def test_digital_snr_aware_transmitter_is_measured_against_the_energy_sent_at_each_snr(tmp_path):
+    """A digital SNR-aware transmitter could pick higher-energy points at low SNR. Training uses one
+    SNR per batch (the batch-mean energy is then the energy sent at that SNR) and evaluation
+    re-measures Es at every SNR, so extra energy always comes with proportionally more noise."""
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import sample_snr, train
+
+    with pytest.raises(ValueError):  # nominal energy would hand it free power
+        GenConfig(digital=True, modulation_order=16, encoder_snr=True, power_ref="nominal")
+    cfg = tiny(tmp_path, digital=True, power_ref="actual", encoder_snr=True, snr_mode="blank",
+               prediction="v", eval_snrs=[-5.0, 5.0], steps=4)
+    assert cfg.run_name == "dit-S-v_cbr48_qam16_blind-5to5_txsnr_s0"
+    s = sample_snr(cfg, 16, torch.device("cpu"))
+    assert s.shape == (16,) and torch.all(s == s[0]) and -5 <= s[0].item() <= 5
+    s = sample_snr(cfg.replace(encoder_snr=False), 64, torch.device("cpu"))
+    assert len(set(s.tolist())) > 1  # other arms keep per-image SNRs
+    train(cfg)
+    hist = json.loads((cfg.run_dir / "history.json").read_text())
+    assert {"qam_power@-5", "qam_power@5"} <= set(hist["history"][-1]["quality"])
+
+    # Make the transmitter send a different energy at each SNR: the evaluation must follow it.
+    import semcom.gen.evaluate as ev
+
+    seen = []
+    real = ev.symbol_stats
+
+    def fake_stats(model, batch, snr_db=None):
+        st = real(model, batch, snr_db)
+        st["qam_power"] = {-5.0: 1.3, 5.0: 0.7}[snr_db]
+        return st
+
+    orig_rec = GenJSCC.reconstruct
+
+    def spy(self, batch, snr_db, *a, **k):
+        seen.append((snr_db[0].item(), self.es_ref.item()))
+        return orig_rec(self, batch, snr_db, *a, **k)
+
+    ev.symbol_stats, GenJSCC.reconstruct = fake_stats, spy
+    try:
+        out = evaluate_run(cfg.run_dir, external=False)
+    finally:
+        ev.symbol_stats, GenJSCC.reconstruct = real, orig_rec
+    assert {snr: es for snr, es in seen} == {-5.0: pytest.approx(1.3), 5.0: pytest.approx(0.7)}
+    assert out["symbols"]["qam_power@-5"] == pytest.approx(1.3)

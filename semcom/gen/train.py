@@ -36,7 +36,12 @@ from .model import build_model, num_parameters
 def sample_snr(cfg: GenConfig, b: int, device: torch.device) -> torch.Tensor:
     if cfg.snr_mode == "fixed":
         return torch.full((b,), float(cfg.snr_train_fixed), device=device)
-    return torch.rand(b, device=device) * (cfg.snr_train_max - cfg.snr_train_min) + cfg.snr_train_min
+    span = cfg.snr_train_max - cfg.snr_train_min
+    if cfg.encoder_snr and cfg.digital:
+        # Digital SNR-aware transmitter: one SNR per batch. The noise is scaled to the batch's mean
+        # energy, so with mixed SNRs the encoder could move energy from high- to low-SNR images.
+        return (torch.rand(1, device=device) * span + cfg.snr_train_min).expand(b).contiguous()
+    return torch.rand(b, device=device) * span + cfg.snr_train_min
 
 
 def init_weights(run_dir: str | Path, device: torch.device) -> dict:
@@ -277,7 +282,12 @@ def train(cfg: GenConfig) -> dict | None:
             quality.update({f"raw_{k}": v for k, v in raw_quality.items()})
             quality["raw_val_loss"] = sum(v["loss"] for v in raw_val.values()) / len(raw_val)
             quality["ema_decay"] = ema_decay(cfg, step)
-            quality.update(symbol_stats(ema, quality_batch))
+            if cfg.encoder_snr and cfg.digital:  # what is sent depends on the SNR
+                for s in val_snrs(cfg):
+                    st = symbol_stats(ema, quality_batch, s)
+                    quality.update({f"{k}@{s:g}": v for k, v in st.items()})
+            else:
+                quality.update(symbol_stats(ema, quality_batch))
             entry = {"step": step, "val_loss": sum(v["loss"] for v in val.values()) / len(val),
                      "val_by_snr": val, "quality": quality, "skipped": skipped,
                      "hours": (time.time() - t0) / 3600}
