@@ -309,5 +309,5 @@ is a 16-QAM point. PSNR differences against the blind 16-QAM receiver (seed 0):
 
 - **g-q3:** −10 to +10 dB curves of the 16-QAM blind, SNR-aware and CNN models; guidance 1.5 for the
   16-QAM blind and SNR-aware models.
-- **g-e1** (after the 14 Nov quota reset): −10 to +10 dB curves of the analog runs for the cliff
+- **g-e2:** −10 to +10 dB curves of the analog runs for the cliff
   figure; analog seed 1 on the 10-class set.
