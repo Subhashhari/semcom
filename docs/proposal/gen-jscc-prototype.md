@@ -217,6 +217,17 @@ Seed 1 replicates every row on the first 1,000 images
 The fine-tunes from told and from blind (`results/gen/p128-ft`) explain why. The gap belongs to the
 transmitter: after fine-tuning, the transmitter accounts for 78% of the gain and the receiver 11%.
 
+**Seed 1 and −10 to +10 dB, analog** (g-e2).
+
+- **Seed 1 replicates on the 10-class set** (`paired_spread_vs_blind_s1.json`):
+  - told minus blind is −0.03 / −0.01 / +0.03 dB;
+  - the −5 dB specialist leads by +0.68 dB;
+  - the SNR-aware transmitter gains **+0.50** [0.42, 0.57] dB, which is 73% of that gap (seed 0: 75%).
+- **Outside the training range the SNR-aware gain grows** (`paired_spread_curve_vs_blind_s0.json`): +1.58 dB [1.47, 1.71] at −10 dB and +1.07 dB at −7.5 dB. It costs 0.12–0.17 dB above +2.5 dB.
+- **Telling the receiver hurts outside the training range.** Told minus blind is −1.50 dB at −10 dB, −1.01 dB at −7.5 dB and −0.18 dB at +10 dB. An SNR input the receiver never saw in training misleads it; the blind receiver degrades gracefully. This is a second reason to keep the SNR out of the receiver.
+- **On the −10 to +10 dB curve the perceptual CNN loses on LPIPS at every SNR**, by 0.05–0.15. It leads on PSNR only from −2.5 dB up.
+- Figure: `results/gen/analysis/cliff.png` (analog) and `cliff_qam16.png` (16-QAM).
+
 **A wrong SNR at the transmitter** (`results/gen/analysis/feedback_cpu200.json`, CPU, 200 images):
 
 - **Too low is safe.** It trades PSNR for LPIPS.
@@ -325,5 +336,4 @@ is a 16-QAM point. PSNR differences against the blind 16-QAM receiver (seed 0):
 
 **Running next** (job plans and pinned commits: `results/gen/kaggle_jobs.json`):
 
-- **g-e2:** −10 to +10 dB curves of the analog runs for the cliff
-  figure; analog seed 1 on the 10-class set.
+- All planned jobs have finished (g-q1, g-q2, g-q3, g-e2).
