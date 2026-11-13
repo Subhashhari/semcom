@@ -1,0 +1,60 @@
+{
+  "run_name": "dit-S-v_cbr48_spec5_s1",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "dit",
+  "arm": "spec5",
+  "snr_mode": "fixed",
+  "seed": 1,
+  "checkpoint": "best",
+  "k": 1024,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "Tesla T4",
+  "digital": false,
+  "modulation_order": null,
+  "symbols": null,
+  "snrs": [
+    -5.0,
+    0.0,
+    5.0
+  ],
+  "steps": [
+    10
+  ],
+  "cfg_scale": 1.0,
+  "results": {
+    "-5_10": {
+      "psnr": 12.479804039001465,
+      "lpips": 0.4639854431152344,
+      "dino_sim": 0.0338871031999588,
+      "retrieval_rank": 339.9219970703125,
+      "retrieval_top1": 0.006000000052154064,
+      "retrieval_top5": 0.02199999988079071,
+      "fid": 247.2971649169922,
+      "seconds_per_image": 0.05260845184326172,
+      "n_images": 1000
+    },
+    "0_10": {
+      "psnr": 16.84034538269043,
+      "lpips": 0.27014243602752686,
+      "dino_sim": 0.13393722474575043,
+      "retrieval_rank": 107.08499908447266,
+      "retrieval_top1": 0.06700000166893005,
+      "retrieval_top5": 0.19099999964237213,
+      "fid": 171.84866333007812,
+      "seconds_per_image": 0.05257476210594177,
+      "n_images": 1000
+    },
+    "5_10": {
+      "psnr": 19.076906204223633,
+      "lpips": 0.20932497084140778,
+      "dino_sim": 0.2677799463272095,
+      "retrieval_rank": 27.885000228881836,
+      "retrieval_top1": 0.2590000033378601,
+      "retrieval_top5": 0.5379999876022339,
+      "fid": 118.02006530761719,
+      "seconds_per_image": 0.05272720646858215,
+      "n_images": 1000
+    }
+  }
+}
