@@ -258,11 +258,27 @@ So the claim is about what a diffusion JSCC receiver needs: digital symbols, no 
 receiver, one model for all SNRs, and few steps. It is not a claim that the DiT beats CNN or
 separate designs at a fixed SNR.
 
+**Digital 16-QAM: the same picture** (g-q1; `results/gen/analysis/paired_first_qam16_vs_blind_s0.json`,
+first 1,000 images, 10 steps). Every transmitted symbol is a 16-QAM point. PSNR differences
+against the blind 16-QAM receiver:
+
+| 16-QAM model | −5 dB | 0 dB | +5 dB |
+|---|---|---|---|
+| told | −0.02 (ns) | 0.00 (ns) | +0.08 |
+| specialist at −5 / 0 / +5 dB | +0.63 | −0.02 (ns) | −0.08 |
+| SNR-aware transmitter, blind receiver | **+0.38** [0.31, 0.46] | +0.02 (ns) | −0.05 |
+
+The SNR-aware transmitter recovers about 60% of the −5 dB gap. It also lowers LPIPS at every SNR
+(−0.011 at −5 dB). Energy is held fair:
+- each training batch has one SNR;
+- evaluation measures Es separately at every SNR (0.92 / 0.91 / 0.89 at −5 / 0 / +5 dB);
+- the transmitter therefore cannot buy SNR by choosing higher-energy points.
+
 **Running next** (job plans and pinned commits: `results/gen/kaggle_jobs.json`):
 
-- **16-QAM SNR-aware transmitter with a blind receiver, seeds 0 and 1.** One blind 16-QAM model has
-  the same −5 dB gap as analog: 14.63 vs 15.20 dB for the −5 dB specialist (first 1,000 images).
-  Energy is held fair: each training batch has one SNR, and evaluation measures Es separately at
-  every SNR. The transmitter therefore cannot buy SNR by choosing higher-energy points.
-- **10-class re-evaluation** of the 16-QAM arms, the analog seed-1 runs, and −10 to +10 dB curves
-  for the cliff figure.
+- **g-q2:** seed 1 of the 16-QAM SNR-aware transmitter; 10-class evaluation of every 16-QAM arm and
+  the 16-QAM CNN.
+- **g-q3:** −10 to +10 dB curves of the 16-QAM blind, SNR-aware and CNN models; guidance 1.5 for the
+  16-QAM blind and SNR-aware models.
+- **g-e1** (after the 14 Nov quota reset): −10 to +10 dB curves of the analog runs for the cliff
+  figure; analog seed 1 on the 10-class set.
