@@ -10,7 +10,7 @@
    "300"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -55,7 +55,7 @@
    "--evaluate"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/gjscc-g-a1-runs"
   ]
@@ -114,7 +114,7 @@
    "spread"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": [
    "subhashhhh/gjscc-g-b1-runs"
   ]
@@ -138,7 +138,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": []
  },
  {
@@ -183,7 +183,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": [
    "subhashhhh/gjscc-g-p2"
   ]
@@ -206,7 +206,7 @@
    "4.5"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": []
  },
  {
@@ -227,7 +227,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": []
  },
  {
@@ -329,7 +329,7 @@
    "ft-cont"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": [
    "subhashhhh/gjscc-g-f1-runs"
   ]
@@ -417,7 +417,7 @@
    "ft-all"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": [
    "subhashhhh/gjscc-g-f2-runs"
   ]
@@ -445,7 +445,7 @@
    "fewstep"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/gjscc-g-f3-runs"
   ]
@@ -511,7 +511,7 @@
    "--evaluate"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/gjscc-g-g1-runs"
   ]
@@ -559,7 +559,7 @@
    "1.5"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/gjscc-g-g1-runs"
   ]
@@ -605,7 +605,7 @@
    "0.3"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": []
  },
  {
@@ -649,8 +649,166 @@
    "0.3"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": []
+ },
+ {
+  "name": "g-q1",
+  "commit": "3ddcb0a9886d0e019219f3e084ca2b3d81a9ef00",
+  "runner": "gen",
+  "plan": [
+   "--models",
+   "dit",
+   "--arms",
+   "blind",
+   "--encoder-snr",
+   "--qam",
+   "16",
+   "--out-dir",
+   "results/gen/p128-qam-es",
+   "--seeds",
+   "0",
+   "--sample-steps",
+   "20",
+   "10",
+   "--eval-snrs",
+   "-5",
+   "0",
+   "5",
+   "--evaluate",
+   "--max-hours",
+   "2.3",
+   ";",
+   "--models",
+   "dit",
+   "--arms",
+   "blind",
+   "--encoder-snr",
+   "--qam",
+   "16",
+   "--out-dir",
+   "results/gen/p128-qam-es",
+   "--seeds",
+   "0",
+   "--eval-subset",
+   "spread",
+   "--eval-suffix",
+   "spread",
+   "--sample-steps",
+   "10",
+   "--eval-snrs",
+   "-5",
+   "0",
+   "5",
+   "--evaluate"
+  ],
+  "accelerator": "NvidiaTeslaT4",
+  "account": "third (venkat96r)",
+  "inputs": []
+ },
+ {
+  "name": "g-q2",
+  "commit": "3ddcb0a9886d0e019219f3e084ca2b3d81a9ef00",
+  "runner": "gen",
+  "plan": [
+   "--models",
+   "dit",
+   "--arms",
+   "blind",
+   "--encoder-snr",
+   "--qam",
+   "16",
+   "--out-dir",
+   "results/gen/p128-qam-es",
+   "--seeds",
+   "1",
+   "--sample-steps",
+   "20",
+   "10",
+   "--eval-snrs",
+   "-5",
+   "0",
+   "5",
+   "--evaluate",
+   "--max-hours",
+   "2.3",
+   ";",
+   "--models",
+   "dit",
+   "--arms",
+   "blind",
+   "--encoder-snr",
+   "--qam",
+   "16",
+   "--out-dir",
+   "results/gen/p128-qam-es",
+   "--seeds",
+   "1",
+   "--eval-subset",
+   "spread",
+   "--eval-suffix",
+   "spread",
+   "--sample-steps",
+   "10",
+   "--eval-snrs",
+   "-5",
+   "0",
+   "5",
+   "--evaluate",
+   ";",
+   "--models",
+   "dit",
+   "--arms",
+   "blind",
+   "told",
+   "spec-5",
+   "spec0",
+   "spec5",
+   "--qam",
+   "16",
+   "--out-dir",
+   "results/gen/p128-qam-es",
+   "--seeds",
+   "0",
+   "--eval-subset",
+   "spread",
+   "--eval-suffix",
+   "spread",
+   "--sample-steps",
+   "10",
+   "--eval-snrs",
+   "-5",
+   "0",
+   "5",
+   "--evaluate",
+   ";",
+   "--models",
+   "cnn",
+   "--arms",
+   "spec0",
+   "--qam",
+   "16",
+   "--out-dir",
+   "results/gen/p128-qam-es",
+   "--seeds",
+   "0",
+   "--eval-subset",
+   "spread",
+   "--eval-suffix",
+   "spread",
+   "--sample-steps",
+   "10",
+   "--eval-snrs",
+   "-5",
+   "0",
+   "5",
+   "--evaluate"
+  ],
+  "accelerator": "NvidiaTeslaT4",
+  "account": "third (venkat96r)",
+  "inputs": [
+   "venkat96r/gjscc-g-q2-runs"
+  ]
  },
  {
   "name": "g-t1",
@@ -693,7 +851,7 @@
    "1"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -720,7 +878,7 @@
    "1"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "teammate",
+  "account": "teammate (subhashhhh)",
   "inputs": []
  },
  {
@@ -735,7 +893,7 @@
    "5"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -764,7 +922,7 @@
    "3"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -779,7 +937,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -794,7 +952,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/gjscc-g-w3"
   ]
@@ -818,7 +976,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -858,7 +1016,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/gjscc-g-w3",
    "subhashh/gjscc-g-w4"
@@ -883,7 +1041,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -910,7 +1068,7 @@
    "1.8"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/gjscc-g-w6-runs"
   ]
@@ -945,7 +1103,7 @@
    "results/blind/r12-calibration"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": [
    "subhashh/bjscc-calib"
   ]
@@ -967,7 +1125,7 @@
    "--evaluate"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -988,7 +1146,7 @@
    "--evaluate"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  },
  {
@@ -1009,7 +1167,7 @@
    "--evaluate"
   ],
   "accelerator": "NvidiaTeslaT4",
-  "account": "own",
+  "account": "own (subhashh)",
   "inputs": []
  }
 ]
