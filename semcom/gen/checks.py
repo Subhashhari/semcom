@@ -73,6 +73,7 @@ def vae_ceiling(batch: dict, vae, dino, cfg: GenConfig) -> dict:
 #: at 0.5 is already close) and falls slowly, and the CNN is the repo's long-tested model, so its
 #: bar only asks for a clear decrease.
 MIN_DROP = {"dit": 0.5, "cnn": 0.1}
+PROBE_LR = {"S": 1e-3, "B": 3e-4, "L": 2e-4}  # overfit_check's Adam step per DiT size
 
 
 def overfit_check(model, batch: dict, cfg: GenConfig, device, steps: int = 150,
@@ -83,7 +84,10 @@ def overfit_check(model, batch: dict, cfg: GenConfig, device, steps: int = 150,
     # Every parameter trains in the probe, also when a fine-tune freezes part of the model: the
     # check is about the pipeline (does gradient reach the encoders through the channel).
     probe = copy.deepcopy(model).train().requires_grad_(True)
-    opt = torch.optim.Adam(probe.parameters(), lr=1e-3)
+    # Wider DiTs need a smaller probe step: at 1e-3 DiT-B only halved its loss in 150 steps (g-s1);
+    # at 3e-4 it memorises the batch as DiT-S does at 1e-3 (CPU check, 8 images).
+    lr = PROBE_LR.get(cfg.dit_size, 1e-3) if cfg.model == "dit" else 1e-3
+    opt = torch.optim.Adam(probe.parameters(), lr=lr)
     snr = torch.full((batch["image"].shape[0],), float(cfg.snr_train_fixed or 0.0), device=device)
     losses = []
     for _ in range(steps):
