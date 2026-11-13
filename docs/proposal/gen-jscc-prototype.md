@@ -302,12 +302,28 @@ is a 16-QAM point. PSNR differences against the blind 16-QAM receiver (seed 0):
 - **The 16-QAM CNN at 0 dB** (MSE) has +3.1 dB PSNR at 0 dB, but much worse LPIPS (0.45 vs 0.30)
   and retrieval top-1 (5.4% vs 10.0%). Below its training SNR it loses on every metric
   (−0.5 dB at −5 dB).
+- **Outside the training range the SNR-aware gain grows** (g-q3,
+  `paired_spread_curve_qam16_vs_blind_s0.json`). The gain over the blind 16-QAM receiver is:
+  - +0.94 dB [0.85, 1.03] at −10 dB;
+  - +0.62 dB at −7.5 dB;
+  - +0.13 dB at −2.5 dB;
+  - −0.10 dB at +10 dB.
+
+  The energy sent stays at 0.88–0.92 at every SNR.
+- **Guidance 1.5 works on 16-QAM as well** (`paired_spread_qam16_guidance15_s0.json`), for blind
+  and SNR-aware alike. It gains 0.03–0.05 LPIPS, 14 FID points, and +3.6 / +5.9 points of
+  retrieval top-1 at 0 / +5 dB, for 0.15–0.2 dB PSNR.
+- **Against separation, both digital** (`results/gen/analysis/cliff_qam16.png`):
+  - The generative 16-QAM link degrades gradually from +10 to −10 dB with no cliff.
+  - It has the lowest LPIPS of every system at every SNR, even against a separate design
+    re-designed for every SNR: 0.22 vs 0.28 at +10 dB and 0.29 vs 0.59 at 0 dB.
+  - The 16-QAM CNN, at any SNR, also loses to it on LPIPS.
+  - Separation keeps the PSNR lead everywhere it decodes (20.8 vs 17.3 dB at 0 dB).
+  - Separation leads retrieval top-1 from 0 dB up (18% vs 10% at 0 dB; 83% vs 26% at +10 dB).
 - Tables: `results/gen/report-spread-qam16/report.md`; analog tables:
   `results/gen/report-spread/report.md`.
 
 **Running next** (job plans and pinned commits: `results/gen/kaggle_jobs.json`):
 
-- **g-q3:** −10 to +10 dB curves of the 16-QAM blind, SNR-aware and CNN models; guidance 1.5 for the
-  16-QAM blind and SNR-aware models.
 - **g-e2:** −10 to +10 dB curves of the analog runs for the cliff
   figure; analog seed 1 on the 10-class set.

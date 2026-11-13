@@ -1,0 +1,77 @@
+{
+  "run_name": "dit-S-v_cbr48_qam16_blind-5to5_txsnr_s0",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "dit",
+  "arm": "blind-5to5",
+  "snr_mode": "blank",
+  "seed": 0,
+  "checkpoint": "best",
+  "k": 1024,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "Tesla T4",
+  "digital": true,
+  "modulation_order": 16,
+  "symbols": {
+    "qam_usage": 0.9855384173761428,
+    "qam_kurtosis": 1.4202658330877527,
+    "qam_power": 0.9168671131134033,
+    "on_constellation": true,
+    "modulation_order": 16,
+    "power_ref": "actual",
+    "es_ref_trained": 0.9205452799797058,
+    "qam_usage@-5": 0.9855384173761428,
+    "qam_kurtosis@-5": 1.4202658330877527,
+    "qam_power@-5": 0.9168671131134033,
+    "qam_usage@0": 0.9879565517832105,
+    "qam_kurtosis@0": 1.4224350370960814,
+    "qam_power@0": 0.9022468030452728,
+    "qam_usage@5": 0.9879586870671007,
+    "qam_kurtosis@5": 1.4288140350567429,
+    "qam_power@5": 0.8890327483415603
+  },
+  "snrs": [
+    -5.0,
+    0.0,
+    5.0
+  ],
+  "steps": [
+    10
+  ],
+  "cfg_scale": 1.5,
+  "results": {
+    "-5_10": {
+      "psnr": 15.289706230163574,
+      "lpips": 0.35335054993629456,
+      "dino_sim": 0.10249032825231552,
+      "retrieval_rank": 158.9770050048828,
+      "retrieval_top1": 0.03200000151991844,
+      "retrieval_top5": 0.10499999672174454,
+      "fid": 174.04920959472656,
+      "seconds_per_image": 0.07409767174720765,
+      "n_images": 1000
+    },
+    "0_10": {
+      "psnr": 17.05948257446289,
+      "lpips": 0.255614310503006,
+      "dino_sim": 0.19062595069408417,
+      "retrieval_rank": 72.26599884033203,
+      "retrieval_top1": 0.12399999797344208,
+      "retrieval_top5": 0.3059999942779541,
+      "fid": 134.08888244628906,
+      "seconds_per_image": 0.07285930156707764,
+      "n_images": 1000
+    },
+    "5_10": {
+      "psnr": 18.23880386352539,
+      "lpips": 0.20902960002422333,
+      "dino_sim": 0.270536869764328,
+      "retrieval_rank": 30.718000411987305,
+      "retrieval_top1": 0.26100000739097595,
+      "retrieval_top5": 0.5429999828338623,
+      "fid": 112.02196502685547,
+      "seconds_per_image": 0.07330451440811157,
+      "n_images": 1000
+    }
+  }
+}
