@@ -61,6 +61,7 @@ class GenConfig:
     #: does a feed-forward decoder trained for perceptual quality get the DiT's LPIPS/FID? VGG for
     #: training, AlexNet (the eval metric) for scoring, so it is not trained on the test metric.
     cnn_lpips_weight: float = 0.0
+    train_fraction: float = 1.0  # data-scaling study: train on this class-balanced fraction of the train split
 
     # --- channel and SNR
     channel: str = "awgn"
@@ -167,6 +168,8 @@ class GenConfig:
             raise ValueError(f"train_parts must be 'all', 'transmitter' or 'receiver', got {self.train_parts!r}")
         if self.train_parts != "all" and self.model != "dit":
             raise ValueError("train_parts applies to the DiT model only")
+        if not 0 < self.train_fraction <= 1:
+            raise ValueError(f"train_fraction must be in (0, 1], got {self.train_fraction}")
         if self.tag and not all(c.isalnum() or c == "-" for c in self.tag):
             raise ValueError(f"tag must be letters, digits and '-', got {self.tag!r}")
         if self.encoder_snr and self.model != "dit":
@@ -263,6 +266,8 @@ class GenConfig:
             parts.append(f"lpips{self.cnn_lpips_weight:g}")
         if self.channel != "awgn":
             parts.append(self.channel)
+        if self.train_fraction < 1:
+            parts.append(f"data{round(100 * self.train_fraction)}")
         if self.tag:
             parts.append(self.tag)
         parts.append(f"s{self.seed}")

@@ -216,6 +216,10 @@ def loaders(cfg: GenConfig) -> tuple[DataLoader, DataLoader, CachedSplit]:
     common = dict(num_workers=cfg.num_workers, pin_memory=torch.cuda.is_available(),
                   persistent_workers=cfg.num_workers > 0)
     train = CachedSplit(cfg.cache_dir, "train", augment=True)
+    if cfg.train_fraction < 1:
+        # Evenly spaced indices: the train files are sorted by class, so every class keeps its share.
+        keep = np.linspace(0, train.n - 1, max(1, round(train.n * cfg.train_fraction))).round().astype(int)
+        train = torch.utils.data.Subset(train, np.unique(keep).tolist())
     val = CachedSplit(cfg.cache_dir, "val")
     gen = torch.Generator().manual_seed(cfg.seed)
     return (

@@ -88,6 +88,8 @@ def main() -> None:
                    help="DiT: semantic channels per grid cell (bandwidth split; with --c-det, keep c_sem + c_det "
                         "to keep k; name the run with --tag)")
     p.add_argument("--c-det", type=int, default=None, help="DiT: detail channels per grid cell")
+    p.add_argument("--train-fraction", type=float, default=None,
+                   help="data-scaling study: train on this class-balanced fraction of the training images")
     p.add_argument("--encoder-snr", action="store_true",
                    help="DiT: SNR-aware transmitter (FiLM on the SNR in both encoders)")
     p.add_argument("--eval-suffix", default="",
@@ -104,7 +106,8 @@ def main() -> None:
                  "anneal_period": args.anneal_period, "init_from": args.init_from,
                  "train_parts": args.train_parts, "tag": args.tag, "eval_snrs": args.eval_snrs,
                  "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
-                 "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det}
+                 "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det,
+                 "train_fraction": args.train_fraction}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:
