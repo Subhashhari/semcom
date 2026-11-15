@@ -198,6 +198,7 @@ def cmd_push(args) -> None:
     commit = pinned_commit()
     user = kaggle_username(args.token_file)
     datasets = [upload_runs(args.name, args.input_run, user, args.token_file)] if args.input_run else []
+    datasets += args.dataset
     slug = f"{prefix}{args.name}".lower()
     folder = job_dir(args.name) / "kernel"
     if folder.exists():
@@ -390,6 +391,9 @@ def main() -> None:
     push.add_argument("--input-run", action="append", type=Path, default=[],
                       help="upload a local run folder (weights, config) as a private dataset and restore it "
                            "in the job; for runs whose job ended in error, which Kaggle cannot attach")
+    push.add_argument("--dataset", action="append", default=[], metavar="OWNER/SLUG",
+                      help="attach a public Kaggle dataset read-only under /kaggle/input, e.g. "
+                           "ambityga/imagenet100 for run_gen.py --extra-train /kaggle/input/imagenet100")
     push.set_defaults(func=cmd_push)
 
     for name, fn in (("status", cmd_status), ("fetch", cmd_fetch)):

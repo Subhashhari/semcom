@@ -198,6 +198,36 @@ def test_cache_shapes_and_flip_copies(tmp_path):
     assert not (cfg.cache_dir / "test_latents_flip.npy").exists()
 
 
+def test_extra_training_images_skip_the_datasets_own_names(tmp_path):
+    """Imagenette's test images are ImageNet training images under their ImageNet names, so an
+    extra folder (ImageNet-100) must not bring any of them into training."""
+    from PIL import Image
+
+    from semcom.gen.data import _split_paths
+
+    def img(path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        Image.new("RGB", (8, 8)).save(path)
+
+    own = tmp_path / "data" / "mini"
+    img(own / "train" / "n1" / "n1_1.png")
+    for i in range(3):
+        img(own / "val" / "n1" / f"n1_{10 + i}.png")
+    extra = tmp_path / "in100"
+    img(extra / "train.X1" / "n1" / "n1_1.png")  # same name as a training image
+    img(extra / "train.X1" / "n1" / "n1_11.png")  # same name as a val/test image
+    for i in range(5):
+        img(extra / "train.X2" / "n2" / f"n2_{i}.png")
+    cfg = tiny(tmp_path, dataset="folder", name="mini", extra_train=str(extra), extra_per_class=3)
+    train = _split_paths(cfg)["train"]
+    names = [p.name for p in train]
+    assert names == ["n1_1.png", "n2_0.png", "n2_2.png", "n2_4.png"]  # own file, then 3 of n2 evenly
+    assert cfg.extra_tag == "xin100-3" and cfg.run_name.endswith("_xin100-3_s0")
+    assert cfg.cache_dir.name.startswith("folder+xin100-3_")
+    with pytest.raises(ValueError):
+        tiny(tmp_path, extra_train=str(extra), train_fraction=0.5)
+
+
 # ------------------------------------------------------------------ end to end
 
 

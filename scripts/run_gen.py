@@ -90,6 +90,11 @@ def main() -> None:
     p.add_argument("--c-det", type=int, default=None, help="DiT: detail channels per grid cell")
     p.add_argument("--train-fraction", type=float, default=None,
                    help="data-scaling study: train on this class-balanced fraction of the training images")
+    p.add_argument("--extra-train", default=None, metavar="DIR",
+                   help="add the <class>/<image> files under DIR to the training split (names of the "
+                        "dataset's own images are skipped); on Kaggle, a /kaggle/input/<slug> path is "
+                        "found wherever the dataset is mounted")
+    p.add_argument("--extra-per-class", type=int, default=None, help="cap on extra images per class folder")
     p.add_argument("--encoder-snr", action="store_true",
                    help="DiT: SNR-aware transmitter (FiLM on the SNR in both encoders)")
     p.add_argument("--eval-suffix", default="",
@@ -107,7 +112,8 @@ def main() -> None:
                  "train_parts": args.train_parts, "tag": args.tag, "eval_snrs": args.eval_snrs,
                  "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
                  "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det,
-                 "train_fraction": args.train_fraction}
+                 "train_fraction": args.train_fraction, "extra_train": args.extra_train,
+                 "extra_per_class": args.extra_per_class}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:

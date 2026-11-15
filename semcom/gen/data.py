@@ -16,18 +16,26 @@ flipped copy, so augmentation costs nothing either.
 Datasets: "imagenette" (fast.ai's 10-class ImageNet subset, 320 px release, downloaded on
 first use), "folder" (any data_root/<name>/{train,val}/<class>/*.jpg tree), and "synthetic"
 (random smooth images, for tests and offline smoke runs).
+
+`extra_train` adds a folder of <class>/<image> files (e.g. ImageNet-100) to the training split
+only. Imagenette's val split, from which the test images come, is mostly ImageNet *training*
+images under their ImageNet names (3,791 of 3,925), so any extra file whose name matches an
+image of the dataset is skipped: no test image can reach training.
 """
 
 from __future__ import annotations
 
 import argparse
 import json
+import os
+import shutil
 import tarfile
 import urllib.request
 from pathlib import Path
 
 import numpy as np
 import torch
+from concurrent.futures import ThreadPoolExecutor
 from torch.utils.data import DataLoader, Dataset
 
 from .config import GenConfig
@@ -103,6 +111,50 @@ def synthetic_images(n: int, size: int, seed: int) -> np.ndarray:
 # ----------------------------------------------------------------------------- the cache
 
 
+def resolve_extra_root(path: str) -> Path:
+    """The extra-images folder. A /kaggle/input/<slug> path that does not exist is searched for
+    under /kaggle/input, since Kaggle has mounted datasets at more than one depth."""
+    p = Path(path)
+    if p.is_dir():
+        return p
+    kaggle = Path("/kaggle/input")
+    if kaggle in p.parents and kaggle.is_dir():
+        for root, dirs, _ in os.walk(kaggle):
+            if p.name in dirs:
+                return Path(root) / p.name
+            if len(Path(root).relative_to(kaggle).parts) >= 3:
+                dirs.clear()
+    raise FileNotFoundError(f"extra training folder {path} not found")
+
+
+def extra_train_files(cfg: GenConfig, exclude_names: set[str]) -> list[Path]:
+    """Extra training images: every image under cfg.extra_train whose file name is not in
+    `exclude_names`, grouped by class folder (the image's parent folder name, so ImageNet-100's
+    train.X1..X4 parts merge), capped at cfg.extra_per_class per class by even spacing."""
+    root = resolve_extra_root(cfg.extra_train)
+    by_class: dict[str, list[Path]] = {}
+    skipped = 0
+    for p in sorted(root.rglob("*")):
+        if p.suffix not in IMAGE_EXTS:
+            continue
+        if p.name in exclude_names:
+            skipped += 1
+            continue
+        by_class.setdefault(p.parent.name, []).append(p)
+    files = []
+    for c in sorted(by_class):
+        fs = sorted(by_class[c], key=lambda q: q.name)
+        if cfg.extra_per_class and len(fs) > cfg.extra_per_class:
+            keep = np.unique(np.linspace(0, len(fs) - 1, cfg.extra_per_class).round().astype(int))
+            fs = [fs[i] for i in keep]
+        files += fs
+    print(f"extra training images: {len(files)} from {len(by_class)} classes under {root} "
+          f"({skipped} skipped: same name as an image of the dataset)", flush=True)
+    if not files:
+        raise FileNotFoundError(f"no extra training images under {root}")
+    return files
+
+
 def _split_paths(cfg: GenConfig) -> dict[str, object]:
     """Source of each cached split: a list of files, or a synthetic image array."""
     if cfg.dataset == "synthetic":
@@ -115,7 +167,11 @@ def _split_paths(cfg: GenConfig) -> dict[str, object]:
     order = np.random.default_rng(0).permutation(len(official_val))
     val = [official_val[i] for i in sorted(order[:N_VAL])]
     test = [official_val[i] for i in sorted(order[N_VAL:])]
-    return {"train": list_images(cfg, "train"), "val": val, "test": test}
+    train = list_images(cfg, "train")
+    if cfg.extra_train:
+        own = {p.name for p in train} | {p.name for p in official_val}
+        train = train + extra_train_files(cfg, own)
+    return {"train": train, "val": val, "test": test}
 
 
 def is_prepared(cfg: GenConfig) -> bool:
@@ -139,8 +195,18 @@ def prepare(cfg: GenConfig, device: torch.device | None = None, batch: int = 64)
     vae, dino = load_frozen(cfg, device)
     out.mkdir(parents=True, exist_ok=True)
     s, g, lat = cfg.image_size, cfg.grid, cfg.image_size // 8
+    sources = _split_paths(cfg)
+    # Bytes per image: the image, plus latent and DINOv2 features (twice for training: flips).
+    per = {"img": 3 * s * s, "feat": 2 * (4 * lat * lat + dino.dim * g * g)}
+    need = sum(len(src) * (per["img"] + per["feat"] * (2 if split == "train" else 1))
+               for split, src in sources.items())
+    free = shutil.disk_usage(out).free
+    print(f"cache needs {need / 1e9:.1f} GB; {free / 1e9:.1f} GB free at {out}", flush=True)
+    if need > 0.95 * free:
+        raise OSError(f"cache needs {need / 1e9:.1f} GB but only {free / 1e9:.1f} GB is free at {out}")
+    pool = ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1))  # JPEG decoding is the bottleneck
     counts = {}
-    for split, source in _split_paths(cfg).items():
+    for split, source in sources.items():
         n = len(source)
         flips = (False, True) if split == "train" else (False,)
         arrays = {"images": np.lib.format.open_memmap(out / f"{split}_images.npy", "w+", np.uint8, (n, 3, s, s))}
@@ -155,7 +221,7 @@ def prepare(cfg: GenConfig, device: torch.device | None = None, batch: int = 64)
             if isinstance(source, np.ndarray):
                 imgs = source[start:stop]
             else:
-                imgs = np.stack([load_image(p, s) for p in source[start:stop]])
+                imgs = np.stack(list(pool.map(lambda p: load_image(p, s), source[start:stop])))
             arrays["images"][start:stop] = imgs
             x = torch.from_numpy(imgs).to(device).float() / 255
             for flip in flips:
@@ -168,7 +234,9 @@ def prepare(cfg: GenConfig, device: torch.device | None = None, batch: int = 64)
             a.flush()
         counts[split] = n
         print(f"  {split}: {n} images cached")
-    meta = {"dataset": cfg.dataset, "image_size": s, "dino_model": cfg.dino_model,
+    pool.shutdown()
+    meta = {"dataset": cfg.dataset, "extra_train": cfg.extra_train, "extra_per_class": cfg.extra_per_class,
+            "image_size": s, "dino_model": cfg.dino_model,
             "dino_dim": dino.dim, "vae_model": cfg.vae_model, "fake": cfg.fake_frozen, "counts": counts}
     # Written last: its presence marks a complete cache.
     (out / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")

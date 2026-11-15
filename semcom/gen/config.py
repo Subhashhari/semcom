@@ -62,6 +62,11 @@ class GenConfig:
     #: training, AlexNet (the eval metric) for scoring, so it is not trained on the test metric.
     cnn_lpips_weight: float = 0.0
     train_fraction: float = 1.0  # data-scaling study: train on this class-balanced fraction of the train split
+    #: More training images: a folder of <class>/<image> files (e.g. ImageNet-100) added to the
+    #: training split only. Files whose name matches any image of the dataset (train, val or test)
+    #: are skipped, so a test image never reaches training under its ImageNet name.
+    extra_train: str = ""
+    extra_per_class: int = 0  # cap on extra images per class folder (0: all), evenly spaced
 
     # --- channel and SNR
     channel: str = "awgn"
@@ -170,6 +175,10 @@ class GenConfig:
             raise ValueError("train_parts applies to the DiT model only")
         if not 0 < self.train_fraction <= 1:
             raise ValueError(f"train_fraction must be in (0, 1], got {self.train_fraction}")
+        if self.extra_per_class < 0:
+            raise ValueError(f"extra_per_class must be >= 0, got {self.extra_per_class}")
+        if self.extra_train and self.train_fraction < 1:
+            raise ValueError("train_fraction subsamples the dataset's own sorted files; not with extra_train")
         if self.tag and not all(c.isalnum() or c == "-" for c in self.tag):
             raise ValueError(f"tag must be letters, digits and '-', got {self.tag!r}")
         if self.encoder_snr and self.model != "dit":
@@ -268,6 +277,8 @@ class GenConfig:
             parts.append(self.channel)
         if self.train_fraction < 1:
             parts.append(f"data{round(100 * self.train_fraction)}")
+        if self.extra_train:
+            parts.append(self.extra_tag)
         if self.tag:
             parts.append(self.tag)
         parts.append(f"s{self.seed}")
@@ -280,7 +291,14 @@ class GenConfig:
     @property
     def cache_dir(self) -> Path:
         dino = "fake" if self.fake_frozen else self.dino_model.replace("dinov2_", "")
-        return Path(self.data_root) / "gen_cache" / f"{self.dataset}_{self.image_size}_{dino}"
+        extra = f"+{self.extra_tag}" if self.extra_train else ""
+        return Path(self.data_root) / "gen_cache" / f"{self.dataset}{extra}_{self.image_size}_{dino}"
+
+    @property
+    def extra_tag(self) -> str:
+        """e.g. "ximagenet100-500": the extra folder's name and the per-class cap."""
+        name = "".join(c for c in Path(self.extra_train).name.lower() if c.isalnum())
+        return f"x{name}" + (f"-{self.extra_per_class}" if self.extra_per_class else "")
 
     DERIVED_KEYS = ("arm", "k", "k_sem", "k_det", "bandwidth_ratio", "run_name")
 
