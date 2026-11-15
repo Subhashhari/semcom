@@ -337,3 +337,58 @@ is a 16-QAM point. PSNR differences against the blind 16-QAM receiver (seed 0):
 **Running next** (job plans and pinned commits: `results/gen/kaggle_jobs.json`):
 
 - All planned jobs have finished (g-q1, g-q2, g-q3, g-e2).
+
+## 9. Status on 15 Nov: what limits quality, fading, and semantics
+
+All results use the blind analog DiT-S on the 1,000-image 10-class set at 10 steps, unless noted.
+Paired comparisons: `results/gen/analysis/paired_spread_{ditB,long,split,sem50,datascale,rayleigh}_*.json`.
+
+**Training data is the bottleneck, not model size, training length or the bandwidth split.**
+
+| Change (g-job) | Best val loss | PSNR 0 dB | FID +5 dB | LPIPS +5 dB | Top-1 +5 dB |
+|---|---|---|---|---|---|
+| DiT-S, all 9,469 images, 40k steps (baseline) | 0.304 | 17.78 | 112 | 0.211 | 29.5% |
+| 50% of the images (g-n1) | 0.324 | 17.54 | 132 | 0.234 | 21.4% |
+| 25% of the images (g-n2) | 0.351 | 17.20 | 171 | 0.279 | 9.7% |
+| DiT-B, 4× parameters (g-s1) | 0.311 (at 22k) | 17.80 | 113 | 0.214 | 27.3% |
+| DiT-S, 120k steps (g-s2; best checkpoint 52k) | 0.302 | 17.86 | 106 | 0.206 | 30.3% |
+| Semantic share 50% of k (g-k1) | 0.317 | 17.31 | 114 | 0.224 | 27.1% |
+| Semantic share 12.5% of k (g-k2) | 0.303 | 17.85 | 116 | 0.211 | 27.8% |
+
+- Halving the data costs more than every other change gains. The slope has not flattened from 50%
+  to 100%, so more images should still help.
+- DiT-B and long training both overfit (validation loss rises after 22k and 52k steps). They
+  should be revisited only with more data.
+- The 25% semantic share is kept.
+
+**Rayleigh fading** (g-r1, g-r2; slow fading, one gain per image, equalised at the receiver, models
+retrained on fading):
+
+- Telling the receiver the average SNR adds nothing: −0.06 to +0.06 dB from −10 to +10 dB.
+- The SNR-aware transmitter gains +0.26 dB [0.19, 0.33] at −5 dB and +0.69 dB [0.60, 0.79] at
+  −10 dB; −0.11 dB at +5 dB. That is about half the AWGN gain (+0.48 and +1.58 dB).
+- Fading costs the blind receiver 0.6–1.1 dB PSNR against AWGN at the same average SNR.
+
+**Class preservation** (`scripts/gen_analysis/semantic.py`, `montage.py`): a DINOv2 CLS 10-NN
+classifier (100 training images per class, 100% on the originals) labels the reconstructions of
+300 spread test images. Data and figures are local (`data/semantic300/`).
+
+| System | −10 dB | −5 dB | 0 dB | +5 dB | +10 dB |
+|---|---|---|---|---|---|
+| Separation, re-designed per SNR | 10% | 29% | 65% | 86% | 96% |
+| Separation, designed for 0 dB | 9% | 9% | 65% | 65% | 65% |
+| CNN MSE, trained at 0 dB | 10% | 16% | 57% | 68% | 67% |
+| CNN MSE + 0.1 LPIPS, trained at 0 dB | 9% | 27% | 82% | 87% | 83% |
+| Generative, blind | 15% | 37% | 59% | 73% | 79% |
+| Generative, SNR-aware transmitter | 14% | 37% | 57% | 73% | 79% |
+| Generative, 16-QAM | 18% | 33% | 55% | 66% | n/a |
+
+- Below 0 dB the generative receiver keeps the class most often. The CNNs turn into noise mosaics
+  and separation into blur.
+- From 0 dB up, the perceptual CNN and separation keep it more often. The generative images are
+  sharp but invent content (faces, hands, small objects). Decoding the true latent with the VAE
+  keeps those details, so they are lost in the DiT stage, not the VAE.
+- The SNR-aware transmitter changes PSNR, not class preservation.
+
+**Next:** train on more images (ImageNet images of the Imagenette classes, then more classes) and
+test on the same Imagenette test set. Then revisit DiT-B and longer training.

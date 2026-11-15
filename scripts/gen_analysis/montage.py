@@ -6,8 +6,9 @@
   class_vs_snr.png    class preservation against the channel SNR, one line per system
   per_class.png       class preservation per class (rows) and system (columns) at one SNR
 
-usage: montage.py SEMANTIC_DIR OUT_DIR SNR[,SNR...] [PICK]
-  PICK: which image of each class to show (0-based among that class's images; default 3)"""
+usage: montage.py SEMANTIC_DIR OUT_DIR SNR[,SNR...] [PICK] [KEY,KEY,...]
+  PICK: which image of each class to show (0-based among that class's images; default 3)
+  KEYS: only these systems in the montages, in this order (default: all); output montage_<snr>_short.png"""
 import json
 import sys
 from pathlib import Path
@@ -21,6 +22,7 @@ import numpy as np  # noqa: E402
 src, out = Path(sys.argv[1]), Path(sys.argv[2])
 snrs = [float(v) for v in sys.argv[3].split(",")]
 pick = int(sys.argv[4]) if len(sys.argv) > 4 else 3
+only = sys.argv[5].split(",") if len(sys.argv) > 5 else None
 out.mkdir(parents=True, exist_ok=True)
 summary = json.loads((src / "summary.json").read_text())
 classes = summary["_original"]["classes"]
@@ -40,6 +42,7 @@ SYSTEMS = [  # (key in summary, row label, colour for line plots)
     ("dit-S-v_cbr48_qam16_blind-5to5_s0", "Generative JSCC,\n16-QAM", "#1baf7a"),
 ]
 SYSTEMS = [s for s in SYSTEMS if s[0] in summary]
+SHOWN = [next(s for s in SYSTEMS if s[0] == k) for k in only] if only else SYSTEMS
 BG, INK, MUTED, GOOD, BAD = "#F9F8F5", "#161613", "#7A776E", "#1b7f4d", "#b3261e"
 plt.rcParams.update({"font.family": "Calibri", "font.size": 10, "figure.facecolor": BG, "savefig.facecolor": BG,
                      "axes.facecolor": BG, "axes.edgecolor": MUTED, "xtick.color": MUTED, "ytick.color": MUTED})
@@ -51,12 +54,12 @@ def load(key: str, snr: float):
 
 
 # ---- montages ----
-ref = next(load(k, snrs[0]) for k, *_ in SYSTEMS if load(k, snrs[0]) is not None)
+ref = next(load(k, snrs[0]) for k, *_ in SHOWN if load(k, snrs[0]) is not None)
 labels = ref["label"]
 cols = [np.flatnonzero(labels == c)[pick] for c in range(len(classes))]
 orig = np.load(src / "originals.npz")["images"] if (src / "originals.npz").exists() else None
 for snr in snrs:
-    rows = [(k, name) for k, name, _ in SYSTEMS if load(k, snr) is not None]
+    rows = [(k, name) for k, name, _ in SHOWN if load(k, snr) is not None]
     fig, axes = plt.subplots(len(rows) + 1, len(cols), figsize=(1.35 * len(cols) + 1.9, 1.5 * (len(rows) + 1)),
                              gridspec_kw=dict(wspace=0.04, hspace=0.32))
     for j, i in enumerate(cols):
@@ -82,12 +85,16 @@ for snr in snrs:
         axes[r, 0].set_ylabel(f"{name}\nclass kept: {acc:.0%}", rotation=0, ha="right", va="center",
                               fontsize=9, color=INK, labelpad=8)
     snr_txt = f"{snr:+g} dB".replace("-", "−") if snr else "0 dB"
-    fig.suptitle(f"Channel SNR {snr_txt}, k = 1024 symbols (1/48 per pixel value). "
-                 "Caption: the class a DINOv2 k-NN classifier sees in the reconstruction",
-                 fontsize=11, color=INK, x=0.01, ha="left", y=0.93)
-    fig.savefig(out / f"montage_{snr:g}.png", dpi=150, bbox_inches="tight")
+    if not only:  # the short montages go on slides, which carry their own title
+        fig.suptitle(f"Channel SNR {snr_txt}, k = 1024 symbols (1/48 per pixel value). "
+                     "Caption: the class a DINOv2 k-NN classifier sees in the reconstruction",
+                     fontsize=11, color=INK, x=0.01, ha="left", y=0.93)
+    name = f"montage_{snr:g}{'_short' if only else ''}.png"
+    fig.savefig(out / name, dpi=150, bbox_inches="tight")
     plt.close(fig)
-    print("wrote", out / f"montage_{snr:g}.png")
+    print("wrote", out / name)
+if only:
+    sys.exit(0)
 
 # ---- class preservation against SNR ----
 fig, ax = plt.subplots(figsize=(8.5, 4.2), constrained_layout=True)
@@ -98,14 +105,14 @@ for k, name, col in SYSTEMS:
             label=name.replace("\n", " "))
 ax.axhline(100 * summary["_original"]["accuracy"], color=MUTED, lw=0.8, ls=":")
 ax.axhline(10, color=MUTED, lw=0.8, ls=":")
-ax.text(-10, 11, "chance (10 classes)", fontsize=8, color=MUTED)
+ax.text(10, 11.5, "chance (10 classes)", ha="right", fontsize=8, color=MUTED)
 ax.axvspan(-5, 5, color="#E6E4DE", alpha=0.5, lw=0, zorder=0)
 ax.set_xlabel("Channel SNR (dB); shaded: training range of the generative models")
 ax.set_ylabel("Reconstructions that keep their class (%)")
 ax.set_ylim(0, 102)
 ax.grid(color="#E6E4DE", lw=0.6)
 ax.spines[["top", "right"]].set_visible(False)
-ax.legend(loc="lower right", fontsize=8.5, frameon=False)
+ax.legend(loc="upper left", fontsize=8.5, frameon=False)
 fig.savefig(out / "class_vs_snr.png", dpi=170)
 plt.close(fig)
 print("wrote", out / "class_vs_snr.png")
