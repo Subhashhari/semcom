@@ -69,7 +69,8 @@ for snr in snrs:
             a = axes[r, j]
             a.imshow(d["recon"][i].transpose(1, 2, 0))
             ok = d["pred"][i] == labels[i]
-            a.set_title(("✓ " if ok else "✗ ") + label[d["pred"][i]], fontsize=8.5, color=GOOD if ok else BAD, pad=2)
+            a.set_title(("✓ " if ok else "✗ ") + label[d["pred"][i]], fontsize=8.5, color=GOOD if ok else BAD, pad=2,
+                        fontfamily="DejaVu Sans")
     for ax in axes.flat:
         ax.set_xticks([])
         ax.set_yticks([])
@@ -80,9 +81,10 @@ for snr in snrs:
         acc = summary[k][f"{snr:g}"]["accuracy"]
         axes[r, 0].set_ylabel(f"{name}\nclass kept: {acc:.0%}", rotation=0, ha="right", va="center",
                               fontsize=9, color=INK, labelpad=8)
-    fig.suptitle(f"Channel SNR {snr:+g} dB".replace("-", "−") + ", k = 1024 symbols (1/48 per pixel value). "
+    snr_txt = f"{snr:+g} dB".replace("-", "−") if snr else "0 dB"
+    fig.suptitle(f"Channel SNR {snr_txt}, k = 1024 symbols (1/48 per pixel value). "
                  "Caption: the class a DINOv2 k-NN classifier sees in the reconstruction",
-                 fontsize=11, color=INK, x=0.01, ha="left", y=0.995)
+                 fontsize=11, color=INK, x=0.01, ha="left", y=0.93)
     fig.savefig(out / f"montage_{snr:g}.png", dpi=150, bbox_inches="tight")
     plt.close(fig)
     print("wrote", out / f"montage_{snr:g}.png")
