@@ -6,10 +6,15 @@
 - the two models it descends from: DiT (Peebles & Xie, 2023) and DiT-JSCC (Tan et al., arXiv:2601.03112);
 - every change we made and why;
 - how it is trained and evaluated;
-- what the first runs showed.
+- what the runs up to 16 Nov 2026 showed, and how far those results can be trusted.
 
-For the DiT-JSCC paper on its own, see [dit-jscc-explained.md](dit-jscc-explained.md). For the
-research plan and novelty position, see [../proposal/gen-jscc-prototype.md](../proposal/gen-jscc-prototype.md).
+Related documents:
+
+- the DiT-JSCC paper on its own: [dit-jscc-explained.md](dit-jscc-explained.md);
+- the dated record of every job and result: [../proposal/gen-jscc-prototype.md](../proposal/gen-jscc-prototype.md);
+- the critical review of 16 Nov, the position the work can defend and the plan to 13 Dec:
+  [../proposal/gen-jscc-month-plan.md](../proposal/gen-jscc-month-plan.md). Where this document
+  and the month plan disagree, the month plan is right.
 
 **Sources.** Every number below falls into one of three kinds:
 
@@ -19,10 +24,16 @@ research plan and novelty position, see [../proposal/gen-jscc-prototype.md](../p
 
 Where something is a hypothesis rather than a result, the text says so.
 
-**Status (8 Nov 2026).**
+**Status (16 Nov 2026).**
 
-- **Done:** the 0 dB specialist runs, g-w1 and g-w2.
-- **Running:** the SNR study, g-w3 (four runs).
+- **Done:** the SNR study (specialists, told, blind, SNR-aware transmitter; two seeds), the
+  digital 16-QAM arm, Rayleigh fading, the baselines (CNN, perceptual CNN, separation), and the
+  scaling tests (model size, training length, data, bandwidth split). Results are in §12 and §13.
+- **Verdict of the 16 Nov review:** the measurements are sound, but the model is too weak to carry
+  a claim. A small CNN trained with a perceptual loss beats it on most measures from −2.5 dB up
+  (§12.5). The next month goes to improving the model and to one missing control (§14.5).
+- **Sections 1 to 10** describe the model and its training, and are unchanged except where marked
+  "Update".
 
 ---
 
@@ -40,7 +51,7 @@ Where something is a hypothesis rather than a result, the text says so.
 10. [What went wrong first, and the two fixes](#10-what-went-wrong-first-and-the-two-fixes)
 11. [Evaluation protocol](#11-evaluation-protocol)
 12. [Results so far](#12-results-so-far)
-13. [The week-2 experiment and how to read its outcome](#13-the-week-2-experiment)
+13. [The SNR study and its outcome](#13-the-snr-study-and-its-outcome)
 14. [Limitations and what we must not claim](#14-limitations-and-what-we-must-not-claim)
 15. [Symbol glossary](#15-symbol-glossary)
 
@@ -71,6 +82,12 @@ To afford the many runs this needs, we built a **much smaller** DiT-JSCC:
 
 It is a prototype for comparing **arms against each other**, not for matching the paper's
 absolute numbers.
+
+**Update (16 Nov).** Both questions now have answers at this scale: one model matches the
+specialists except at −5 dB, and telling the receiver the SNR adds nothing (§13). Two cautions
+apply. The first answer is not new as a capability: other diffusion JSCC receivers already use one
+model over an SNR range (§6.3, §14.3). And the comparison between arms is only as convincing as
+the model it is run on, which is currently weak (§12.5).
 
 ---
 
@@ -144,7 +161,8 @@ the perception–distortion trade-off (Blau & Michaeli, 2018): one cannot have m
 and realistic outputs at once.
 
 So when the DiT has lower PSNR than the CNN (§12), that alone is not a failure. Two things
-decide whether it works:
+decide whether it works. (On the first, the later results are not favourable: a CNN trained with a
+perceptual loss matches the DiT's LPIPS at 0 dB and doubles its DINOv2 similarity, §12.5.)
 
 1. **Do its samples stay close in meaning and appearance to the true image?** We measure this with
    LPIPS and DINOv2 similarity (§11).
@@ -296,8 +314,14 @@ only *conditions*. The channel noise is not the diffusion noise.
 
 This separates DiT-JSCC from "denoise the received features" designs such as SGD-JSCC, where
 the channel SNR maps naturally onto a diffusion timestep. In DiT-JSCC no such mapping exists.
-How a receiver should handle an unknown or varying SNR is therefore an open question, and it is
-our question.
+
+**Update (16 Nov): this is not unique to DiT-JSCC, and the question is not open in general.**
+A re-check of the papers found three other receivers that also start from Gaussian noise and use
+the received information only as a condition (through a first-pass decoder's output): DiffJSCC,
+FlowSem and CDM-JSCC. DiffJSCC and FlowSem already serve an SNR range with one model that is told
+the SNR at both ends. What no paper read so far does is compare one such model against separately
+trained per-SNR specialists, or remove the SNR from one end only. See §14.3 and section 3 of the
+month plan.
 
 ---
 
@@ -326,7 +350,12 @@ our question.
 - **Training set:** 9,469 images, with horizontal-flip augmentation.
 - **Validation and test:** the official val split (3,925 images) is split by a fixed permutation
   into **500 validation** images (model selection, diagnostics) and **3,425 test** images
-  (evaluation only; we evaluate the first 1,000).
+  (evaluation only). Up to 9 Nov we evaluated the first 1,000 test images, which cover only 3 of
+  the 10 classes. Since then we evaluate 1,000 images spaced evenly over the test split, the
+  "10-class set" (`--eval-subset spread`, §11).
+- **Extra training images** can be added with `--extra-train` (for example ImageNet-100). The
+  test images are ImageNet *training* images under their ImageNet names (3,791 of the 3,925 val
+  images), so any extra file whose name matches an Imagenette image is skipped.
 
 Imagenette keeps ImageNet's image statistics, which DINOv2 and the VAE were trained on, at 1/100
 of the size.
@@ -412,7 +441,7 @@ the DiT. The CNN baseline has 10,422,815.
 | Task | class-conditional generation | reconstruction through a channel | reconstruction through a channel | — |
 | Data, resolution | ImageNet 256 px | ImageNet 256 / 512 px | **Imagenette, 128 px** | ~100× less data and 4× fewer pixels than 256 px, so many runs fit on a T4 |
 | Condition | class label (adaLN) | received symbols (fusion, early blocks) | received symbols (fusion, blocks 1–6) | same idea as the paper |
-| Backbone | DiT-S … XL | large DiT, long skips, pretrained init | **DiT-S, no long skips, from scratch** | compute; no pretrained 128 px conditional DiT exists |
+| Backbone | DiT-S … XL | large DiT, long skips, pretrained init | **DiT-S, no long skips, from scratch** | compute; the public checkpoints (DiT-XL/2, SiT-XL/2, U-ViT-L/2 and H/2) are all large models at 256 px or more. Training from scratch on 9,469 images leaves the model with almost no generative prior, the main weakness found on 16 Nov |
 | Tokens | 256 (DiT-S/2, 256 px) | — | **64** | the 16 × 16 latent at patch 2 |
 | Semantic branch | — | DINOv2 ViT-B + JSCC encoder | same, pooled to 8 × 8 | same idea |
 | Detail branch | — | SwinJSCC | **4-stage strided CNN** | simpler; same downsampling factor (16) |
@@ -490,6 +519,20 @@ worth knowing for generative receivers.
 
 Decode cost is the same per image, set by the DDIM step count (§12.3).
 
+### 8.4 Arms added after 8 Nov
+
+- **SNR-aware transmitter** (`--encoder-snr`, run names ending `txsnr`). Both encoders get the SNR
+  through a small scale-and-shift layer (FiLM, 117k parameters); the receiver stays blind. This
+  tests whether SNR knowledge belongs at the transmitter instead of the receiver.
+- **Digital symbols** (`--qam 16`, also 4 and 64). Every transmitted symbol is snapped to a point
+  of a standard M-QAM constellation, with gradients from a soft relaxation (DeepJSCC-Q's
+  quantiser at a fixed temperature). There are no bits and no channel code: the receiver still
+  conditions on the raw noisy symbols. The SNR is measured against the energy actually sent.
+- **Rayleigh fading** (`--channel rayleigh`). One fading gain per image, equalised at the receiver
+  with the gain known exactly.
+
+Design details and job tables for all three are in the proposal, sections 7 to 9.
+
 ---
 
 ## 9. Training
@@ -533,6 +576,9 @@ From [configs/gen/p128.yaml](../../configs/gen/p128.yaml) and
 
 270 epochs on a small dataset invites overfitting. Selecting `best.pt` by validation loss guards
 against it. In g-w2 the validation loss was still falling at 40k, so best = last.
+
+**Update (14 Nov).** Training longer does overfit: a 120k-step run has its best validation loss
+at 52k steps (0.302 against 0.304 at 40k), and DiT-B has its best at 22k (§12.6).
 
 ### 9.3 Built-in correctness checks
 
@@ -673,10 +719,20 @@ targets.
 From [semcom/gen/evaluate.py](../../semcom/gen/evaluate.py) and
 [semcom/gen/metrics.py](../../semcom/gen/metrics.py):
 
-- **Images.** The first 1,000 test images. These are never used for training or model selection.
+- **Images.** Test images are never used for training or model selection. Up to 9 Nov: the first
+  1,000 test images (3 classes; files `eval.json`). Since 10 Nov: the **10-class set**, 1,000
+  images spaced evenly over the test split (`--eval-subset spread --eval-suffix spread`; files
+  `eval-spread*.json`). §12.1 to §12.3 use the first set; §12.4 onwards and §13 use the 10-class
+  set unless stated.
 - **Conditions.** Channel SNR −5, 0 and 5 dB for every model, including specialists away from
-  their training SNR, which is the mismatch test. DDIM with 50, 20 and 10 steps, $\eta = 0$,
-  guidance scale 1.
+  their training SNR, which is the mismatch test; the "curve" evaluations add −10, −7.5, −2.5,
+  2.5, 7.5 and 10 dB. DDIM with $\eta = 0$ and guidance scale 1. The first evaluations used 50, 20
+  and 10 steps; since 10 Nov the default is **10 steps**, which gives the best LPIPS and FID
+  (§12.3).
+- **Paired comparisons.** `scripts/gen_analysis/paired.py` reads the per-image metrics
+  (`eval_images-*.npz`) and reports the mean difference between two runs with a 95% bootstrap
+  interval over images. Compare only runs scored on the same device type: CPU and GPU draw
+  different noise.
 - **Weights.** `best.pt` (EMA).
 - **Paired randomness.** The channel noise and the sampling noise are seeded per (SNR, batch), so
   every model sees *the same* noise on *the same* image. Differences between arms are then paired
@@ -693,7 +749,15 @@ From [semcom/gen/evaluate.py](../../semcom/gen/evaluate.py) and
 | Decode time | seconds per image, batch 50, T4 | receiver cost | lower |
 
 **FID with 1,000 samples is biased upward** relative to the usual 50k-sample FID. Compare FIDs
-only within this protocol, never with the paper's.
+only within this protocol, never with the paper's. With 1,000 images and 2,048 features its
+absolute values are unreliable even within the protocol; treat it as a rough ordering.
+
+Two semantic measures were added after 9 Nov:
+
+| Metric | Definition | Better |
+|---|---|---|
+| Retrieval top-1 / top-5 | share of reconstructions whose DINOv2 embedding is nearest (or among the 5 nearest) to their own original among the 1,000 originals | higher |
+| Class kept | share of reconstructions that a DINOv2 10-nearest-neighbour classifier (100 training images per class, 100% correct on the originals) assigns to the true class; 300 images, chance is 10% (`scripts/gen_analysis/semantic.py`) | higher |
 
 ### 11.2 Calibration: what the numbers mean on these images
 
@@ -718,6 +782,9 @@ Two lessons:
 
 ## 12. Results so far
 
+§12.1 to §12.3 are the first results (8 Nov), kept as they were with updates marked. §12.4 to
+§12.7 are the results to 16 Nov. The SNR study itself is in §13.
+
 ### 12.1 The 0 dB specialist vs the CNN baseline
 
 Both models were trained at 0 dB and evaluated on 1,000 test images. DiT figures are at 20 DDIM
@@ -734,6 +801,11 @@ steps.
 
 **The week-1 gate** was fixed in advance: beat the CNN on LPIPS *and* DINOv2 at 0 dB, train
 stably, and keep the right objects and layout in the sample grids. **It is passed.**
+
+**Update (16 Nov): the gate was passed on weak evidence.** These 1,000 images cover 3 classes; the
+DINOv2 lead (0.170 against 0.161) was not significant; and the CNN was trained on pixel error
+only. A CNN fine-tuned with a perceptual loss later beat the DiT at 0 dB (§12.5). The gate's own
+fallback, a generator with a pretrained prior, was never taken.
 
 - **Perceptual quality.** LPIPS is 0.266 vs 0.426, FID 149 vs 207, DINOv2 0.170 vs 0.161. At
   5 dB the margins widen.
@@ -774,12 +846,128 @@ conditional mean, which raises PSNR. It may also indicate an under-trained model
 fine-step trajectory drifts. Either way, a 10-step receiver loses nothing at this scale. This is
 relevant to the "lightweight receiver" direction.
 
+**Update (13 Nov): measured from 1 to 50 steps** (blind model, first 1,000 images, 0 dB;
+`results/gen/analysis/steps.json`):
+
+| Steps | PSNR | LPIPS ↓ | FID ↓ | Time per image |
+|---|---|---|---|---|
+| 1 | **19.22** | 0.290 | 176 | 41 ms |
+| 10 | 18.06 | **0.267** | **146** | 51 ms |
+| 50 | 17.08 | 0.275 | 165 | 103 ms |
+
+One step behaves like a posterior-mean decoder (best PSNR); ten steps give the best perceptual
+scores; more steps make every measure worse. The sampler code was re-read on 16 Nov and no bug was
+found. For a well-trained diffusion model more steps normally improve FID, so the fall from 10 to
+50 steps fits the picture of a model with a weak prior. Trading steps for distortion or
+perception is established in the literature and is not a contribution.
+
+### 12.4 Digital symbols and fading
+
+All on the 10-class set at 10 steps; differences are paired.
+
+- **16-QAM costs little.** The blind 16-QAM model reaches 15.09 / 17.25 / 18.50 dB PSNR at
+  −5 / 0 / +5 dB, which is 0.31 / 0.53 / 0.76 dB below the analog blind model, with LPIPS worse by
+  0.016 to 0.029. QPSK and 64-QAM specialists at 0 dB cost about 1.0 and 0.3 dB.
+- **The SNR findings carry over** to 16-QAM and to Rayleigh fading (§13).
+- **Fading** costs the blind analog receiver 0.6 to 1.1 dB against AWGN at the same average SNR.
+  16-QAM has not been run on fading.
+
+### 12.5 Baselines: what limits the claim
+
+**A CNN with a perceptual loss.** The 0 dB CNN, fine-tuned with pixel error plus 0.1 × LPIPS
+(`results/gen/p128-perc`), against the blind DiT-S at 0 dB:
+
+| | DiT-S blind | Perceptual CNN (trained at 0 dB only) |
+|---|---|---|
+| PSNR | 17.8 dB | 20.1 dB |
+| DINOv2 similarity | 0.19 | 0.38 |
+| Retrieval top-1 | 14% | 36% |
+| Class kept | 59% | 82% |
+| LPIPS ↓ | 0.271 | 0.287 |
+| FID ↓ | 142 | 104 |
+
+- The CNN leads on PSNR, DINOv2 similarity and retrieval from −2.5 to +10 dB, although it was
+  trained at a single SNR. The DiT leads on LPIPS at every SNR, by 0.016 at 0 dB and by 0.09 to
+  0.15 away from it.
+- The DiT wins overall only at −5 dB and below (+1.1 dB PSNR, class kept 37% against 27%). That
+  comparison is confounded: the CNN never saw those SNRs in training. **No CNN has been trained
+  over the SNR range with a perceptual loss.** That control is the first item of the month plan.
+
+**How little is transmitted.** On the 10-class set an 8×8 thumbnail, upscaled, scores 17.6 dB
+PSNR, and a 4×4 thumbnail 15.6 dB. The blind DiT scores 17.8 dB at 0 dB and 15.4 dB at −5 dB.
+Its DINOv2 similarity at 0 dB is 0.19 against 0.81 for the VAE alone. Even at +10 dB it reaches
+only 19.9 dB and 0.34, so channel noise is not the main limit.
+
+**Separation.** AVIF plus an ideal channel code at the finite-blocklength rate, re-designed for
+every SNR (`scripts/gen_analysis/separation.py`), wins PSNR at every SNR and retrieval from 0 dB
+up. The DiT wins LPIPS (0.27 against 0.59 at 0 dB). A separate design fixed at one SNR falls to
+the mean-colour image below it; the DiT degrades gradually. Gradual degradation is a general
+property of JSCC, not of this model.
+
+**Class kept, by SNR** (300 images, CPU):
+
+| System | −10 dB | −5 dB | 0 dB | +5 dB | +10 dB |
+|---|---|---|---|---|---|
+| Separation, re-designed per SNR | 10% | 29% | 65% | 86% | 96% |
+| CNN, pixel error, trained at 0 dB | 10% | 16% | 57% | 68% | 67% |
+| CNN, perceptual, trained at 0 dB | 9% | 27% | 82% | 87% | 83% |
+| DiT-S blind | 15% | 37% | 59% | 73% | 79% |
+| DiT-S blind, 16-QAM | 18% | 33% | 55% | 66% | n/a |
+
+The DiT's images are sharp but invent content (faces, hands, small objects). Decoding the true
+latent with the VAE keeps those details, so they are lost in the DiT stage.
+
+### 12.6 What has been tried to improve quality
+
+Blind analog DiT-S on the 10-class set, 10 steps:
+
+| Change | Best val loss | PSNR 0 dB | FID +5 dB | LPIPS +5 dB | Top-1 +5 dB |
+|---|---|---|---|---|---|
+| Baseline: 9,469 images, 40k steps | 0.304 | 17.78 | 112 | 0.211 | 29.5% |
+| 50% of the images | 0.324 | 17.54 | 132 | 0.234 | 21.4% |
+| 25% of the images | 0.351 | 17.20 | 171 | 0.279 | 9.7% |
+| DiT-B, 4× parameters | 0.311 (at 22k) | 17.80 | 113 | 0.214 | 27.3% |
+| 120k steps (best at 52k) | 0.302 | 17.86 | 106 | 0.206 | 30.3% |
+| Semantic share 50% of the symbols | 0.317 | 17.31 | 114 | 0.224 | 27.1% |
+| Semantic share 12.5% | 0.303 | 17.85 | 116 | 0.211 | 27.8% |
+
+- **Less data hurts; a bigger model, longer training and a different split do not help.**
+- **More data from other classes gave a mixed result** (16 Nov). Adding 49,500 ImageNet-100 images
+  from 99 other classes and training 100k steps lowered the validation loss to 0.285, still
+  falling. Against the 9,469-image model at the same steps it gained at +5 dB (+0.3 dB PSNR,
+  LPIPS −0.012) and lost at −5 and 0 dB (FID +18 to +28). At 40k steps it was worse on retrieval
+  at every SNR. So "data is the bottleneck", the conclusion drawn on 15 Nov, was too strong.
+  Imagenette already holds nearly all of ImageNet's training images of its 10 classes, so more
+  same-class data is not available.
+- **Guidance and model size do not change how often the class is kept**: 61% / 60% / 59% at 0 dB
+  for DiT-S, guidance 1.5 and DiT-B (GPU run g-c1). Guidance 1.5 does improve LPIPS by 0.03 to
+  0.05 for 0.15 dB of PSNR.
+- **Where the review locates the loss.** The model has no pretrained prior (DiT-JSCC starts from
+  a pretrained generator); training is small (40k steps, constant learning rate, and the
+  transmitter learns only through the denoising loss); and 128 px puts the VAE below its native
+  resolution and leaves only 1,024 symbols. The month plan's levers follow from this (§14.5).
+
+### 12.7 What the results support
+
+| Finding | Evidence | New? |
+|---|---|---|
+| One receiver works over −5 to 5 dB | yes | no: DiffJSCC, FlowSem and OSD-JSCC do this at full scale |
+| Its gap to per-SNR specialists is 0 at 0 and +5 dB and 0.64 dB at −5 dB | yes, 2 seeds | yes, narrowly: no paper read compares against separately trained specialists |
+| Telling the receiver the SNR adds nothing | yes, 3 settings | weak: shown for a non-generative codec (SIJSCC); expected from §8.2 |
+| SNR at the transmitter only recovers about 75% of the −5 dB gap | yes, 2 seeds | not found in any paper read; the gain is PSNR only |
+| 16-QAM symbols into a diffusion receiver that generates from noise | yes | yes, still open; uncoded and at toy scale |
+| Fewer steps trade perception for distortion; guidance helps perception | yes | no |
+
+The full table, with the literature behind each row, is in section 2 of the month plan.
+
 ---
 
-## 13. The week-2 experiment
+## 13. The SNR study and its outcome
 
-**Job g-w3, running.** Four further velocity-target DiT-S runs, identical to the 0 dB specialist
-except for the SNR handling: `spec−5`, `spec5`, `told-5to5`, `blind-5to5`.
+Four further velocity-target DiT-S runs, identical to the 0 dB specialist except for the SNR
+handling: `spec−5`, `spec5`, `told-5to5`, `blind-5to5` (job g-w3), later joined by a second seed
+and the SNR-aware transmitter (§8.4). §13.1 and §13.2 were written before the results and are
+kept as the reading guide; §13.3 gives the outcome.
 
 ### 13.1 Comparisons and what each would mean
 
@@ -804,43 +992,123 @@ except for the SNR handling: `spec−5`, `spec5`, `told-5to5`, `blind-5to5`.
 ### 13.2 Reading the differences honestly
 
 - **Evaluation noise.** Differences between arms are paired (same images, same noise), so their
-  uncertainty is much smaller than the spread of any one metric. A bootstrap over images would
-  give confidence intervals.
-- **Seeds.** Each arm is a single training seed. A small gap between arms may be within
-  seed-to-seed variation, which we have not yet measured.
+  uncertainty is much smaller than the spread of any one metric. `scripts/gen_analysis/paired.py`
+  gives 95% bootstrap intervals over images.
+- **Seeds.** Blind, told, the ±5 dB specialists and the SNR-aware transmitter each have two
+  training seeds. Retraining an arm moves its mean PSNR by at most 0.06 dB, although per-image
+  PSNR differs by 0.8 to 1.4 dB between seeds. The blind 16-QAM model has one seed.
 - **Wording.** Conclusions should be framed as "at this scale and training budget".
+
+### 13.3 Outcome
+
+PSNR differences against the blind receiver on the 10-class set, 10 steps, seed 0
+(`results/gen/analysis/paired_spread_vs_blind_s0.json`; recomputed on 16 Nov). The blind model
+itself scores 15.40 / 17.78 / 19.25 dB.
+
+| Model | −5 dB | 0 dB | +5 dB |
+|---|---|---|---|
+| told (receiver given the SNR) | −0.04 | −0.03 | +0.02 |
+| best specialist at that SNR | +0.64 | +0.005 (not significant) | −0.07 |
+| SNR-aware transmitter, blind receiver | **+0.48** [0.41, 0.56] | −0.03 (not significant) | −0.16 |
+
+1. **Envelope vs one model.** One model matches the specialists at 0 and +5 dB and loses 0.64 dB
+   at −5 dB. On LPIPS, DINOv2 similarity and FID the single model is level or better at 0 and
+   +5 dB and slightly worse at −5 dB.
+2. **Told vs blind.** Blind ≈ told, as §8.2 predicted: at most 0.04 dB apart. Outside the training
+   range the told receiver is *worse*, by 1.5 dB at −10 dB, because it is given an SNR value it
+   never saw in training.
+3. **SNR at the transmitter.** It recovers about 75% of the −5 dB gap (seed 1: +0.50 dB) and gains
+   +1.58 dB at −10 dB, at a cost of 0.12 to 0.17 dB above +2.5 dB. The gain is in PSNR only:
+   DINOv2 similarity is unchanged and LPIPS improves by 0.008. Fed an SNR that is 5 dB or more too
+   high it is worse than blind (200 images, CPU).
+4. **Mismatch.** Specialists fall quickly away from their SNR: the +5 dB specialist scores
+   12.2 dB at −5 dB, 3.2 dB below the blind model.
+5. **16-QAM.** The same picture: told within 0.07 dB of blind, the −5 dB specialist +0.57 dB, the
+   SNR-aware transmitter +0.37 and +0.36 dB in two seeds.
+6. **Rayleigh fading (analog).** Told within 0.06 dB of blind from −10 to +10 dB; the SNR-aware
+   transmitter +0.26 dB at −5 dB and +0.69 dB at −10 dB, about half its AWGN gain.
+
+**How much this is worth.** Finding 2 is the expected result, and finding 1 as a capability is
+already published. The measured gap to specialists and the transmitter-only arm are the parts no
+paper read so far contains. All of it was measured on a model that a small CNN beats, so a
+reviewer can fairly ask whether it would hold for a real DiT-JSCC.
 
 ---
 
 ## 14. Limitations and what we must not claim
 
-**Scale.**
+### 14.1 Scale
+
 - Imagenette at 128 px, a 36M-parameter receiver trained from scratch, 40k steps.
 - Absolute numbers are not comparable to DiT-JSCC's: ImageNet at 256/512 px, a pretrained large
   DiT, 300k iterations.
 - The study's claims are about **differences between arms under identical conditions**.
 
-**Simplifications.**
+### 14.2 Simplifications and weaknesses
+
 - A fixed bandwidth split (no BLIP-2 allocation).
 - A CNN detail encoder instead of SwinJSCC; no long skips.
-- AWGN only; Rayleigh fading is implemented but not yet run.
-- Analog (unquantised) channel symbols, as in the paper.
+- Rayleigh fading is run for analog symbols only, with the fading gain known exactly.
+- The digital arm snaps symbols to QAM points but has no bits and no channel code.
+- In every arm the receiver is assumed to know the signal gain exactly; "blind" means it does not
+  know the noise level.
+- The model has no pretrained prior, and a small CNN with a perceptual loss beats it on most
+  measures from −2.5 dB up (§12.5).
+- The comparison with that CNN below 0 dB is confounded, because the CNN was trained at 0 dB only.
+- FID on 1,000 images and class preservation on 300 images are coarse.
 
-**Prior work (see the proposal's §2).**
-- SNR-adaptive diffusion receivers exist: SGD-JSCC, DiffJSCC, LRISC, DriftDecode.
-- SGD-JSCC already reports near-identical performance with and without the SNR.
-- Our contribution is narrower: a matched comparison of one adaptive receiver, told vs blind,
-  against per-SNR specialists, *in the DiT-JSCC design*, where the channel noise is not the
-  diffusion noise (§6.3).
-- **We must not claim** SNR-adaptive generative JSCC in general as new.
+### 14.3 Prior work (re-checked 16 Nov; details in section 3 of the month plan)
 
-**Known open technical points.**
+- **One diffusion receiver for a range of SNRs exists**, told the SNR: DiffJSCC, FlowSem,
+  OSD-JSCC, LRISC. DiffJSCC and FlowSem also start from Gaussian noise, so §6.3 does not set this
+  design apart.
+- **Without the SNR:** SGD-JSCC estimates it from the channel output; SC-CDM appears to take no
+  SNR input; SIJSCC compares SNR at both ends, at the decoder only and at neither end for a
+  non-generative codec.
+- **QAM symbols with diffusion** exist only where diffusion cleans the received symbols (SCDM,
+  SSCDM, DSRDM) and needs the SNR to do it. SemQAM is a QAM-native generative JSCC with a
+  GAN-trained decoder. TokCom sends coded bits over a standard link to a generative receiver that
+  takes no SNR.
+- **Not found in any paper read:** QAM-constrained symbols, a diffusion receiver that generates
+  the image, and no SNR input, all together; a comparison against separately trained per-SNR
+  specialists; the SNR given to the transmitter only.
+- **Not verified:** one digital-diffusion paper (CD3M) could not be opened, and citation lists
+  were not checked.
+
+### 14.4 What we must not claim
+
+- SNR-adaptive or "SNR-independent" generative JSCC as new.
+- "Digitally deployable": use "constellation-constrained" or DeepJSCC-Q's "channel input
+  constrained".
+- That the DiT beats CNN or separate designs at a fixed SNR.
+- That training data is the bottleneck (§12.6).
+
+The position the work can defend is *a constellation-constrained (16-QAM) diffusion JSCC that
+needs no SNR at either end*, backed by the specialist comparison. In that position the SNR-aware
+transmitter appears only as a contrast: what SNR feedback would buy.
+
+### 14.5 What happens next
+
+The plan to 13 Dec is in [../proposal/gen-jscc-month-plan.md](../proposal/gen-jscc-month-plan.md).
+In short:
+
+1. **The missing control:** a 16-QAM CNN with a perceptual loss, trained blind over −5 to 5 dB.
+2. **A better model within the available compute** (free Kaggle T4s and one RTX 5060): two ceiling
+   diagnostics, an alignment loss to DINOv2 features (REPA), training-recipe changes, pretraining
+   on ImageNet-100 followed by fine-tuning, and one 256 px run.
+3. **Robustness of "needs no SNR":** 16-QAM on fading, a 0 to 20 dB range, gain error, and an
+   estimated-SNR arm.
+4. **Retrain every arm** with the fixed recipe, with second seeds.
+
+### 14.6 Known open technical points
+
 - **Terminal noise level.** The linear schedule's last step has $\bar\alpha_{999} = 4\times10^{-5}$,
   not 0. Sampling therefore starts from pure noise that was never quite seen in training. A
   zero-terminal-SNR schedule is a known remedy (Lin et al., 2024); it is not used here.
-- **Number of sampling steps.** Fewer steps scored better (§12.3). This needs explaining before
-  any decode-cost claims.
-- **Training length.** Validation loss was still falling at 40k steps.
+- **Number of sampling steps.** Fewer steps scored better (§12.3): 10 is best for perception and
+  1 for PSNR. The cause is not established; a weak prior is the likely one.
+- **Training length.** On 9,469 images the validation loss bottoms out at about 52k steps; on
+  59k images it was still falling at 100k (§12.6).
 
 ---
 
@@ -852,13 +1120,15 @@ except for the SNR handling: `spec−5`, `spec5`, `told-5to5`, `blind-5to5`.
 | $n = 3HW$ | number of source values, 49,152 |
 | $z$, $y$, $w$ | channel input, channel output, channel noise (complex) |
 | $k = k_s + k_d$ | complex channel symbols per image: 1024 = 256 semantic + 768 detail |
+| told, blind, txsnr | receiver given the SNR; no SNR at either end; SNR given to the transmitter only |
+| 10-class set | 1,000 test images spaced evenly over the test split (`--eval-subset spread`) |
 | $\rho = k/n$ | channel bandwidth ratio, 1/48 |
 | $\gamma$, $\sigma^2$ | **channel** SNR (dB) and noise power, $\sigma^2 = 10^{-\gamma/10}$ |
 | $x_0$, $x_t$ | clean VAE latent (4 × 16 × 16), noised latent at diffusion step $t$ |
 | $\beta_t$, $\bar\alpha_t$ | diffusion variance schedule and its cumulative product |
 | $\lambda_t = \bar\alpha_t/(1-\bar\alpha_t)$ | **diffusion** signal-to-noise ratio (unrelated to $\gamma$) |
 | $\epsilon$, $v$ | diffusion noise; velocity target $\sqrt{\bar\alpha_t}\epsilon - \sqrt{1-\bar\alpha_t}x_0$ |
-| $S$ | number of DDIM sampling steps (50, 20, 10) |
+| $S$ | number of DDIM sampling steps (10 by default since 10 Nov; 50, 20, 10 before) |
 | $s$ | classifier-free guidance scale (1 in evaluation) |
 | $c$ | adaLN conditioning vector: timestep embedding (+ SNR embedding) |
 | $a$ | per-token features of the received symbols, fused into blocks 1–6 |

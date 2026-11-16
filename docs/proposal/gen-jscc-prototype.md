@@ -1,5 +1,8 @@
 # One Generative JSCC Receiver for Every SNR: a Small DiT-JSCC Prototype
 
+**Newer (16 Nov 2026):** a critical review, the revised position and the experiment plan to
+13 Dec are in [gen-jscc-month-plan.md](gen-jscc-month-plan.md).
+
 **Status (9 Nov 2026):** week-1 gate passed (DiT-S beats the CNN at 0 dB on LPIPS, DINOv2 and
 FID). Every run planned for 18 Nov is trained and evaluated (`results/gen/report/report.md`):
 the analog SNR study (specialists, told, blind; told and the ±5 dB specialists replicated with a
