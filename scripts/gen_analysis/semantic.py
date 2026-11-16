@@ -10,8 +10,13 @@ evaluation's channel and sampling seeds. Saved per (run, SNR) in OUT_DIR: the re
 Separate designs (AVIF + finite-blocklength code, as separation.py): "sep0" is fixed at 0 dB (it
 fails below 0 dB: the receiver shows the mean colour), "sep" is re-designed for every SNR.
 
-usage: semantic.py OUT_DIR N SNR[,SNR...] SPEC [SPEC ...]
-  SPEC: RUN_DIR, RUN_DIR@G (classifier-free guidance G at the receiver), sep, or sep0"""
+Runs on the GPU when there is one (channel and sampling noise are then drawn on the GPU, so the
+numbers differ from a CPU run by the noise draw: compare runs scored on the same device). The data
+cache is built first if missing (on a fresh Kaggle machine).
+
+usage: semantic.py OUT_DIR N SNR[,SNR...] SPEC [SPEC ...] [--dry-run]
+  SPEC: RUN_DIR, RUN_DIR@G (classifier-free guidance G at the receiver), sep, or sep0
+  ("--wandb-mode X", which the Kaggle runner appends, is ignored.)"""
 import io
 import json
 import math
@@ -33,13 +38,25 @@ from semcom.gen.frozen import load_frozen  # noqa: E402
 from semcom.gen.metrics import Metrics  # noqa: E402
 
 TRAIN_PER_CLASS, K_NN, STEPS = 100, 10, 10
-out_dir, n = Path(sys.argv[1]), int(sys.argv[2])
-snrs = [float(v) for v in sys.argv[3].split(",")]
-specs = sys.argv[4:]
+argv = sys.argv[1:]
+if "--wandb-mode" in argv:
+    i = argv.index("--wandb-mode")
+    del argv[i:i + 2]
+dry = "--dry-run" in argv
+argv = [a for a in argv if a != "--dry-run"]
+out_dir, n = Path(argv[0]), int(argv[1])
+snrs = [float(v) for v in argv[2].split(",")]
+specs = argv[3:]
+if dry:
+    print(f"semantic: {n} images at {snrs} dB: {specs}")
+    sys.exit(0)
 out_dir.mkdir(parents=True, exist_ok=True)
 torch.set_num_threads(16)
-dev = torch.device("cpu")
+dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 base = GenConfig.from_yaml(R / "results/gen/p128/dit-S-v_cbr48_blind-5to5_s0/config.yaml")
+if not (base.cache_dir / "test_images.npy").exists():
+    from semcom.gen.data import prepare  # noqa: E402
+    prepare(base, dev)
 vae, dino = load_frozen(base, dev)
 metrics = Metrics(dino, dev, fid=False, lpips_net=False)
 summary_path = out_dir / "summary.json"
@@ -51,8 +68,8 @@ def embed(x: torch.Tensor) -> torch.Tensor:
     """Unit-norm DINOv2 CLS embeddings of images in [0, 1], as Metrics.per_image."""
     out = []
     for a in range(0, len(x), 64):
-        _, cls = metrics.dino(x[a:a + 64], base.grid)
-        out.append(F.normalize(cls.float(), dim=1))
+        _, cls = metrics.dino(x[a:a + 64].to(dev), base.grid)
+        out.append(F.normalize(cls.float(), dim=1).cpu())
     return torch.cat(out)
 
 
@@ -66,7 +83,7 @@ idx = np.linspace(0, total - 1, n).round().astype(int)  # = semcom.gen.evaluate 
 labels = test_labels[idx]
 bank_f = out_dir / f"train_bank_{TRAIN_PER_CLASS}.pt"
 if bank_f.exists():
-    bank, bank_y = torch.load(bank_f)
+    bank, bank_y = torch.load(bank_f, map_location="cpu")
 else:
     by_class = {c: [p for p in paths["train"] if p.parent.name == c] for c in classes}
     chosen = [(c, ps[i]) for c, ps in by_class.items()
@@ -162,12 +179,12 @@ for spec in [s for s in specs if s not in ("sep", "sep0")]:
         with torch.no_grad():
             for b in range((n + eb - 1) // eb):
                 sl = slice(b * eb, min(n, (b + 1) * eb))
-                batch = {"image": x[sl],
-                         "latent": torch.from_numpy(np.asarray(np.load(cfg.cache_dir / "test_latents.npy", mmap_mode="r")[idx[sl]])).float(),
-                         "dino": torch.from_numpy(np.asarray(np.load(cfg.cache_dir / "test_dino.npy", mmap_mode="r")[idx[sl]])).float()}
-                chg = torch.Generator().manual_seed(seed_of("channel", s, b))
-                sg = torch.Generator().manual_seed(seed_of("sample", s, STEPS, b))
-                snr_t = torch.full((sl.stop - sl.start,), s)
+                batch = {"image": x[sl].to(dev),
+                         "latent": torch.from_numpy(np.asarray(np.load(cfg.cache_dir / "test_latents.npy", mmap_mode="r")[idx[sl]])).float().to(dev),
+                         "dino": torch.from_numpy(np.asarray(np.load(cfg.cache_dir / "test_dino.npy", mmap_mode="r")[idx[sl]])).float().to(dev)}
+                chg = torch.Generator(device=dev).manual_seed(seed_of("channel", s, b))
+                sg = torch.Generator(device=dev).manual_seed(seed_of("sample", s, STEPS, b))
+                snr_t = torch.full((sl.stop - sl.start,), s, device=dev)
                 xh = model.reconstruct(batch, snr_t, vae, STEPS, chg, sg, cfg_scale=guidance)
-                recs.append((xh.float().clamp(0, 1) * 255).round().byte().numpy())
+                recs.append((xh.float().clamp(0, 1) * 255).round().byte().cpu().numpy())
         record(name, s, np.concatenate(recs), time.time() - t0)
