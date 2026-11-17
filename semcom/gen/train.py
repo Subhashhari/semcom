@@ -214,7 +214,8 @@ def train(cfg: GenConfig) -> dict | None:
     if cfg.sanity and step == 0:
         sanity["data"] = check_data(to_device(next(iter(train_loader)), device), cfg)
         sanity["vae_ceiling"] = vae_ceiling(quality_batch, vae, dino, cfg)
-        sanity["overfit"] = overfit_check(model, quality_batch, cfg, device, steps=cfg.sanity_steps)
+        if cfg.sanity_steps > 0:  # 0 skips the overfit check (g-cb2: judge from the val curve)
+            sanity["overfit"] = overfit_check(model, quality_batch, cfg, device, steps=cfg.sanity_steps)
         (run_dir / "sanity.json").write_text(json.dumps(sanity, indent=2), encoding="utf-8")
 
     t0, t_log, running, gnorm_sum, skipped, bad_streak = time.time(), time.time(), 0.0, 0.0, 0, 0

@@ -64,7 +64,7 @@ def main() -> None:
     p.add_argument("--anneal-period", type=int, default=None, help="digital: quantiser temperature schedule")
     p.add_argument("--max-hours", type=float, default=None, help="per-run wall-clock budget")
     p.add_argument("--sanity-steps", type=int, default=None,
-                   help="steps of the one-batch overfit check (the 16-QAM blind CNN plateaus near 150, g-cb2)")
+                   help="steps of the one-batch overfit check; 0 skips it (the 16-QAM blind CNN stalls in it, g-cb2)")
     p.add_argument("--eval-images", type=int, default=None)
     p.add_argument("--out-dir", default=None)
     p.add_argument("--data-root", default=None)
