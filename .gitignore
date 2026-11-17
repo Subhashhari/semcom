@@ -19,6 +19,8 @@ results/**
 !results/**/*.png
 !results/**/*.pdf
 !results/**/*.csv
+# Analysis reports (scripts/gen_analysis/suite.py); their figures are the PNGs above.
+!results/gen/analysis/**/*.md
 # Per-image metrics of an evaluation (~70 KB): what the paired comparisons
 # (scripts/gen_analysis/paired.py) are computed from.
 !results/**/eval_images*.npz
