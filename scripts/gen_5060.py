@@ -8,12 +8,14 @@ the same test sets as the Kaggle runs. Outputs go to results/gen/p128-conv/.
 
   1 cnn16       blind 16-QAM CNN, pixel MSE (the reference's first stage)
   2 cnn16-ft    + 0.1 LPIPS from stage 1's best weights: the converged reference
-  3 ref16       CNN + diffusion refiner on the converged reference (option B)
-  4 cnn         blind analog CNN, pixel MSE
-  5 cnn-ft      + 0.1 LPIPS: the converged analog reference
+  3 cnn         blind analog CNN, pixel MSE
+  4 cnn-ft      + 0.1 LPIPS: the converged analog reference
+  ref16         CNN + diffusion refiner on the converged reference (option B); only when named:
+                the 18 Nov sweep (g-s3) showed a refiner in the SD-VAE latent at 128 px cannot keep
+                the CNN's semantics
 
 usage (from the repo root, on the 5060 machine):
-    python scripts/gen_5060.py                 # every stage in order
+    python scripts/gen_5060.py                 # the default stages in order
     python scripts/gen_5060.py cnn16 cnn16-ft  # only these stages
     python scripts/gen_5060.py --check         # environment check only
 
@@ -57,10 +59,11 @@ REF16 = ["--models", "refiner", "--arms", "blind", "--qam", "16",
 STAGES = {
     "cnn16": CNN16,
     "cnn16-ft": CNN16_FT,
-    "ref16": [REF16 + GEN_STEPS + t for t in TESTS],
     "cnn": CNN,
     "cnn-ft": CNN_FT,
+    "ref16": [REF16 + GEN_STEPS + t for t in TESTS],
 }
+DEFAULT = ["cnn16", "cnn16-ft", "cnn", "cnn-ft"]
 
 
 def check() -> None:
@@ -86,7 +89,7 @@ def main() -> None:
     check()
     if "--check" in args:
         return
-    names = args or list(STAGES)
+    names = args or DEFAULT
     bad = [n for n in names if n not in STAGES]
     if bad:
         raise SystemExit(f"unknown stages {bad}; choose from {list(STAGES)}")
