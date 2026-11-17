@@ -91,18 +91,22 @@ class CondAdapter(nn.Module):
     """Received symbols on their grid (B, c, g, g) -> token features (B, T, hidden).
 
     A 3x3 conv lets each token see its neighbours' symbols; the grid is resized to the token
-    grid when the two differ.
+    grid when the two differ. With `in_side` a multiple r of the token side (the refiner's
+    16x16 latent condition on an 8x8 token grid), an r x r patchify replaces the resize, so
+    no condition value is thrown away.
     """
 
-    def __init__(self, c_in: int, hidden: int, token_side: int):
+    def __init__(self, c_in: int, hidden: int, token_side: int, in_side: int | None = None):
         super().__init__()
         self.token_side = token_side
-        self.net = nn.Sequential(
-            nn.Conv2d(c_in, hidden, 3, padding=1), nn.GELU(), nn.Conv2d(hidden, hidden, 1)
-        )
+        r = 1 if in_side is None else in_side // token_side
+        if in_side is not None and r * token_side != in_side:
+            raise ValueError(f"in_side {in_side} must be a multiple of the token side {token_side}")
+        first = nn.Conv2d(c_in, hidden, 3, padding=1) if r == 1 else nn.Conv2d(c_in, hidden, r, stride=r)
+        self.net = nn.Sequential(first, nn.GELU(), nn.Conv2d(hidden, hidden, 1))
 
     def forward(self, y: torch.Tensor) -> torch.Tensor:
-        if y.shape[-1] != self.token_side:
+        if self.net[0].stride == (1, 1) and y.shape[-1] != self.token_side:
             y = F.interpolate(y, size=self.token_side, mode="nearest")
         return self.net(y).flatten(2).transpose(1, 2)
 
@@ -114,6 +118,7 @@ class ConditionalDiT(nn.Module):
         latent_size: side of the VAE latent (image_size / 8).
         c_sem, c_det: channels of the received semantic / detail symbol grids.
         snr_slot: build an SNR embedder (snr_mode "snr" or "blank").
+        cond_side: side of the condition grids when it differs from the symbol grid (refiner).
     """
 
     def __init__(
@@ -129,6 +134,7 @@ class ConditionalDiT(nn.Module):
         cond_blocks_sem: int = 3,
         cond_blocks_det: int = 3,
         snr_slot: bool = False,
+        cond_side: int | None = None,
     ):
         super().__init__()
         self.patch, self.c_lat = patch, latent_channels
@@ -141,8 +147,9 @@ class ConditionalDiT(nn.Module):
         # SNR in dB is divided by 10 and fed through the same sinusoidal map as the timestep,
         # scaled up so a 1 dB step moves the features as much as ~10 diffusion steps.
         self.snr_embed = ScalarEmbedder(hidden, max_period=10000.0) if snr_slot else None
-        self.sem_adapter = CondAdapter(c_sem, hidden, self.side)
-        self.det_adapter = CondAdapter(c_det, hidden, self.side)
+        self.hidden = hidden
+        self.sem_adapter = CondAdapter(c_sem, hidden, self.side, cond_side)
+        self.det_adapter = CondAdapter(c_det, hidden, self.side, cond_side)
         # Learned stand-ins for "nothing received", used for classifier-free guidance.
         self.null_sem = nn.Parameter(torch.zeros(1, 1, hidden))
         self.null_det = nn.Parameter(torch.zeros(1, 1, hidden))
@@ -194,8 +201,10 @@ class ConditionalDiT(nn.Module):
         y_det: torch.Tensor,
         snr: torch.Tensor | None = None,
         drop: torch.Tensor | None = None,
-    ) -> torch.Tensor:
-        """The diffusion target (noise or velocity), same shape as x_t.
+        hidden_at: int | None = None,
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        """The diffusion target (noise or velocity), same shape as x_t; with `hidden_at` = n,
+        also the tokens (B, T, hidden) after the first n blocks (for REPA).
 
         Args:
             y_sem, y_det: received symbol grids (B, c_sem, g, g) and (B, c_det, g, g).
@@ -213,8 +222,12 @@ class ConditionalDiT(nn.Module):
             m = drop.view(-1, 1, 1)
             sem = torch.where(m, self.null_sem.to(sem.dtype), sem)
             det = torch.where(m, self.null_det.to(det.dtype), det)
+        h = None
         for i, blk in enumerate(self.blocks):
             cond = sem if i < self.n_sem else det if i < self.n_sem + self.n_det else None
             x = blk(x, c, cond)
+            if hidden_at is not None and i + 1 == hidden_at:
+                h = x
         sh, sc = self.final_ada(c).chunk(2, dim=1)
-        return self.unpatchify(self.final(modulate(self.final_norm(x), sh, sc)))
+        out = self.unpatchify(self.final(modulate(self.final_norm(x), sh, sc)))
+        return out if hidden_at is None else (out, h)

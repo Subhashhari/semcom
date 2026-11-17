@@ -40,11 +40,17 @@ SMOKE = dict(
 )
 
 
-def arm_config(base: GenConfig, model: str, arm: str, seed: int) -> GenConfig:
+def arm_config(base: GenConfig, model: str, arm: str, seed: int, refine_from: str = "",
+               dit_only: dict | None = None) -> GenConfig:
+    """`dit_only`: options that apply to DiT runs only (the auxiliary losses); other models of a
+    mixed plan get them switched off. `refine_from` reaches refiner runs only."""
+    kw = dict(model=model, seed=seed, refine_from=refine_from if model == "refiner" else "")
+    for k, v in (dit_only or {}).items():
+        kw[k] = v if model == "dit" else 0.0
     if arm.startswith("spec"):
-        return base.replace(model=model, snr_mode="fixed", snr_train_fixed=float(arm[4:]), seed=seed)
+        return base.replace(snr_mode="fixed", snr_train_fixed=float(arm[4:]), **kw)
     if arm in ("told", "blind"):
-        return base.replace(model=model, snr_mode="snr" if arm == "told" else "blank", seed=seed)
+        return base.replace(snr_mode="snr" if arm == "told" else "blank", **kw)
     raise ValueError(f"unknown arm {arm!r}: spec<SNR>, told or blind")
 
 
@@ -52,7 +58,7 @@ def main() -> None:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--config", type=Path, default=Path("configs/gen/p128.yaml"))
     p.add_argument("--stage", choices=sorted(STAGES), default=None)
-    p.add_argument("--models", nargs="+", choices=["dit", "cnn"], default=None)
+    p.add_argument("--models", nargs="+", choices=["dit", "cnn", "refiner"], default=None)
     p.add_argument("--arms", nargs="+", default=None)
     p.add_argument("--seeds", nargs="+", type=int, default=[0])
     p.add_argument("--steps", type=int, default=None, help="training steps per run")
@@ -63,6 +69,15 @@ def main() -> None:
                    help="digital: transmit M-QAM symbols (4, 16, 64, ...); default analog")
     p.add_argument("--anneal-period", type=int, default=None, help="digital: quantiser temperature schedule")
     p.add_argument("--max-hours", type=float, default=None, help="per-run wall-clock budget")
+    p.add_argument("--lr-schedule", choices=["constant", "cosine"], default=None,
+                   help="after warmup: constant (default) or a cosine decay to 0 at --steps")
+    p.add_argument("--reg-weight", type=float, default=None,
+                   help="DiT: weight of the regression loss (received symbols -> clean latent), W1-R3")
+    p.add_argument("--repa-weight", type=float, default=None,
+                   help="DiT: weight of the REPA loss (DiT tokens -> DINOv2 patch features), W1-R1")
+    p.add_argument("--repa-depth", type=int, default=None, help="DiT: REPA aligns the tokens after this many blocks")
+    p.add_argument("--refine-from", default=None,
+                   help="refiner: the CNN run folder to freeze and refine (its settings must match the plan's)")
     p.add_argument("--sanity-steps", type=int, default=None,
                    help="steps of the one-batch overfit check; 0 skips it (the 16-QAM blind CNN stalls in it, g-cb2)")
     p.add_argument("--eval-images", type=int, default=None)
@@ -115,7 +130,9 @@ def main() -> None:
                  "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
                  "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det,
                  "train_fraction": args.train_fraction, "extra_train": args.extra_train,
-                 "extra_per_class": args.extra_per_class, "sanity_steps": args.sanity_steps}
+                 "extra_per_class": args.extra_per_class, "sanity_steps": args.sanity_steps,
+                 "lr_schedule": args.lr_schedule, "repa_depth": args.repa_depth}
+    dit_only = {k: v for k, v in (("reg_weight", args.reg_weight), ("repa_weight", args.repa_weight)) if v}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:
@@ -130,7 +147,9 @@ def main() -> None:
         pairs = [(m, a) for m in args.models for a in args.arms]
     else:
         p.error("give --stage, or both --models and --arms")
-    cfgs = [arm_config(base, m, a, s) for s in args.seeds for m, a in pairs]
+    if any(m == "refiner" for m, _ in pairs) != bool(args.refine_from):
+        p.error("--refine-from is needed for, and only with, refiner runs")
+    cfgs = [arm_config(base, m, a, s, args.refine_from or "", dit_only) for s in args.seeds for m, a in pairs]
     if args.cnn_lpips_weight is not None:
         if not any(c.model == "cnn" for c in cfgs):
             p.error("--cnn-lpips-weight needs a CNN run in the plan")

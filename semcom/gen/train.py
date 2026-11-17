@@ -30,7 +30,18 @@ from ..train import init_wandb, log
 from .checks import SanityError, check_data, kv, overfit_check, symbol_stats, val_quality, vae_ceiling
 from .config import GenConfig
 from .data import cache_meta, loaders, prepare
-from .model import build_model, num_parameters
+from .model import build_model, check_refiner_source, num_parameters
+
+
+def lr_at(cfg: GenConfig, step: int) -> float:
+    """Linear warmup, then constant or half a cosine down to 0 at cfg.steps."""
+    import math
+
+    lr = cfg.lr * min(1.0, (step + 1) / max(cfg.warmup_steps, 1))
+    if cfg.lr_schedule == "cosine" and step >= cfg.warmup_steps:
+        frac = (step - cfg.warmup_steps) / max(cfg.steps - cfg.warmup_steps, 1)
+        lr = cfg.lr * 0.5 * (1 + math.cos(math.pi * min(frac, 1.0)))
+    return lr
 
 
 def sample_snr(cfg: GenConfig, b: int, device: torch.device) -> torch.Tensor:
@@ -115,7 +126,7 @@ def validate(model, loader, cfg: GenConfig, device, use_amp: bool) -> dict[float
     """
     model.eval()
     out = {}
-    modes = ("none", "all") if cfg.model == "dit" else ("none",)
+    modes = ("none", "all") if cfg.model != "cnn" else ("none",)
     with torch.random.fork_rng(devices=[device] if device.type == "cuda" else []):
         for snr in val_snrs(cfg):
             entry = {}
@@ -170,6 +181,9 @@ def train(cfg: GenConfig) -> dict | None:
     cfg.save(run_dir / "config.yaml")
 
     model = build_model(cfg, meta["dino_dim"]).to(device)
+    if cfg.model == "refiner":
+        check_refiner_source(cfg, GenConfig.from_yaml(Path(cfg.refine_from) / "config.yaml"))
+        model.cnn.load_state_dict(init_weights(cfg.refine_from, device))
     if cfg.init_from:
         load_init(model, init_weights(cfg.init_from, device))
     set_trainable(model, cfg.train_parts)
@@ -206,6 +220,9 @@ def train(cfg: GenConfig) -> dict | None:
     from .frozen import load_frozen
 
     vae, dino = load_frozen(cfg, device)
+    for m in (model, ema):
+        if hasattr(m, "attach_frozen"):
+            m.attach_frozen(vae)
     first_val = to_device(next(iter(val_loader)), device)
     quality_batch = {k: v[: cfg.val_quality_images] if torch.is_tensor(v) else v for k, v in first_val.items()}
     sample_batch = {k: v[:8] if torch.is_tensor(v) else v for k, v in first_val.items()}
@@ -230,7 +247,7 @@ def train(cfg: GenConfig) -> dict | None:
                 wandb_run.finish()
             return None
         batch = to_device(batch, device)
-        lr = cfg.lr * min(1.0, (step + 1) / max(cfg.warmup_steps, 1))
+        lr = lr_at(cfg, step)
         for g in opt.param_groups:
             g["lr"] = lr
         with torch.autocast(device.type, dtype=torch.float16, enabled=use_amp):
@@ -252,7 +269,7 @@ def train(cfg: GenConfig) -> dict | None:
         if use_amp and scaler.get_scale() < scale_before:
             skipped += 1  # inf/nan gradient: the scaler skipped this step
         update_ema(ema, model, ema_decay(cfg, step))
-        if model.quantiser is not None:
+        if model.quantiser is not None and cfg.model != "refiner":  # a refiner's CNN is frozen
             # The EMA copy's quantiser keeps its initial temperature, which only shapes gradients;
             # its forward pass (the nearest point) is the same at any temperature.
             model.quantiser.step_anneal()
@@ -264,11 +281,12 @@ def train(cfg: GenConfig) -> dict | None:
             loss = (running / cfg.log_every).item()
             gn = (gnorm_sum / cfg.log_every).item()
             rate = cfg.log_every / (time.time() - t_log)
+            aux = {k: out[k].item() for k in ("mse", "reg", "repa") if k in out}  # this step's terms
             digital = {} if model.quantiser is None else {
                 "kl": out["kl"].item() if "kl" in out else 0.0, "sigma_q": model.quantiser.sigma_q.item()}
             print(f"STEP run={cfg.run_name} " + kv(step=step, loss=loss, gnorm=gn, lr=lr, it_s=rate,
                                                    skipped=skipped, hours=(time.time() - t0) / 3600,
-                                                   **digital),
+                                                   **digital, **aux),
                   flush=True)
             log(wandb_run, {"train/loss": loss, "train/grad_norm": gn, "train/lr": lr,
                             "train/it_per_s": rate, "train/skipped_steps": skipped}, step=step)
@@ -293,7 +311,7 @@ def train(cfg: GenConfig) -> dict | None:
                      "val_by_snr": val, "quality": quality, "skipped": skipped,
                      "hours": (time.time() - t0) / 3600}
             fields = {"val_loss": entry["val_loss"]}
-            if cfg.model == "dit":
+            if cfg.model != "cnn":
                 entry["cond_gain"] = sum(v["cond_gain"] for v in val.values()) / len(val)
                 fields["uncond"] = sum(v["uncond"] for v in val.values()) / len(val)
                 fields["cond_gain"] = entry["cond_gain"]
@@ -304,7 +322,7 @@ def train(cfg: GenConfig) -> dict | None:
             print(f"VAL run={cfg.run_name} " + kv(step=step, **fields, **quality), flush=True)
             log(wandb_run, {f"val/{k}": v for k, v in {**fields, **quality}.items()}, step=step)
 
-        if cfg.model == "dit" and (step % cfg.sample_every == 0 or step == cfg.steps):
+        if cfg.model != "cnn" and (step % cfg.sample_every == 0 or step == cfg.steps):
             save_samples(ema, cfg, sample_batch, vae, run_dir / "samples" / f"step{step:07d}.png")
 
         if step % cfg.ckpt_every == 0:

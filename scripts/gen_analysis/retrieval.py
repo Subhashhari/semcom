@@ -54,7 +54,7 @@ for rd in runs:
                 batch = {"image": x[sl], "latent": lat[sl], "dino": dn[sl]}
                 s = torch.full((x[sl].shape[0],), snr)
                 ch = torch.Generator().manual_seed(seed_of("channel", snr, b))
-                st = steps if cfg.model == "dit" else None
+                st = steps if cfg.model != "cnn" else None
                 sg = torch.Generator().manual_seed(seed_of("sample", snr, st, b))
                 recs.append(model.reconstruct(batch, s, vae, steps=st, channel_gen=ch, sample_gen=sg,
                                               cfg_scale=cfg.cfg_scale).float().clamp(0, 1))

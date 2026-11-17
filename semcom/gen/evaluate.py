@@ -92,7 +92,7 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
         test = Subset(test, idx)
     loader = DataLoader(test, batch_size=cfg.eval_batch, shuffle=False, num_workers=0)
     snrs = list(cfg.eval_snrs if snrs is None else snrs)
-    steps_list = list(cfg.sample_steps if steps_list is None else steps_list) if cfg.model == "dit" else [None]
+    steps_list = list(cfg.sample_steps if steps_list is None else steps_list) if cfg.model != "cnn" else [None]
 
     results, images, sample_rows = {}, {}, []
     first = None

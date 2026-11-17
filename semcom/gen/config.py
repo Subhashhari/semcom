@@ -4,6 +4,8 @@ One dataclass covers both model families trained on the cached data:
 
     model="dit"   semantic + detail JSCC encoders, a conditional DiT receiver (the prototype)
     model="cnn"   the repo's CNN deep JSCC at the same bandwidth (the MSE baseline)
+    model="refiner"  a trained CNN JSCC, frozen, whose decoded image conditions a DiT that
+                  generates the final image (semcom.gen.model.Refiner); the CNN is `refine_from`
 
 The SNR switch mirrors the blind-JSCC arms, so the same matched contrasts apply:
 
@@ -38,7 +40,7 @@ class GenConfig:
     name: str = "gen-p128"
     seed: int = 0
     out_dir: str = "results/gen/p128"
-    model: str = "dit"  # "dit" | "cnn"
+    model: str = "dit"  # "dit" | "cnn" | "refiner"
 
     # --- data (built once by semcom.gen.data.prepare and cached)
     dataset: str = "imagenette"
@@ -116,6 +118,22 @@ class GenConfig:
     lr: float = 1e-4
     weight_decay: float = 0.0
     warmup_steps: int = 1000
+    # "constant" after warmup (every run before 17 Nov), or "cosine": half a cosine from lr
+    # down to 0 at `steps` (W1 recipe test).
+    lr_schedule: str = "constant"
+
+    # --- auxiliary losses of the DiT model (W1-R1, W1-R3; 0 = off, and the module is not built)
+    # Regression: a small decoder maps the received symbol grids straight to the clean VAE
+    # latent (MSE), so the transmitter gets a direct training signal, not only the one that
+    # passes through the denoising loss. Training only; the receiver does not use it.
+    reg_weight: float = 0.0
+    # REPA (Yu et al., arXiv:2410.06940): an MLP maps the DiT's tokens after `repa_depth`
+    # blocks onto the image's DINOv2 patch features (the cached 8x8 grid, one feature per
+    # token); the loss is 1 - cosine similarity. Training only.
+    repa_weight: float = 0.0
+    repa_depth: int = 4
+    # Refiner: the CNN run folder (best.pt) whose transmitter, channel and decoder are frozen.
+    refine_from: str = ""
     batch_size: int = 64
     steps: int = 50_000
     ema_decay: float = 0.9999  # cap on the EMA decay
@@ -163,8 +181,16 @@ class GenConfig:
     log_every: int = 100
 
     def __post_init__(self):
-        if self.model not in ("dit", "cnn"):
-            raise ValueError(f"model must be 'dit' or 'cnn', got {self.model!r}")
+        if self.model not in ("dit", "cnn", "refiner"):
+            raise ValueError(f"model must be 'dit', 'cnn' or 'refiner', got {self.model!r}")
+        if (self.model == "refiner") != bool(self.refine_from):
+            raise ValueError("refine_from is required for, and only for, model='refiner'")
+        if self.lr_schedule not in ("constant", "cosine"):
+            raise ValueError(f"lr_schedule must be 'constant' or 'cosine', got {self.lr_schedule!r}")
+        if min(self.reg_weight, self.repa_weight) < 0:
+            raise ValueError("reg_weight and repa_weight must be >= 0")
+        if (self.reg_weight or self.repa_weight) and self.model != "dit":
+            raise ValueError("reg_weight and repa_weight apply to the DiT model only")
         if self.eval_checkpoint not in ("best", "final"):
             raise ValueError(f"eval_checkpoint must be 'best' or 'final', got {self.eval_checkpoint!r}")
         if self.prediction not in ("eps", "v"):
@@ -240,7 +266,7 @@ class GenConfig:
     @property
     def k(self) -> int:
         """Complex channel symbols per image."""
-        if self.model == "cnn":
+        if self.model in ("cnn", "refiner"):  # the refiner sends what its CNN sends
             return (self.image_size // 4) ** 2 * self.cnn_c_out // 2
         return self.k_sem + self.k_det
 
@@ -262,8 +288,8 @@ class GenConfig:
     def run_name(self) -> str:
         """e.g. dit-S_cbr48_spec0_s0, dit-S-v_cbr48_blind-5to5_s0 (velocity target), cnn_cbr48_spec0_s0,
         dit-S-v_cbr48_qam16_spec0_s0 (16-QAM symbols)."""
-        family = f"dit-{self.dit_size}" if self.model == "dit" else "cnn"
-        if self.model == "dit" and self.prediction != "eps":
+        family = {"dit": f"dit-{self.dit_size}", "refiner": f"ref-{self.dit_size}"}.get(self.model, "cnn")
+        if self.model != "cnn" and self.prediction != "eps":
             family += f"-{self.prediction}"
         parts = [family, f"cbr{round(1 / self.bandwidth_ratio)}"]
         if self.digital:
@@ -271,6 +297,12 @@ class GenConfig:
         parts.append(self.arm)
         if self.encoder_snr:
             parts.append("txsnr")
+        if self.lr_schedule != "constant":
+            parts.append("cos")
+        if self.reg_weight:
+            parts.append(f"reg{self.reg_weight:g}")
+        if self.repa_weight:
+            parts.append(f"repa{self.repa_weight:g}" + (f"d{self.repa_depth}" if self.repa_depth != 4 else ""))
         if self.cnn_lpips_weight:
             parts.append(f"lpips{self.cnn_lpips_weight:g}")
         if self.channel != "awgn":

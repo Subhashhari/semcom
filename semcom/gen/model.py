@@ -205,6 +205,14 @@ class GenJSCC(EnergyReference, nn.Module):
         self.quantiser = make_quantiser(cfg)
         self._kl = None
         self._init_energy(cfg)
+        # Training-only heads, built only when their loss is on (older runs keep their state dict).
+        if cfg.reg_weight:
+            self.reg_head = RegressionHead(cfg.c_sem + cfg.c_det, cfg.image_size // 8 // cfg.grid)
+        if cfg.repa_weight:
+            if not 1 <= cfg.repa_depth <= depth:
+                raise ValueError(f"repa_depth must be in [1, {depth}], got {cfg.repa_depth}")
+            self.repa_proj = nn.Sequential(nn.Linear(hidden, 2048), nn.SiLU(), nn.Linear(2048, 2048),
+                                           nn.SiLU(), nn.Linear(2048, dino_dim))
 
     def transmit(self, batch: dict, snr_db: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Channel inputs (z_sem, z_det), each (B, k, 2) at unit average power; exact M-QAM points
@@ -244,9 +252,30 @@ class GenJSCC(EnergyReference, nn.Module):
             mask = torch.full((b,), drop == "all", device=x0.device)
         else:
             raise ValueError(f"drop must be 'train', 'none' or 'all', got {drop!r}")
-        out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, snr_db), mask)
+        repa = bool(self.cfg.repa_weight) and self.training
+        out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, snr_db), mask,
+                       hidden_at=self.cfg.repa_depth if repa else None)
+        if repa:
+            out, hidden = out
         mse = F.mse_loss(out.float(), self.diffusion.target(x0, noise, t).float())
-        return with_kl(self, mse)
+        res = with_kl(self, mse)
+        # Auxiliary losses train the model but stay out of the validation loss (eval mode), so
+        # validation losses compare across recipes.
+        if self.training and self.cfg.reg_weight:
+            reg = F.mse_loss(self.reg_head(torch.cat([y_s, y_d], dim=1)).float(), x0.float())
+            res["loss"] = res["loss"] + self.cfg.reg_weight * reg
+            res["reg"] = reg.detach()
+        if repa:
+            target = batch["dino"].float().flatten(2).transpose(1, 2)  # (B, T, D) on the token grid
+            if target.shape[1] != hidden.shape[1]:
+                raise ValueError(f"REPA needs one DINOv2 feature per token: {target.shape[1]} vs {hidden.shape[1]}")
+            cos = F.cosine_similarity(self.repa_proj(hidden).float(), target, dim=-1)
+            align = 1 - cos.mean()
+            res["loss"] = res["loss"] + self.cfg.repa_weight * align
+            res["repa"] = align.detach()
+        if len(res) > 1:
+            res.setdefault("mse", mse.detach())
+        return res
 
     @torch.no_grad()
     def sample_latent(self, y_s, y_d, snr_db, steps, generator=None, eta=0.0, cfg_scale=1.0):
@@ -271,6 +300,22 @@ class GenJSCC(EnergyReference, nn.Module):
         y_s, y_d = self.received(batch, snr_db, channel_gen)
         z = self.sample_latent(y_s, y_d, snr_db, steps, sample_gen, eta, cfg_scale)
         return vae.decode(z.float())
+
+
+class RegressionHead(nn.Module):
+    """Received symbol grids (B, c, g, g) -> the clean VAE latent (B, 4, g*up, g*up). R3's loss."""
+
+    def __init__(self, c_in: int, up: int, hidden: int = 256, latent_channels: int = 4):
+        super().__init__()
+        self.net = nn.Sequential(
+            nn.Conv2d(c_in, hidden, 3, padding=1), nn.GELU(),
+            nn.Upsample(scale_factor=up, mode="nearest"),
+            nn.Conv2d(hidden, hidden, 3, padding=1), nn.GELU(),
+            nn.Conv2d(hidden, latent_channels, 3, padding=1),
+        )
+
+    def forward(self, y: torch.Tensor) -> torch.Tensor:
+        return self.net(y)
 
 
 class CNNBaseline(EnergyReference, nn.Module):
@@ -337,6 +382,107 @@ class CNNBaseline(EnergyReference, nn.Module):
         return self.jscc.decode(y, snr_db, z).float().clamp(0, 1)
 
 
+#: CNN settings a refiner must share with the CNN it refines (checked when the weights load).
+REFINER_SHARED = ("image_size", "cnn_c_out", "cnn_hidden", "digital", "modulation_order", "snr_mode",
+                  "channel", "avg_power", "power_ref", "snr_train_min", "snr_train_max")
+
+
+class Refiner(nn.Module):
+    """A trained CNN JSCC, frozen, followed by a conditional DiT that generates the image.
+
+        image -> CNN encoder -> (M-QAM) symbols -> channel -> CNN decoder -> x_cnn
+        x_cnn -> VAE encoder -> latent c (4 x 16 x 16) -> DiT(x_t | c) -> latent -> VAE decoder
+
+    The CNN does the transmission (it wins on fidelity and semantics); the DiT only redraws
+    its output, so what goes over the air, its bandwidth and its constellation are the CNN's.
+    The condition c enters the DiT through both conditional adapter stacks (one 2x2 patch per
+    token). Classifier-free guidance drops c, as for the DiT model. The DiT's SNR slot follows
+    snr_mode (blind: a constant), so the refiner needs no SNR when the CNN needs none.
+
+    The frozen VAE is attached with `attach_frozen` (kept out of the state dict); the CNN's
+    weights come from `cfg.refine_from` at the start of training (semcom.gen.train) and are then
+    part of this model's checkpoints.
+    """
+
+    def __init__(self, cfg: GenConfig):
+        super().__init__()
+        self.cfg = cfg
+        self.cnn = CNNBaseline(cfg.replace(model="cnn", refine_from="", cnn_lpips_weight=0.0)).requires_grad_(False)
+        depth, hidden, heads = DIT_SIZES[cfg.dit_size]
+        lat = cfg.image_size // 8
+        self.dit = ConditionalDiT(
+            latent_size=lat, c_sem=4, c_det=4, depth=depth, hidden=hidden, heads=heads,
+            patch=cfg.patch_size, cond_blocks_sem=cfg.cond_blocks_sem, cond_blocks_det=cfg.cond_blocks_det,
+            snr_slot=cfg.snr_mode != "fixed", cond_side=lat,
+        )
+        self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction)
+
+    def attach_frozen(self, vae) -> None:
+        self.__dict__["_vae"] = vae
+
+    def train(self, mode: bool = True):
+        super().train(mode)
+        self.cnn.eval()  # frozen: its energy reference and quantiser stay in evaluation mode
+        return self
+
+    @property
+    def quantiser(self):
+        return self.cnn.quantiser
+
+    @property
+    def es_ref(self):
+        return self.cnn.es_ref  # AttributeError (so hasattr is False) for an analog CNN
+
+    def channel_input(self, batch: dict) -> torch.Tensor:
+        return self.cnn.channel_input(batch)
+
+    @torch.no_grad()
+    def cnn_output(self, batch, snr_db, generator=None) -> torch.Tensor:
+        return self.cnn.reconstruct(batch, snr_db, channel_gen=generator)
+
+    @torch.no_grad()
+    def received(self, batch, snr_db, generator=None, vae=None):
+        """The DiT's condition (the VAE latent of the CNN's output), as the (y_sem, y_det) pair."""
+        vae = vae or self.__dict__.get("_vae")
+        if vae is None:
+            raise RuntimeError("Refiner needs the frozen VAE: call attach_frozen(vae)")
+        c = vae.encode(self.cnn_output(batch, snr_db, generator).float()).float()
+        return c, c
+
+    def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
+        y_s, y_d = self.received(batch, snr_db)
+        x0 = batch["latent"]
+        x_t, t, noise = self.diffusion.training_targets(x0)
+        b = x0.shape[0]
+        if drop == "train":
+            mask = torch.rand(b, device=x0.device) < self.cfg.cfg_dropout
+        elif drop in ("none", "all"):
+            mask = torch.full((b,), drop == "all", device=x0.device)
+        else:
+            raise ValueError(f"drop must be 'train', 'none' or 'all', got {drop!r}")
+        out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, snr_db), mask)
+        return {"loss": F.mse_loss(out.float(), self.diffusion.target(x0, noise, t).float())}
+
+    sample_latent = GenJSCC.sample_latent
+
+    @torch.no_grad()
+    def reconstruct(self, batch, snr_db, vae, steps=50, channel_gen=None, sample_gen=None,
+                    eta=0.0, cfg_scale=1.0) -> torch.Tensor:
+        y_s, y_d = self.received(batch, snr_db, channel_gen, vae)
+        z = self.sample_latent(y_s, y_d, snr_db, steps, sample_gen, eta, cfg_scale)
+        return vae.decode(z.float())
+
+
+def check_refiner_source(cfg: GenConfig, cnn_cfg: GenConfig) -> None:
+    """The CNN being refined must be a CNN with the refiner's transmission settings."""
+    if cnn_cfg.model != "cnn":
+        raise ValueError(f"refine_from must be a CNN run, got model={cnn_cfg.model!r}")
+    bad = {k: (getattr(cfg, k), getattr(cnn_cfg, k)) for k in REFINER_SHARED
+           if getattr(cfg, k) != getattr(cnn_cfg, k)}
+    if bad:
+        raise ValueError(f"refiner and CNN settings differ (refiner, CNN): {bad}")
+
+
 def with_kl(model: nn.Module, mse: torch.Tensor) -> dict:
     """The training loss: the reconstruction/diffusion MSE, plus the codebook-collapse penalty
     while training a digital model. Validation (eval mode) reports the MSE alone, so analog and
@@ -348,6 +494,8 @@ def with_kl(model: nn.Module, mse: torch.Tensor) -> dict:
 
 
 def build_model(cfg: GenConfig, dino_dim: int) -> nn.Module:
+    if cfg.model == "refiner":
+        return Refiner(cfg)
     return GenJSCC(cfg, dino_dim) if cfg.model == "dit" else CNNBaseline(cfg)
 
 

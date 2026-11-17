@@ -831,3 +831,106 @@ def test_digital_snr_aware_transmitter_is_measured_against_the_energy_sent_at_ea
         ev.symbol_stats, GenJSCC.reconstruct = real, orig_rec
     assert {snr: es for snr, es in seen} == {-5.0: pytest.approx(1.3), 5.0: pytest.approx(0.7)}
     assert out["symbols"]["qam_power@-5"] == pytest.approx(1.3)
+
+
+# ------------------------------------------------------------------ W1 recipe and the refiner
+
+
+def test_cosine_schedule_warms_up_then_decays_to_zero(tmp_path):
+    from semcom.gen.train import lr_at
+
+    const, cos = tiny(tmp_path, steps=100, warmup_steps=10), tiny(tmp_path, steps=100, warmup_steps=10,
+                                                                     lr_schedule="cosine")
+    assert lr_at(const, 4) == lr_at(cos, 4) == pytest.approx(5e-5)
+    assert lr_at(const, 99) == lr_at(const, 10) == pytest.approx(1e-4)
+    assert lr_at(cos, 10) == pytest.approx(1e-4) and lr_at(cos, 55) == pytest.approx(5e-5)
+    assert lr_at(cos, 100) == pytest.approx(0.0, abs=1e-12)
+    assert cos.run_name.endswith("_cos_s0")
+
+
+def _loss_grads(model, cfg, batch):
+    model.train()
+    out = model.loss(batch, torch.zeros(batch["image"].shape[0]))
+    out["loss"].backward()
+    return out, {n: p.grad for n, p in model.named_parameters()}
+
+
+def _w1_batch(cfg, b=2):
+    g = cfg.grid
+    return {"image": torch.rand(b, 3, cfg.image_size, cfg.image_size),
+            "latent": torch.randn(b, 4, cfg.image_size // 8, cfg.image_size // 8),
+            "dino": torch.randn(b, 768, g, g)}
+
+
+def test_regression_and_repa_losses_train_their_parts_and_stay_out_of_validation(tmp_path):
+    torch.manual_seed(0)
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank", reg_weight=1.0, repa_weight=0.5)
+    assert cfg.run_name == "dit-S-v_cbr48_blind-5to5_reg1_repa0.5_s0"
+    model = GenJSCC(cfg, 768)
+    batch = _w1_batch(cfg)
+    out, grads = _loss_grads(model, cfg, batch)
+    assert {"reg", "repa", "mse"} <= set(out)
+    assert out["loss"].item() == pytest.approx(out["mse"].item() + out["reg"].item() + 0.5 * out["repa"].item(), rel=1e-5)
+    for name in ("reg_head.net.0.weight", "repa_proj.0.weight", "det_enc", "sem_enc"):
+        assert any(n.startswith(name) and g is not None and g.abs().sum() > 0 for n, g in grads.items()), name
+    # At step 0 the DiT's zero-initialised output layer passes no gradient back, and every block
+    # is the identity (adaLN-Zero), so only REPA reaches the blocks' modulation layers, and only
+    # those of the first repa_depth blocks.
+    assert grads["dit.blocks.3.ada.1.weight"].abs().sum() > 0
+    assert grads["dit.blocks.5.ada.1.weight"].abs().sum() == 0
+    model.eval()
+    assert set(model.loss(batch, torch.zeros(2), drop="none")) == {"loss"}
+    plain = GenJSCC(cfg.replace(reg_weight=0.0, repa_weight=0.0), 768)
+    assert not any(n.startswith(("reg_head", "repa_proj")) for n in plain.state_dict())
+
+
+def test_auxiliary_losses_are_validated():
+    with pytest.raises(ValueError):
+        GenConfig(model="cnn", reg_weight=1.0)
+    with pytest.raises(ValueError):
+        GenConfig(repa_weight=-1.0)
+    with pytest.raises(ValueError):
+        GenConfig(lr_schedule="linear")
+
+
+def test_cond_adapter_patchifies_a_larger_condition_grid():
+    from semcom.gen.dit import CondAdapter
+
+    a = CondAdapter(4, 32, token_side=8, in_side=16)
+    assert a(torch.randn(2, 4, 16, 16)).shape == (2, 64, 32)
+    with pytest.raises(ValueError):
+        CondAdapter(4, 32, token_side=8, in_side=12)
+
+
+def test_refiner_needs_a_matching_cnn_and_keeps_it_frozen(tmp_path):
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    # The blind CNN's one-batch check is borderline even at this size (as for g-cb2): off here.
+    cnn = tiny(tmp_path, model="cnn", snr_mode="blank", prediction="v", sanity_steps=0)
+    train(cnn)
+    ref = cnn.replace(model="refiner", refine_from=str(cnn.run_dir), sanity_steps=25)
+    assert ref.run_name == "ref-S-v_cbr48_blind-5to5_s0" and ref.k == cnn.k
+    with pytest.raises(ValueError, match="differ"):
+        train(ref.replace(snr_mode="snr"))
+    summary = train(ref)
+    assert summary["steps"] == ref.steps
+    start = torch.load(cnn.run_dir / "best.pt", weights_only=False)["ema"]
+    end = torch.load(ref.run_dir / "final.pt", weights_only=False)["ema"]
+    assert all(torch.equal(start[n], end[f"cnn.{n}"]) for n in start), "the CNN must stay frozen"
+    assert any(not torch.equal(end[n], torch.zeros_like(end[n])) for n in end if n.startswith("dit.final."))
+    out = evaluate_run(ref.run_dir, external=False)
+    assert set(out["results"]) == {"0_2"} and out["results"]["0_2"]["n_images"] == 8
+
+
+def test_digital_refiner_reports_the_cnns_symbols(tmp_path):
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cnn = tiny(tmp_path, model="cnn", snr_mode="blank", digital=True, modulation_order=16,
+               power_ref="actual", sanity_steps=0)
+    train(cnn)
+    ref = cnn.replace(model="refiner", refine_from=str(cnn.run_dir), sanity_steps=0)
+    train(ref)
+    out = evaluate_run(ref.run_dir, external=False)
+    assert out["symbols"]["on_constellation"] and out["modulation_order"] == 16

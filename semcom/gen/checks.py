@@ -72,7 +72,7 @@ def vae_ceiling(batch: dict, vae, dino, cfg: GenConfig) -> dict:
 #: targets starts near 1 and collapses quickly; the CNN baseline's pixel MSE starts low (a sigmoid
 #: at 0.5 is already close) and falls slowly, and the CNN is the repo's long-tested model, so its
 #: bar only asks for a clear decrease.
-MIN_DROP = {"dit": 0.5, "cnn": 0.1}
+MIN_DROP = {"dit": 0.5, "cnn": 0.1, "refiner": 0.5}
 PROBE_LR = {"S": 1e-3, "B": 3e-4, "L": 2e-4}  # overfit_check's Adam step per DiT size
 
 
@@ -86,7 +86,7 @@ def overfit_check(model, batch: dict, cfg: GenConfig, device, steps: int = 150,
     probe = copy.deepcopy(model).train().requires_grad_(True)
     # Wider DiTs need a smaller probe step: at 1e-3 DiT-B only halved its loss in 150 steps (g-s1);
     # at 3e-4 it memorises the batch as DiT-S does at 1e-3 (CPU check, 8 images).
-    lr = PROBE_LR.get(cfg.dit_size, 1e-3) if cfg.model == "dit" else 1e-3
+    lr = PROBE_LR.get(cfg.dit_size, 1e-3) if cfg.model != "cnn" else 1e-3
     opt = torch.optim.Adam(probe.parameters(), lr=lr)
     snr = torch.full((batch["image"].shape[0],), float(cfg.snr_train_fixed or 0.0), device=device)
     losses = []
@@ -98,7 +98,9 @@ def overfit_check(model, batch: dict, cfg: GenConfig, device, steps: int = 150,
         loss.backward()
         opt.step()
         losses.append(loss.item())
-    enc = (probe.sem_enc, probe.det_enc) if cfg.model == "dit" else (probe.jscc.encoder,)
+    # The encoders that must receive gradient (none for a refiner: its CNN transmitter is frozen).
+    enc = {"dit": lambda: (probe.sem_enc, probe.det_enc), "cnn": lambda: (probe.jscc.encoder,),
+           "refiner": lambda: (probe.dit,)}[cfg.model]()
     enc_grad = min(sum(p.grad.norm().item() for p in m.parameters() if p.grad is not None) for m in enc)
     out = dict(first=losses[0], last=losses[-1], ratio=losses[-1] / max(losses[0], 1e-12),
                encoder_grad=enc_grad)
