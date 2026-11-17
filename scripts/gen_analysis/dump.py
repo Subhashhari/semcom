@@ -137,9 +137,11 @@ for spec in specs:
     refiner = cfg.model == "refiner"
     generative = cfg.model != "cnn"
     if hasattr(model, "es_ref"):  # as evaluate: the SNR refers to the energy sent on these images
-        with torch.no_grad():
-            z = torch.cat([model.channel_input({"image": x[a:a + 50].to(dev)}).float().cpu()
-                           for a in range(0, n, 50)])
+        with torch.no_grad():  # the DiT's transmitter also reads the DINOv2 features
+            z = torch.cat([model.channel_input({
+                "image": x[a:a + 50].to(dev),
+                "dino": torch.from_numpy(np.asarray(dino_all[idx[a:a + 50]])).float().to(dev)}).float().cpu()
+                for a in range(0, n, 50)])
         model.es_ref.fill_(z.pow(2).sum(-1).mean().item())
     for s in snrs:
         f = out_dir / f"{name}__{s:g}.npz"
