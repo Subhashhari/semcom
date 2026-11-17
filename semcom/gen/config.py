@@ -147,6 +147,12 @@ class GenConfig:
     # Stop cleanly (checkpoint saved, no history.json) after this many hours, so a run that
     # would outlive a Kaggle session resumes in the next job instead of being killed. None: off.
     max_hours: float | None = None
+    # Train to convergence: with patience > 0, stop once `patience` validations in a row brought
+    # no relative improvement of the validation loss larger than `min_delta` (steps is then only a
+    # cap). best.pt is the lowest validation loss either way. 0: run to `steps` (the 40k-step
+    # budget runs before 17 Nov).
+    patience: int = 0
+    min_delta: float = 0.002
 
     # --- fine-tuning diagnostics: start from another run's weights and train only some parts.
     # Used to locate where one SNR-adaptive model loses to a specialist (transmitter or receiver).
@@ -185,6 +191,10 @@ class GenConfig:
             raise ValueError(f"model must be 'dit', 'cnn' or 'refiner', got {self.model!r}")
         if (self.model == "refiner") != bool(self.refine_from):
             raise ValueError("refine_from is required for, and only for, model='refiner'")
+        if self.patience < 0 or not 0 <= self.min_delta < 1:
+            raise ValueError("patience must be >= 0 and min_delta in [0, 1)")
+        if self.patience and self.lr_schedule == "cosine":
+            raise ValueError("a cosine schedule is tied to `steps`; train to convergence at a constant LR")
         if self.lr_schedule not in ("constant", "cosine"):
             raise ValueError(f"lr_schedule must be 'constant' or 'cosine', got {self.lr_schedule!r}")
         if min(self.reg_weight, self.repa_weight) < 0:

@@ -934,3 +934,19 @@ def test_digital_refiner_reports_the_cnns_symbols(tmp_path):
     train(ref)
     out = evaluate_run(ref.run_dir, external=False)
     assert out["symbols"]["on_constellation"] and out["modulation_order"] == 16
+
+
+def test_convergence_rule_and_early_stop(tmp_path):
+    from semcom.gen.train import converged, train
+
+    h = [{"val_loss": v} for v in (1.0, 0.9, 0.8999, 0.8995, 0.9)]
+    assert converged(h, patience=3, min_delta=0.002)  # nothing better than 0.9 * 0.998 after index 1
+    assert not converged(h, patience=4, min_delta=0.002) and not converged(h, patience=0, min_delta=0.0)
+    assert not converged([{"val_loss": v} for v in (1.0, 0.9, 0.8)], patience=2, min_delta=0.002)
+    # A min_delta no improvement can meet: the run stops after the first validation + patience.
+    cfg = tiny(tmp_path, model="cnn", sanity_steps=0, steps=40, patience=2, min_delta=0.99)
+    summary = train(cfg)
+    assert summary["converged_at"] == 6 and summary["steps"] == 6
+    assert (cfg.run_dir / "best.pt").exists() and (cfg.run_dir / "final.pt").exists()
+    with pytest.raises(ValueError):
+        tiny(tmp_path, patience=3, lr_schedule="cosine")

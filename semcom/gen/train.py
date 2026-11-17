@@ -44,6 +44,18 @@ def lr_at(cfg: GenConfig, step: int) -> float:
     return lr
 
 
+def converged(history: list[dict], patience: int, min_delta: float) -> bool:
+    """True when the last `patience` validations brought no relative improvement > min_delta
+    over the best validation loss before them (a function of the history, so resuming is exact)."""
+    if patience <= 0 or not history:
+        return False
+    best, best_i = float("inf"), -1
+    for i, e in enumerate(history):
+        if e["val_loss"] < best * (1 - min_delta):
+            best, best_i = e["val_loss"], i
+    return len(history) - 1 - best_i >= patience
+
+
 def sample_snr(cfg: GenConfig, b: int, device: torch.device) -> torch.Tensor:
     if cfg.snr_mode == "fixed":
         return torch.full((b,), float(cfg.snr_train_fixed), device=device)
@@ -236,6 +248,7 @@ def train(cfg: GenConfig) -> dict | None:
         (run_dir / "sanity.json").write_text(json.dumps(sanity, indent=2), encoding="utf-8")
 
     t0, t_log, running, gnorm_sum, skipped, bad_streak = time.time(), time.time(), 0.0, 0.0, 0, 0
+    stopped_at = None
     model.train()
     for batch in batches():
         if step >= cfg.steps:
@@ -321,12 +334,18 @@ def train(cfg: GenConfig) -> dict | None:
                             "dino_dim": meta["dino_dim"]}, run_dir / "best.pt")
             print(f"VAL run={cfg.run_name} " + kv(step=step, **fields, **quality), flush=True)
             log(wandb_run, {f"val/{k}": v for k, v in {**fields, **quality}.items()}, step=step)
+            if converged(history, cfg.patience, cfg.min_delta):
+                stopped_at = step
+                print(f"CONVERGED run={cfg.run_name} step={step}: no val-loss gain above "
+                      f"{100 * cfg.min_delta:g}% in {cfg.patience} validations", flush=True)
 
         if cfg.model != "cnn" and (step % cfg.sample_every == 0 or step == cfg.steps):
             save_samples(ema, cfg, sample_batch, vae, run_dir / "samples" / f"step{step:07d}.png")
 
         if step % cfg.ckpt_every == 0:
             save_ckpt()
+        if stopped_at is not None:
+            break
 
     save_ckpt()
     torch.save({"ema": ema.state_dict(), "config": cfg.to_dict(), "step": step,
@@ -342,6 +361,7 @@ def train(cfg: GenConfig) -> dict | None:
         "sanity": json.loads((run_dir / "sanity.json").read_text()) if (run_dir / "sanity.json").exists() else None,
         "device": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
         "wall_clock_s": time.time() - t0,
+        "converged_at": stopped_at,
     }
     (run_dir / "history.json").write_text(json.dumps({"summary": summary, "history": history}, indent=2),
                                           encoding="utf-8")

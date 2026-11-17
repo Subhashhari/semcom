@@ -69,6 +69,10 @@ def main() -> None:
                    help="digital: transmit M-QAM symbols (4, 16, 64, ...); default analog")
     p.add_argument("--anneal-period", type=int, default=None, help="digital: quantiser temperature schedule")
     p.add_argument("--max-hours", type=float, default=None, help="per-run wall-clock budget")
+    p.add_argument("--patience", type=int, default=None,
+                   help="train to convergence: stop after this many validations without a val-loss "
+                        "gain above --min-delta (--steps is then a cap)")
+    p.add_argument("--min-delta", type=float, default=None, help="relative val-loss gain that counts (0.002)")
     p.add_argument("--lr-schedule", choices=["constant", "cosine"], default=None,
                    help="after warmup: constant (default) or a cosine decay to 0 at --steps")
     p.add_argument("--reg-weight", type=float, default=None,
@@ -131,7 +135,8 @@ def main() -> None:
                  "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det,
                  "train_fraction": args.train_fraction, "extra_train": args.extra_train,
                  "extra_per_class": args.extra_per_class, "sanity_steps": args.sanity_steps,
-                 "lr_schedule": args.lr_schedule, "repa_depth": args.repa_depth}
+                 "lr_schedule": args.lr_schedule, "repa_depth": args.repa_depth,
+                 "patience": args.patience, "min_delta": args.min_delta}
     dit_only = {k: v for k, v in (("reg_weight", args.reg_weight), ("repa_weight", args.repa_weight)) if v}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])

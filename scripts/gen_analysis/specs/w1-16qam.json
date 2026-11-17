@@ -1,0 +1,12 @@
+{"title": "Week 1, 16-QAM: DiT recipe (option A) and CNN + diffusion refiner (option B) against the blind perceptual CNN",
+ "out": "results/gen/analysis/w1-16qam",
+ "dump": "results/gen/dump/w1-16qam",
+ "reference": "cnn",
+ "snrs": [-5, 0, 5],
+ "systems": [
+  {"key": "cnn", "label": "CNN, MSE+LPIPS, blind", "run": "results/gen/p128-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0"},
+  {"key": "dit", "label": "DiT, blind (baseline)", "run": "results/gen/p128-qam-es/dit-S-v_cbr48_qam16_blind-5to5_s0"},
+  {"key": "a1", "label": "A1 DiT, cosine LR", "run": "results/gen/p128-w1/dit-S-v_cbr48_qam16_blind-5to5_cos_s0"},
+  {"key": "a2", "label": "A2 DiT, cosine + regression", "run": "results/gen/p128-w1/dit-S-v_cbr48_qam16_blind-5to5_cos_reg1_s0"},
+  {"key": "a3", "label": "A3 DiT, cosine + REPA", "run": "results/gen/p128-w1/dit-S-v_cbr48_qam16_blind-5to5_cos_repa0.5_s0"},
+  {"key": "b1", "label": "B1 CNN + diffusion refiner", "run": "results/gen/p128-ref/ref-S-v_cbr48_qam16_blind-5to5_cos_s0"}]}
