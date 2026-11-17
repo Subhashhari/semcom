@@ -63,6 +63,8 @@ def main() -> None:
                    help="digital: transmit M-QAM symbols (4, 16, 64, ...); default analog")
     p.add_argument("--anneal-period", type=int, default=None, help="digital: quantiser temperature schedule")
     p.add_argument("--max-hours", type=float, default=None, help="per-run wall-clock budget")
+    p.add_argument("--sanity-steps", type=int, default=None,
+                   help="steps of the one-batch overfit check (the 16-QAM blind CNN plateaus near 150, g-cb2)")
     p.add_argument("--eval-images", type=int, default=None)
     p.add_argument("--out-dir", default=None)
     p.add_argument("--data-root", default=None)
@@ -113,7 +115,7 @@ def main() -> None:
                  "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
                  "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det,
                  "train_fraction": args.train_fraction, "extra_train": args.extra_train,
-                 "extra_per_class": args.extra_per_class}
+                 "extra_per_class": args.extra_per_class, "sanity_steps": args.sanity_steps}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:
