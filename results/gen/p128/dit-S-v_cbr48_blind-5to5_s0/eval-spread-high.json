@@ -1,0 +1,48 @@
+{
+  "run_name": "dit-S-v_cbr48_blind-5to5_s0",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "dit",
+  "arm": "blind-5to5",
+  "snr_mode": "blank",
+  "seed": 0,
+  "checkpoint": "best",
+  "k": 1024,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "Tesla T4",
+  "digital": false,
+  "modulation_order": null,
+  "symbols": null,
+  "snrs": [
+    15.0,
+    30.0
+  ],
+  "steps": [
+    10
+  ],
+  "cfg_scale": 1.0,
+  "results": {
+    "15_10": {
+      "psnr": 20.176103591918945,
+      "lpips": 0.18315519392490387,
+      "dino_sim": 0.3624662756919861,
+      "retrieval_rank": 10.427000045776367,
+      "retrieval_top1": 0.4490000009536743,
+      "retrieval_top5": 0.7239999771118164,
+      "fid": 95.51206970214844,
+      "seconds_per_image": 0.05320342826843262,
+      "n_images": 1000
+    },
+    "30_10": {
+      "psnr": 20.298757553100586,
+      "lpips": 0.18086136877536774,
+      "dino_sim": 0.3779743015766144,
+      "retrieval_rank": 8.57800006866455,
+      "retrieval_top1": 0.4729999899864197,
+      "retrieval_top5": 0.7570000290870667,
+      "fid": 92.35858917236328,
+      "seconds_per_image": 0.05244809055328369,
+      "n_images": 1000
+    }
+  }
+}

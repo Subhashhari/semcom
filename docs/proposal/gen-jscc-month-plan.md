@@ -177,7 +177,7 @@ Kaggle, about 25 h:
 | ID | Experiment | Runs | Needs code |
 |---|---|---|---|
 | W1-D1 | Rate ceiling: blind-architecture DiT-S trained and tested at 30 dB (effectively noise-free) | 1 | No (`--arms spec` at a fixed SNR, or `--snr-range 30 30`) |
-| W1-D2 | Generator ceiling: evaluate with the true DINOv2 features and clean detail features fed to the receiver | 1 | Yes, small |
+| W1-D2 | Generator ceiling: a DiT-S conditioned on the full DINOv2 grid and clean detail features, no channel (a short training run, since the receiver expects compressed symbols) | 1 | Yes, small (bypass the encoders) |
 | W1-R1 | REPA loss on the blind analog DiT-S, 40k steps | 1 | Yes |
 | W1-R2 | Recipe: timestep weighting (for example min-SNR or logit-normal sampling) | 1 | Yes |
 | W1-R3 | Recipe: direct regression loss from the received symbols to the clean latent | 1 | Yes |
@@ -194,7 +194,13 @@ the current recipe (`--extra-train`, no `--extra-per-class` cap).
 - Keep a lever only if it beats the baseline on LPIPS, DINOv2 similarity or retrieval with a clear
   paired interval (`scripts/gen_analysis/paired.py`).
 - Target to beat: the perceptual CNN at 0 dB (DINOv2 similarity 0.38, retrieval 36%, class kept
-  82%, FID 104).
+  82%, FID 104). Once W1-C1 lands, the target for the 16-QAM position is the blind 16-QAM
+  perceptual CNN (g-cb2) at every SNR, not the 0 dB analog specialist.
+- Read W1-D1 and W1-D2 before the levers: if the noise-free DiT stays below the CNN on DINOv2
+  similarity, the loss is in the transmitter or the generator, not the channel, and only W1-R1
+  (generator) and W1-R3 (transmitter) address it. The transmitter already holds the image's
+  DINOv2 features, yet the receiver's output reaches DINOv2 similarity 0.19 at 0 dB and 0.34 at
+  +10 dB; the CNN reaches 0.38 through the same 1,024 symbols without them.
 - If W1-C1 matches or beats the DiT everywhere **and** no lever moved the DiT, stop the DiT track
   and choose between an architecture-independent SNR-placement study and a different generator.
 
@@ -272,3 +278,13 @@ RTX 5060: buffer and reruns.
 |---|---|---|---|
 | 16 Nov | (pre-plan) | g-x1, g-x2 | 59k images from other classes: helps at +5 dB (+0.3 dB PSNR), hurts at -5 and 0 dB (FID +18 to +28) |
 | 16 Nov | (pre-plan) | g-c1 | Class preservation on GPU, 300 images: DiT-S 61%, guidance 1.5 60%, DiT-B 59% at 0 dB |
+| 16 Nov | W1-C2 (analog blind) | g-cb1 (subhashhhh; moved from own after 30 min queued) | Launched: analog CNN, blind -5 to 5 dB, pixel 40k then +0.1 LPIPS 10k (`p128-perc/cnn_cbr48_blind-5to5_lpips0.1_ft_s0`); first-1,000, spread and spread-curve evals |
+| 16 Nov | W1-C1 (s0) | g-cb2 (venkat96r) | Launched: as g-cb1 with 16-QAM (`p128-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0`) |
+| 16 Nov | W1-D1 | g-hi1 (own) | Launched: `dit-S-v_cbr48_spec30_s0` evaluated at 30/15/5/0 dB (spread); the analog and 16-QAM blind models evaluated at 15 and 30 dB (`eval-spread-high.json`) |
+| 16 Nov | W1-F1 | g-ft1 (venkat96r) | Launched: 59k-image model fine-tuned 20k steps on Imagenette (`p128-ft/dit-S-v_cbr48_blind-5to5_ft-imagenette_s0`) |
+| 17 Nov | W1-F1 | g-ft1 | **Lever kept (Gate 1).** 59k model + 20k steps on Imagenette vs the 9.5k blind model, paired, spread set: LPIPS -0.011 / -0.021 / -0.022 at -5 / 0 / 5 dB (all significant); top-1 +4.8 and +13.8 pts at 0 and 5 dB; DINOv2 0.111 / 0.231 / 0.355 (was 0.095 / 0.189 / 0.284); FID 175 / 121 / 92 (was 187 / 142 / 112). Not just more steps: 120k steps on Imagenette alone gains at most 0.08 dB and 0-1 pt top-1. At +5 dB it now matches the perceptual CNN on top-1 (43% vs 44%) with far better LPIPS (0.188 vs 0.303) and FID (92 vs 115); at 0 dB still well behind on semantics (DINOv2 0.23 vs 0.38) |
+| 17 Nov | W1-D1 | g-hi1 | Rate ceiling: spec30 at 30 dB reaches PSNR 21.1, DINOv2 0.393, top-1 51%, LPIPS 0.158, FID 93 (best checkpoint at 14k steps; val loss rises after 18k, so it overfits). The noise-free DiT is level with the perceptual CNN at 0-10 dB on DINOv2 (0.38) and far from the VAE (0.81): the transmitter/generator caps semantics, and noise explains the drop below +10 dB |
+| 17 Nov | W1-D1 | g-hi1 | Blind (trained -5 to 5 dB) tested at 15 / 30 dB: analog DINOv2 0.362 / 0.378, PSNR 20.2 / 20.3, near the 30 dB specialist without being told the SNR. 16-QAM blind: DINOv2 0.280 / 0.288, PSNR 19.2 / 19.3, so at high SNR the constellation costs about 1 dB PSNR and 0.09 DINOv2 against analog |
+| 17 Nov | W1-C1 (s0) | g-cb2 | **Failed before training**: overfit sanity check, 16-QAM blind CNN loss fell only to 0.91 of its start in 150 steps (bar 0.90; the 16-QAM 0 dB CNN reached 0.50, the analog 0 dB CNN 0.83). CPU probe (8 images): plateau near 150 steps, then 0.71 at 200 and 0.65 at 300, still falling, so slow, not broken. Relaunched at 7ed59f3 with `--sanity-steps 300` |
+| 17 Nov | W1-C2 (analog blind) | g-cb1 | **The DiT's low-SNR advantage was the confound.** The perceptual CNN trained blind over -5 to 5 dB beats the best DiT (59k + ft) on PSNR, DINOv2 similarity and retrieval at every SNR from -10 to +10 dB (0 dB: 20.2 vs 18.1 dB, DINOv2 0.36 vs 0.23, top-1 34% vs 19%; +10 dB: 22.6 vs 20.3 dB, 0.55 vs 0.42, 73% vs 56%) and on FID from -5 dB up (ties at 10 dB: 81 vs 82). The DiT keeps only LPIPS from 0 dB up (0.250 vs 0.277 at 0 dB, 0.165 vs 0.232 at +10 dB); LPIPS ties at -5 dB and the CNN wins below. The blind CNN also beats the 0 dB-only CNN off 0 dB by a wide margin, so graceful degradation is a property of range training, not of diffusion |
+| 17 Nov | W1-C1 (s0) | g-cb2 | Also stalls on the GPU with 300 check steps (0.91). Relaunched at 739b9de with `--sanity-steps 0` (skips only the overfit check). Val loss (mean over -5/0/5 dB) 0.0176 / 0.0161 at 2k / 4k steps vs 0.0156 / 0.0141 for the analog blind CNN: learns normally, about 12% above analog. The one-batch check is too strict for the 16-QAM blind CNN, not a pipeline fault |
