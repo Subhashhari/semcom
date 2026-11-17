@@ -72,11 +72,23 @@ class Diffusion:
         device: torch.device,
         generator: torch.Generator | None = None,
         eta: float = 0.0,
+        x_start: torch.Tensor | None = None,
+        start: float = 1.0,
     ) -> torch.Tensor:
         """DDIM from pure noise to x0. `eps_fn(x_t, t)` returns the network output (the noise
-        for prediction "eps", the velocity for "v")."""
-        x = torch.randn(shape, device=device, generator=generator)
-        ts = self.timesteps(steps)
+        for prediction "eps", the velocity for "v").
+
+        With `start` < 1 and `x_start` (SDEdit, Meng et al. 2022), sampling begins at timestep
+        round(start * (T - 1)) from x_start noised to that level, so the result stays close to
+        x_start: start = 1 is the usual sampler (pure noise), start = 0 returns about x_start."""
+        if start >= 1.0 or x_start is None:
+            x = torch.randn(shape, device=device, generator=generator)
+            ts = self.timesteps(steps)
+        else:
+            t0 = max(int(round(start * (self.T - 1))), 0)
+            ts = torch.linspace(t0, 0, max(min(steps, t0 + 1), 1)).round().long().unique_consecutive().tolist()
+            noise = torch.randn(shape, device=device, generator=generator)
+            x = self.q_sample(x_start.float(), torch.full((shape[0],), t0, device=device, dtype=torch.long), noise)
         ab_all = self.alpha_bar.to(device)
         for i, t in enumerate(ts):
             ab = ab_all[t]

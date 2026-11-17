@@ -950,3 +950,17 @@ def test_convergence_rule_and_early_stop(tmp_path):
     assert (cfg.run_dir / "best.pt").exists() and (cfg.run_dir / "final.pt").exists()
     with pytest.raises(ValueError):
         tiny(tmp_path, patience=3, lr_schedule="cosine")
+
+
+def test_sdedit_start_runs_from_the_given_latent():
+    torch.manual_seed(0)
+    d = Diffusion(prediction="v")
+    x0 = torch.randn(2, 4, 16, 16)
+    net = lambda x, t: 0.1 * x + 0.01 * t.view(-1, 1, 1, 1).float() / 1000  # noqa: E731  (any deterministic network)
+    g = lambda: torch.Generator().manual_seed(3)  # noqa: E731
+    full = d.sample(net, x0.shape, 5, torch.device("cpu"), g())
+    assert torch.equal(full, d.sample(net, x0.shape, 5, torch.device("cpu"), g(), x_start=x0, start=1.0))
+    near = d.sample(net, x0.shape, 5, torch.device("cpu"), g(), x_start=x0, start=0.0)
+    assert (near - x0).abs().max() < 0.05  # start 0: one step at t = 0 returns about x_start
+    mid = d.sample(net, x0.shape, 5, torch.device("cpu"), g(), x_start=x0, start=0.3)
+    assert (mid - x0).pow(2).mean() < (full - x0).pow(2).mean()

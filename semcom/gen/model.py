@@ -278,7 +278,8 @@ class GenJSCC(EnergyReference, nn.Module):
         return res
 
     @torch.no_grad()
-    def sample_latent(self, y_s, y_d, snr_db, steps, generator=None, eta=0.0, cfg_scale=1.0):
+    def sample_latent(self, y_s, y_d, snr_db, steps, generator=None, eta=0.0, cfg_scale=1.0,
+                      x_start=None, start=1.0):
         s_in = snr_input(self.cfg, snr_db)
         b = y_s.shape[0]
 
@@ -292,11 +293,12 @@ class GenJSCC(EnergyReference, nn.Module):
             return uncond + cfg_scale * (cond - uncond)
 
         lat = self.cfg.image_size // 8
-        return self.diffusion.sample(eps_fn, (b, 4, lat, lat), steps, y_s.device, generator, eta)
+        return self.diffusion.sample(eps_fn, (b, 4, lat, lat), steps, y_s.device, generator, eta,
+                                     x_start=x_start, start=start)
 
     @torch.no_grad()
     def reconstruct(self, batch, snr_db, vae, steps=50, channel_gen=None, sample_gen=None,
-                    eta=0.0, cfg_scale=1.0) -> torch.Tensor:
+                    eta=0.0, cfg_scale=1.0, start=1.0) -> torch.Tensor:
         y_s, y_d = self.received(batch, snr_db, channel_gen)
         z = self.sample_latent(y_s, y_d, snr_db, steps, sample_gen, eta, cfg_scale)
         return vae.decode(z.float())
@@ -375,7 +377,7 @@ class CNNBaseline(EnergyReference, nn.Module):
 
     @torch.no_grad()
     def reconstruct(self, batch, snr_db, vae=None, steps=None, channel_gen=None, sample_gen=None,
-                    eta=0.0, cfg_scale=1.0) -> torch.Tensor:
+                    eta=0.0, cfg_scale=1.0, start=1.0) -> torch.Tensor:
         x = batch["image"]
         z = self.jscc.transmit(x, snr_db)
         y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z), channel_gen)
@@ -467,9 +469,11 @@ class Refiner(nn.Module):
 
     @torch.no_grad()
     def reconstruct(self, batch, snr_db, vae, steps=50, channel_gen=None, sample_gen=None,
-                    eta=0.0, cfg_scale=1.0) -> torch.Tensor:
+                    eta=0.0, cfg_scale=1.0, start=1.0) -> torch.Tensor:
+        """`start` < 1: SDEdit from the CNN's own latent (semcom.gen.diffusion.Diffusion.sample),
+        a dial from the CNN's output (0) to a fresh sample (1, the trained setting)."""
         y_s, y_d = self.received(batch, snr_db, channel_gen, vae)
-        z = self.sample_latent(y_s, y_d, snr_db, steps, sample_gen, eta, cfg_scale)
+        z = self.sample_latent(y_s, y_d, snr_db, steps, sample_gen, eta, cfg_scale, x_start=y_s, start=start)
         return vae.decode(z.float())
 
 
