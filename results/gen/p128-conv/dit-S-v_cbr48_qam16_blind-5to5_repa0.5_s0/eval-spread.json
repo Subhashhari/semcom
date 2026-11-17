@@ -1,0 +1,68 @@
+{
+  "run_name": "dit-S-v_cbr48_qam16_blind-5to5_repa0.5_s0",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "dit",
+  "arm": "blind-5to5",
+  "snr_mode": "blank",
+  "seed": 0,
+  "checkpoint": "best",
+  "k": 1024,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "Tesla T4",
+  "digital": true,
+  "modulation_order": 16,
+  "symbols": {
+    "qam_usage": 0.9822395617285788,
+    "qam_kurtosis": 1.4319253620976173,
+    "qam_power": 0.9058811604976654,
+    "on_constellation": true,
+    "modulation_order": 16,
+    "power_ref": "actual",
+    "es_ref_trained": 0.9163311123847961
+  },
+  "snrs": [
+    -5.0,
+    0.0,
+    5.0
+  ],
+  "steps": [
+    10
+  ],
+  "cfg_scale": 1.0,
+  "results": {
+    "-5_10": {
+      "psnr": 15.085179328918457,
+      "lpips": 0.39273715019226074,
+      "dino_sim": 0.13112962245941162,
+      "retrieval_rank": 129.89300537109375,
+      "retrieval_top1": 0.04600000008940697,
+      "retrieval_top5": 0.1420000046491623,
+      "fid": 164.68016052246094,
+      "seconds_per_image": 0.047901193618774415,
+      "n_images": 1000
+    },
+    "0_10": {
+      "psnr": 17.032527923583984,
+      "lpips": 0.30130186676979065,
+      "dino_sim": 0.20083433389663696,
+      "retrieval_rank": 66.86100006103516,
+      "retrieval_top1": 0.11599999666213989,
+      "retrieval_top5": 0.31200000643730164,
+      "fid": 132.97764587402344,
+      "seconds_per_image": 0.04764269185066223,
+      "n_images": 1000
+    },
+    "5_10": {
+      "psnr": 18.26125717163086,
+      "lpips": 0.2513996660709381,
+      "dino_sim": 0.2638935148715973,
+      "retrieval_rank": 36.459999084472656,
+      "retrieval_top1": 0.23999999463558197,
+      "retrieval_top5": 0.49000000953674316,
+      "fid": 114.24989318847656,
+      "seconds_per_image": 0.04770908236503601,
+      "n_images": 1000
+    }
+  }
+}
