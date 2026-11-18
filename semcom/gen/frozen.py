@@ -77,14 +77,26 @@ class FrozenVAE(nn.Module):
         self.vae = self.vae.eval().requires_grad_(False)
         self.scale = scale
 
+    #: Largest pass, in pixels: 32 images at 128 px. Bigger batches run in chunks, so the decoder's
+    #: activations fit an 8 GB GPU at 256 px (one 32-image pass needs several GB there). Every op
+    #: is per image, so chunking does not change the result.
+    max_pixels = 32 * 128 * 128
+
+    def _chunks(self, fn, t: torch.Tensor, side: int) -> torch.Tensor:
+        n = max(1, self.max_pixels // (side * side))
+        if len(t) <= n:
+            return fn(t)
+        return torch.cat([fn(t[a:a + n]) for a in range(0, len(t), n)])
+
     @torch.no_grad()
     def encode(self, x: torch.Tensor) -> torch.Tensor:
         # The posterior mean, not a sample: deterministic, so the cache is reproducible.
-        return self.vae.encode(x * 2 - 1).latent_dist.mean * self.scale
+        return self._chunks(lambda v: self.vae.encode(v * 2 - 1).latent_dist.mean * self.scale, x, x.shape[-1])
 
     @torch.no_grad()
     def decode(self, z: torch.Tensor) -> torch.Tensor:
-        return ((self.vae.decode(z / self.scale).sample + 1) / 2).clamp(0, 1)
+        return self._chunks(lambda v: ((self.vae.decode(v / self.scale).sample + 1) / 2).clamp(0, 1),
+                            z, z.shape[-1] * self.factor)
 
 
 class FrozenDINO(nn.Module):

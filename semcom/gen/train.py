@@ -320,6 +320,8 @@ def train(cfg: GenConfig) -> dict | None:
                     quality.update({f"{k}@{s:g}": v for k, v in st.items()})
             else:
                 quality.update(symbol_stats(ema, quality_batch))
+            if device.type == "cuda":  # hand the validation pass's memory back to training
+                torch.cuda.empty_cache()
             entry = {"step": step, "val_loss": sum(v["loss"] for v in val.values()) / len(val),
                      "val_by_snr": val, "quality": quality, "skipped": skipped,
                      "hours": (time.time() - t0) / 3600}
