@@ -334,7 +334,7 @@ class CNNBaseline(EnergyReference, nn.Module):
         self.cfg = cfg
         dec = {"fixed": "none", "snr": "snr", "blank": "blank"}[cfg.snr_mode]
         self.jscc = JSCC(c_out=cfg.cnn_c_out, image_size=cfg.image_size, hidden=cfg.cnn_hidden,
-                         channel=cfg.channel, avg_power=cfg.avg_power, encoder_snr=False,
+                         channel=cfg.channel, avg_power=cfg.avg_power, encoder_snr=cfg.encoder_snr,
                          decoder_input=dec, digital=cfg.digital, modulation_order=cfg.modulation_order,
                          sigma_q_init=cfg.sigma_q, anneal_period=anneal_period(cfg))
         self._kl = None
@@ -344,9 +344,12 @@ class CNNBaseline(EnergyReference, nn.Module):
     def quantiser(self) -> SoftToHardQuantiser | None:
         return self.jscc.quantiser
 
-    def channel_input(self, batch: dict) -> torch.Tensor:
+    def channel_input(self, batch: dict, snr_db: torch.Tensor | None = None) -> torch.Tensor:
+        """Every transmitted symbol, (B, k, 2); at snr_db for an SNR-aware transmitter (the SNR
+        reaches only its encoder; any other ignores it)."""
         x = batch["image"]
-        return self.jscc.transmit(x, torch.zeros(x.shape[0], device=x.device))
+        s = torch.zeros(x.shape[0], device=x.device) if snr_db is None else snr_db.to(x.device)
+        return self.jscc.transmit(x, s)
 
     def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
         x = batch["image"]

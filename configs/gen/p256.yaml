@@ -1,0 +1,67 @@
+# Generative-JSCC prototype at 256x256 on Imagenette: p128.yaml with only the resolution changed
+# (the 18 Nov question: is the DiT receiver's semantic loss a 128 px SD-VAE problem?
+# scripts/gen_analysis/vae_resolution.py: the VAE round trip keeps DINOv2 0.96 at 256 px, 0.81 at 128).
+#
+# Bandwidth: both branches emit a 16x16 grid (256 / 16). c_sem = 8 and c_det = 24 give
+# k_s = 1,024 and k_d = 3,072 complex symbols, k = 4,096 = 1/48 of the 196,608 source values, the
+# same ratio as p128. The CNN baseline matches it with c_out = 2 ((256/4)^2 * 2 / 2 = 4,096).
+# DINOv2 sees 224 px either way (16 patches a side), so the 16x16 grid is its native patch grid.
+
+name: gen-p256
+seed: 0
+out_dir: results/gen/p256
+model: dit
+
+dataset: imagenette
+data_root: data
+image_size: 256
+dino_model: dinov2_vitb14
+dino_input: 224
+vae_model: stabilityai/sd-vae-ft-ema
+
+c_sem: 8
+c_det: 24
+det_hidden: 128
+cnn_c_out: 2
+cnn_hidden: 256
+
+channel: awgn
+snr_mode: fixed
+snr_train_fixed: 0.0
+snr_train_min: -5.0
+snr_train_max: 5.0
+# Digital runs (--qam M): SNR against the energy the QAM symbols actually carry (Es/N0), as for the
+# analog runs, whose per-image power is exactly 1. g-w4 used "nominal" (Es = 1): clipping onto the
+# outer points left it sending 0.83, an unstated 0.8 dB handicap.
+power_ref: actual
+
+dit_size: S
+patch_size: 2
+cond_blocks_sem: 3
+cond_blocks_det: 3
+cfg_dropout: 0.1
+# Velocity target (v-prediction). g-w1 trained on the noise target and its samples did not match
+# their inputs: its clean-latent estimate at high noise ignored the received symbols.
+prediction: v
+
+lr: 0.0001
+warmup_steps: 1000
+batch_size: 64
+steps: 40000
+ema_decay: 0.9999
+ema_warmup: true
+num_workers: 2
+amp: true
+
+eval_snrs: [-5.0, 0.0, 5.0]
+sample_steps: [50, 20, 10]
+cfg_scale: 1.0
+eval_images: 1000
+eval_batch: 50
+val_every: 2000
+sample_every: 10000
+ckpt_every: 2000
+
+wandb: true
+wandb_project: gen-jscc
+wandb_mode: online

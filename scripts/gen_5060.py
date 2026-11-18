@@ -14,6 +14,13 @@ the same test sets as the Kaggle runs. Outputs go to results/gen/p128-conv/.
                 the 18 Nov sweep (g-s3) showed a refiner in the SD-VAE latent at 128 px cannot keep
                 the CNN's semantics
 
+256 px test (configs/gen/p256.yaml, same bandwidth ratio; only when named):
+  dit256        blind 16-QAM DiT-S to convergence, the recipe of the 128 px g-v1 (results/gen/p256-conv)
+  cnn256        blind 16-QAM CNN, pixel MSE, 40k steps: the budget of the 128 px reference g-cb2
+  cnn256-ft     + 0.1 LPIPS for 10k steps from cnn256 (results/gen/p256-perc)
+The CNN is trained at the reference's budget, not to convergence: a DiT that loses to it loses to
+a converged one too; only a DiT that wins needs the converged CNN (pre-registered 18 Nov).
+
 usage (from the repo root, on the 5060 machine):
     python scripts/gen_5060.py                 # the default stages in order
     python scripts/gen_5060.py cnn16 cnn16-ft  # only these stages
@@ -63,6 +70,18 @@ STAGES = {
     "cnn-ft": CNN_FT,
     "ref16": [REF16 + GEN_STEPS + t for t in TESTS],
 }
+P256 = ["--config", "configs/gen/p256.yaml", "--wandb-mode", "offline"]
+DIT256 = P256 + ["--models", "dit", "--arms", "blind", "--qam", "16", "--steps", "150000", "--patience", "10",
+                 "--out-dir", "results/gen/p256-conv"]
+CNN256 = P256 + ["--models", "cnn", "--arms", "blind", "--qam", "16", "--sanity-steps", "0",
+                 "--out-dir", "results/gen/p256-perc"]
+CNN256_FT = CNN256 + ["--init-from", "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0",
+                      "--cnn-lpips-weight", "0.1", "--steps", "10000", "--tag", "ft"]
+STAGES.update({
+    "dit256": [DIT256 + GEN_STEPS + t for t in TESTS],
+    "cnn256": [CNN256 + ["--steps", "40000"] + TESTS[1]],
+    "cnn256-ft": [CNN256_FT + t for t in TESTS],
+})
 DEFAULT = ["cnn16", "cnn16-ft", "cnn", "cnn-ft"]
 
 

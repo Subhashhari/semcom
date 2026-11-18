@@ -713,9 +713,27 @@ def test_snr_aware_transmitter_starts_from_a_blind_run_and_learns_to_use_the_snr
 
 def test_snr_aware_transmitter_options_are_validated():
     with pytest.raises(ValueError):
-        GenConfig(model="cnn", encoder_snr=True)
+        GenConfig(model="refiner", refine_from="x", encoder_snr=True)
     with pytest.raises(ValueError):
         GenConfig(digital=True, modulation_order=16, encoder_snr=True)
+
+
+def test_cnn_snr_aware_transmitter_sends_what_the_snr_asks(tmp_path):
+    from semcom.gen.model import build_model
+    from semcom.gen.train import train
+
+    torch.manual_seed(0)
+    cfg = tiny(tmp_path, model="cnn", digital=True, modulation_order=16, power_ref="actual",
+               encoder_snr=True, snr_mode="blank", eval_snrs=[-5.0, 5.0], sanity_steps=0)
+    assert cfg.run_name == "cnn_cbr48_qam16_blind-5to5_txsnr_s0"
+    m = build_model(cfg, dino_dim=768).eval()
+    assert m.jscc.encoder_snr
+    b = {"image": torch.rand(2, 3, cfg.image_size, cfg.image_size)}
+    lo, hi = (m.channel_input(b, torch.full((2,), v)) for v in (-5.0, 5.0))
+    assert lo.shape == hi.shape and not torch.equal(lo, hi)  # the encoder's AF modules see the SNR
+    train(cfg)
+    hist = json.loads((cfg.run_dir / "history.json").read_text())
+    assert {"qam_power@-5", "qam_power@5"} <= set(hist["history"][-1]["quality"])
 
 
 def test_suffixed_evaluation_keeps_the_main_one(tmp_path):

@@ -74,8 +74,9 @@ class GenConfig:
     channel: str = "awgn"
     avg_power: float = 1.0
     snr_mode: str = "fixed"
-    #: DiT only: the transmitter (both encoders) is also given the SNR, through FiLM layers that
-    #: start at the identity, so a fine-tune from a run without them starts from that run exactly.
+    #: The transmitter is also given the SNR. DiT: both encoders, through FiLM layers that start at
+    #: the identity, so a fine-tune from a run without them starts from that run exactly. CNN: the
+    #: encoder's AF modules (semcom.models.JSCC, encoder_snr), as in the blind study's arm A.
     #: Independent of snr_mode, which is about the receiver: blank + encoder_snr is a blind
     #: receiver behind an SNR-aware transmitter (the SNR known at the sender, e.g. by feedback).
     encoder_snr: bool = False
@@ -217,8 +218,8 @@ class GenConfig:
             raise ValueError("train_fraction subsamples the dataset's own sorted files; not with extra_train")
         if self.tag and not all(c.isalnum() or c == "-" for c in self.tag):
             raise ValueError(f"tag must be letters, digits and '-', got {self.tag!r}")
-        if self.encoder_snr and self.model != "dit":
-            raise ValueError("encoder_snr applies to the DiT model only")
+        if self.encoder_snr and self.model not in ("dit", "cnn"):
+            raise ValueError("encoder_snr applies to the DiT and CNN models only")
         if self.encoder_snr and self.digital and self.power_ref != "actual":
             # The transmitter could otherwise buy SNR by picking higher-energy points at low SNR.
             raise ValueError("a digital SNR-aware transmitter needs power_ref='actual'")
