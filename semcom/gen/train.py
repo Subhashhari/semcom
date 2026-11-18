@@ -21,6 +21,7 @@ from __future__ import annotations
 import argparse
 import copy
 import json
+import os
 import time
 from pathlib import Path
 
@@ -185,6 +186,13 @@ def train(cfg: GenConfig) -> dict | None:
         torch.backends.cuda.matmul.allow_tf32 = True
         torch.backends.cudnn.allow_tf32 = True
         torch.backends.cudnn.benchmark = True
+        # A per-machine cap on this process's share of GPU memory (not part of the run's config):
+        # on a WSL box whose desktop also uses the card, the caching allocator would otherwise
+        # reserve up to the whole card and get paged to system memory (10x slower) whenever the
+        # desktop needs some back. Under the cap it frees cached blocks instead.
+        frac = os.environ.get("GEN_GPU_MEM_FRACTION")
+        if frac:
+            torch.cuda.set_per_process_memory_fraction(float(frac))
     prepare(cfg, device)
     meta = cache_meta(cfg)
 
@@ -320,12 +328,15 @@ def train(cfg: GenConfig) -> dict | None:
                     quality.update({f"{k}@{s:g}": v for k, v in st.items()})
             else:
                 quality.update(symbol_stats(ema, quality_batch))
+            peak_gb = torch.cuda.max_memory_allocated() / 1e9 if device.type == "cuda" else 0.0
             if device.type == "cuda":  # hand the validation pass's memory back to training
                 torch.cuda.empty_cache()
             entry = {"step": step, "val_loss": sum(v["loss"] for v in val.values()) / len(val),
                      "val_by_snr": val, "quality": quality, "skipped": skipped,
                      "hours": (time.time() - t0) / 3600}
             fields = {"val_loss": entry["val_loss"]}
+            if peak_gb:
+                fields["mem_peak_gb"] = peak_gb
             if cfg.model != "cnn":
                 entry["cond_gain"] = sum(v["cond_gain"] for v in val.values()) / len(val)
                 fields["uncond"] = sum(v["uncond"] for v in val.values()) / len(val)
