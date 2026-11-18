@@ -18,6 +18,8 @@ the same test sets as the Kaggle runs. Outputs go to results/gen/p128-conv/.
   dit256        blind 16-QAM DiT-S to convergence, the recipe of the 128 px g-v1 (results/gen/p256-conv)
   cnn256        blind 16-QAM CNN, pixel MSE, 40k steps: the budget of the 128 px reference g-cb2
   cnn256-ft     + 0.1 LPIPS for 10k steps from cnn256 (results/gen/p256-perc)
+  dump256       reconstructions of the three for the analysis suite (results/gen/dump/p256; then
+                scripts/gen_analysis/suite.py scripts/gen_analysis/specs/p256.json on the development PC)
 The CNN is trained at the reference's budget, not to convergence: a DiT that loses to it loses to
 a converged one too; only a DiT that wins needs the converged CNN (pre-registered 18 Nov).
 
@@ -77,10 +79,17 @@ CNN256 = P256 + ["--models", "cnn", "--arms", "blind", "--qam", "16", "--sanity-
                  "--out-dir", "results/gen/p256-perc"]
 CNN256_FT = CNN256 + ["--init-from", "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0",
                       "--cnn-lpips-weight", "0.1", "--steps", "10000", "--tag", "ft"]
+RUNS256 = ["results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
+           "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
+           "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"]
 STAGES.update({
     "dit256": [DIT256 + GEN_STEPS + t for t in TESTS],
     "cnn256": [CNN256 + ["--steps", "40000"] + TESTS[1]],
     "cnn256-ft": [CNN256_FT + t for t in TESTS],
+    # Reconstructions for the analysis suite (scripts/gen_analysis/specs/p256.json): the same 1,000
+    # class-spread test images, channel and sampling seeds as the eval-spread scores, on this GPU.
+    "dump256": [["scripts/gen_analysis/dump.py", "results/gen/dump/p256", "1000", "-5,0,5", *RUNS256,
+                 "--base", "configs/gen/p256.yaml"]],
 })
 DEFAULT = ["cnn16", "cnn16-ft", "cnn", "cnn-ft"]
 
@@ -115,8 +124,9 @@ def main() -> None:
     for n in names:
         for plan in STAGES[n]:
             t0 = time.time()
-            print(f"\n=== {n}: run_gen.py {' '.join(plan)}", flush=True)
-            subprocess.run([sys.executable, "scripts/run_gen.py", *plan], cwd=R, check=True)
+            cmd = plan if plan[0].endswith(".py") else ["scripts/run_gen.py", *plan]  # a script, or a run_gen plan
+            print(f"\n=== {n}: {' '.join(cmd)}", flush=True)
+            subprocess.run([sys.executable, *cmd], cwd=R, check=True)
             print(f"=== {n} step done in {(time.time() - t0) / 3600:.2f} h", flush=True)
     print(f"\nall done: copy {OUT}/ back to the development PC")
 

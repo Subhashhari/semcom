@@ -15,7 +15,11 @@ are the very ones scored in eval-spread*.json when N matches):
 
 Saved as OUT_DIR/<name>__<snr>.npz, plus OUT_DIR/dump.json (settings and the index lists).
 
-usage: dump.py OUT_DIR N SNR[,SNR...] SPEC [SPEC ...] [--keep 5] [--samples 4] [--diversity 40] [--dry-run]
+usage: dump.py OUT_DIR N SNR[,SNR...] SPEC [SPEC ...] [--keep 5] [--samples 4] [--diversity 40]
+               [--base CONFIG] [--dry-run]
+  --base: the config whose data cache, resolution and DINOv2 path the dump uses (default: the 128 px
+          blind DiT run's); every SPEC must have its image size, e.g. --base configs/gen/p256.yaml.
+          The kept originals are saved in _original.npz, so the suite needs no local cache.
   SPEC: RUN_DIR (relative to the repo root) or RUN_DIR@G (classifier-free guidance G)
   ("--wandb-mode X", which the Kaggle runner appends, is ignored.)"""
 import json
@@ -53,6 +57,11 @@ if "--wandb-mode" in argv:
 keep = option(argv, "--keep", 5)
 n_samples = option(argv, "--samples", 4)
 n_div = option(argv, "--diversity", 40)
+base_cfg = "results/gen/p128/dit-S-v_cbr48_blind-5to5_s0/config.yaml"
+if "--base" in argv:
+    i = argv.index("--base")
+    base_cfg = argv[i + 1]
+    del argv[i:i + 2]
 dry = "--dry-run" in argv
 argv = [a for a in argv if a != "--dry-run"]
 out_dir, n = Path(argv[0]), int(argv[1])
@@ -69,7 +78,11 @@ if dry:
 out_dir.mkdir(parents=True, exist_ok=True)
 dev = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 torch.set_num_threads(16)
-base = GenConfig.from_yaml(R / "results/gen/p128/dit-S-v_cbr48_blind-5to5_s0/config.yaml")
+base = GenConfig.from_yaml(R / base_cfg)
+for spec in specs:  # one resolution per dump: the originals, the classifier and the metrics share it
+    size = GenConfig.from_yaml(R / spec.partition("@")[0] / "config.yaml").image_size
+    if size != base.image_size:
+        raise SystemExit(f"{spec}: image_size {size}, base {base_cfg} has {base.image_size} (pass --base)")
 if not (base.cache_dir / "test_images.npy").exists():
     from semcom.gen.data import prepare  # noqa: E402
 
@@ -96,7 +109,7 @@ idx = np.linspace(0, images.shape[0] - 1, n).round().astype(int)  # = evaluate -
 labels = test_labels[idx]
 kept = np.arange(0, n, keep)  # positions within idx whose images are saved
 div = kept[:n_div]
-bank_f = out_dir / f"train_bank_{TRAIN_PER_CLASS}.pt"
+bank_f = out_dir / f"train_bank_{TRAIN_PER_CLASS}_{base.image_size}px.pt"
 if bank_f.exists():
     bank, bank_y = torch.load(bank_f, map_location="cpu")
 else:
@@ -118,9 +131,10 @@ orig_emb = embed(x)
 meta_f = out_dir / "dump.json"
 meta = json.loads(meta_f.read_text()) if meta_f.exists() else {"runs": {}}
 meta.update(n=n, index=idx.tolist(), kept=kept.tolist(), diversity=div.tolist(), classes=classes,
-            labels=labels.tolist(), steps=STEPS, device=torch.cuda.get_device_name(0) if dev.type == "cuda" else "cpu")
+            labels=labels.tolist(), steps=STEPS, image_size=base.image_size, base=base_cfg,
+            device=torch.cuda.get_device_name(0) if dev.type == "cuda" else "cpu")
 np.savez_compressed(out_dir / "_original.npz", pred=classify(orig_emb), emb=orig_emb.half().numpy(),
-                    label=labels, index=idx)
+                    label=labels, index=idx, image=np.asarray(images[idx[kept]]))
 lat_all = np.load(base.cache_dir / "test_latents.npy", mmap_mode="r")
 dino_all = np.load(base.cache_dir / "test_dino.npy", mmap_mode="r")
 

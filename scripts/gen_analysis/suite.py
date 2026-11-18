@@ -15,16 +15,20 @@ and writes OUT/report.md with its figures:
   4  plane          perception-distortion and perception-semantics planes
   5  per image      where a perceptual gain comes with a semantic loss on the same image
   6  per class      class kept per class
-  7  images         one image per class per system; each candidate's best and worst images
+  7  images         one image per class per system; each candidate's best and worst images;
+                    close-ups at full resolution
   8  spectrum       radial power spectrum against the originals (blur vs invented texture)
   9  statistics     sharpness, contrast, colour shift, saturation against the originals
   10 diversity      how much repeated sampling changes the output (generative receivers)
   11 refiner        what the diffusion stage changed in its CNN input; class fixed / broken
-  12 training       validation curves
+  12 training       loss, jitter, gradient norm, validation quality, convergence, samples over training
+                    (scripts/gen_analysis/training.py)
 
 usage: suite.py SPEC.json
 SPEC: {"out": DIR, "dump": DIR (optional), "reference": KEY, "snrs": [-5, 0, 5],
-       "systems": [{"key": KEY, "label": TEXT, "run": RUN_DIR}, ...]}
+       "systems": [{"key": KEY, "label": TEXT, "run": RUN_DIR, "logs": [LOG, ...] (optional)}, ...],
+       "context": [{"key": KEY, "label": TEXT, "run": RUN_DIR}, ...] (optional: mean curves only, not judged),
+       "closeups": [CLASS NAME, ...] (optional: the images of section 7b)}
 Systems are drawn in the order given (fixed colours: first = reference)."""
 import json
 import sys
@@ -112,6 +116,13 @@ def per_image(key) -> dict:
 
 M = {k: means(k) for k in KEYS}
 P = {k: per_image(k) for k in KEYS}
+# Context systems (spec "context"): mean metrics only, drawn dotted in section 2, never paired or judged
+# (e.g. the 128 px runs next to 256 px ones: different images, so no per-image comparison).
+CTX = [c["key"] for c in spec.get("context", [])]
+for i, c in enumerate(spec.get("context", [])):
+    LABEL[c["key"]], RUN[c["key"]] = c["label"], R / c["run"]
+    COLOR[c["key"]] = SLOTS[(len(KEYS) + i) % len(SLOTS)]
+    M[c["key"]] = means(c["key"])
 D, DMETA = {}, None
 if DUMP and (DUMP / "dump.json").exists():
     DMETA = json.loads((DUMP / "dump.json").read_text())
@@ -119,9 +130,12 @@ if DUMP and (DUMP / "dump.json").exists():
         name = RUN[k].name
         for f in DUMP.glob(f"{name}__*.npz"):
             D.setdefault(k, {})[float(f.stem.split("__")[1])] = dict(np.load(f))
-    ORIG8 = np.load(R / "data/gen_cache/imagenette_128_vitb14/test_images.npy", mmap_mode="r")
     KEPT_IDX = np.array(DMETA["index"])[DMETA["kept"]]
-    ORIG = np.asarray(ORIG8[KEPT_IDX])
+    _orig = np.load(DUMP / "_original.npz")
+    if "image" in _orig.files:  # dumps since 19 Nov carry their originals (any resolution)
+        ORIG = _orig["image"]
+    else:  # older 128 px dumps: from the local cache
+        ORIG = np.asarray(np.load(R / "data/gen_cache/imagenette_128_vitb14/test_images.npy", mmap_mode="r")[KEPT_IDX])
     LABELS = np.array(DMETA["labels"])
     CLASSES = DMETA["classes"]
 NAMES = {"n01440764": "tench", "n02102040": "springer", "n02979186": "cassette player", "n03000684": "chain saw",
@@ -186,7 +200,8 @@ for k in CAND:
         cells.append(f"{'yes' if gain else 'no'} / {'yes' if loss else 'no'}")
     if ok:
         passed.append(k)
-    md(f"| {LABEL[k]} | " + " | ".join(cells) + f" | {'**passes**' if ok else 'does not pass'} |")
+    verdict = "not scored yet" if "no data" in cells else "**passes**" if ok else "does not pass"
+    md(f"| {LABEL[k]} | " + " | ".join(cells) + f" | {verdict} |")
 if passed:
     best = max(passed, key=lambda k: M[k].get(0.0, {}).get("dino_sim", -1))
     md("", f"Chosen by the rule: **{LABEL[best]}**.")
@@ -209,21 +224,29 @@ for ax, (m, title) in zip(axes.flat, METRICS):
         if xs:
             ax.plot(xs, ys, color=COLOR[k], lw=2 if k != REF else 2.4, marker="o", ms=4,
                     ls="--" if k == REF else "-", label=LABEL[k])
+    for k in CTX:
+        xs = [s for s, v in M[k].items() if m in v] if m != "class" else []
+        if xs:
+            ax.plot(xs, [M[k][s][m] for s in xs], color=COLOR[k], lw=1.2, ls=":", marker="s", ms=3,
+                    label=f"{LABEL[k]} (context)")
     ax.set_title(title, color=INK, loc="left", fontsize=9.5)
     ax.set_xlabel("SNR (dB)")
 handles, labels = axes.flat[0].get_legend_handles_labels()
-fig.legend(handles, labels, loc="lower center", ncol=min(len(KEYS), 4), bbox_to_anchor=(0.5, -0.06))
+fig.legend(handles, labels, loc="lower center", ncol=min(len(KEYS) + len(CTX), 4), bbox_to_anchor=(0.5, -0.06))
 fig.tight_layout()
 save(fig, "curves.png")
+if CTX:
+    md("Dotted lines are context only (" + ", ".join(LABEL[k] for k in CTX) + "): scored on their own "
+       "images, so they are not paired with or judged against the systems above.", "")
 rows = sorted({s for k in KEYS for s in M[k]})
 md("| SNR | System | PSNR | LPIPS | DINOv2 | Top-1 | FID | Class kept |", "|---|---|---|---|---|---|---|---|")
 for s in rows:
-    for k in KEYS:
+    for k in KEYS + CTX:
         v = M[k].get(s)
         if not v:
             continue
-        ck = class_kept(k, s)
-        md(f"| {s:g} | {LABEL[k]} | {v['psnr']:.2f} | {v.get('lpips', float('nan')):.3f} | {v['dino_sim']:.3f} | "
+        ck = class_kept(k, s) if k in KEYS else None
+        md(f"| {s:g} | {LABEL[k]}{' (context)' if k in CTX else ''} | {v['psnr']:.2f} | {v.get('lpips', float('nan')):.3f} | {v['dino_sim']:.3f} | "
            f"{100 * v['retrieval_top1']:.0f}% | {v.get('fid', float('nan')):.0f} | "
            f"{'' if ck is None else f'{ck:.0f}%'} |")
 md("")
@@ -391,6 +414,47 @@ else:
         fig.tight_layout()
         save(fig, f"extremes_{k}.png")
 
+    # ---- 7b close-ups at full resolution
+    W = ORIG.shape[-1]
+    first_of = {int(lab_kept[i]): i for i in pick}  # class -> its picked kept image
+    name_to_c = {NAMES.get(c, c): ci for ci, c in enumerate(CLASSES)}
+    want = spec.get("closeups", ["tench", "church", "garbage truck", "parachute"])
+    close = [first_of[name_to_c[w]] for w in want if name_to_c.get(w) in first_of]
+    sys_close = [k for k in KEYS if k in D]
+    if close and sys_close:
+        md("### Close-ups at full resolution", "",
+           f"{len(close)} images at their native {W} px (one image pixel per figure pixel), each followed by its "
+           "centre third enlarged: blur, invented texture and artefacts show here. Under each reconstruction: "
+           "its PSNR | DINOv2 similarity to the original.", "")
+        a, c0 = W // 3, W // 3
+        inch = W / plt.rcParams["savefig.dpi"]
+        for s in [v for v in (0.0, 5.0) if v in common]:
+            cols = [None] + sys_close
+            fig, axes = plt.subplots(2 * len(close), len(cols), squeeze=False,
+                                     figsize=(len(cols) * inch, 2 * len(close) * (inch + 0.3)))
+            for r, i in enumerate(close):
+                full = DMETA["kept"][i]
+                for j, k in enumerate(cols):
+                    img = ORIG[i] if k is None else D[k][s]["recon"][i]
+                    sub = None
+                    if k is not None:
+                        dn = P.get(k, {}).get(s, {}).get("dino_sim")
+                        sub = f"{psnr8(img, ORIG[i]):.1f} dB" + (f" | {dn[full]:.2f}" if dn is not None else "")
+                    head = ("Original" if k is None else LABEL[k].replace(", ", ",\n")) if r == 0 else None
+                    show(axes[2 * r, j], img, head, sub)
+                    if k is None:
+                        axes[2 * r, j].set_xlabel(NAMES.get(CLASSES[lab_kept[i]], ""), fontsize=6.5, color=INK2)
+                    ax = axes[2 * r + 1, j]
+                    ax.imshow(img[:, c0:c0 + a, c0:c0 + a].transpose(1, 2, 0), interpolation="nearest")
+                    ax.set_xticks([])
+                    ax.set_yticks([])
+                    ax.grid(False)
+                    for sp in ax.spines.values():
+                        sp.set_visible(False)
+            fig.suptitle(f"{s:g} dB", fontsize=9, x=0.02, ha="left")
+            fig.tight_layout()
+            save(fig, f"closeups_{s:g}.png")
+
     # ---- 8 spectrum
     md("## 8. Power spectrum against the originals", "",
        "Radially averaged power spectrum of the reconstructions over that of the originals (kept images, "
@@ -535,27 +599,14 @@ else:
             save(fig, f"refiner_{k}_{s:g}.png")
 
 # ------------------------------------------------------------------ 12 training
-md("## 12. Training", "", "Validation curves from each run's history.json (EMA weights). The diffusion loss of "
-   "the generative systems and the CNN's pixel MSE are different quantities: compare loss within a family only.", "")
-fig, axes = plt.subplots(1, 3, figsize=(12, 3.4))
-for k in KEYS:
-    hf = RUN[k] / "history.json"
-    if not hf.exists():
-        continue
-    h = json.loads(hf.read_text())["history"]
-    st = [e["step"] for e in h]
-    q = [e.get("quality", {}) for e in h]
-    if all("psnr@0" in e for e in q):
-        axes[0].plot(st, [e["psnr@0"] for e in q], color=COLOR[k], lw=1.6, label=LABEL[k])
-        axes[1].plot(st, [e["dino@0"] for e in q], color=COLOR[k], lw=1.6)
-    if not RUN[k].name.startswith("cnn"):
-        axes[2].plot(st, [e["val_loss"] for e in h], color=COLOR[k], lw=1.6)
-for ax, t in zip(axes, ["val PSNR at 0 dB (32 images)", "val DINOv2 similarity at 0 dB", "val diffusion loss"]):
-    ax.set_title(t, fontsize=9, loc="left")
-    ax.set_xlabel("step")
-axes[0].legend(fontsize=7)
-fig.tight_layout()
-save(fig, "training.png")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from training import analyse  # noqa: E402
+
+md("## 12. Training", "", "From each run's logs (spec `logs`, in order; resumed runs merged) and history.json. "
+   "The diffusion loss of the generative systems and the CNN's pixel loss are different quantities: compare "
+   "loss within a family only.", "")
+md(*analyse([{"key": k, "label": LABEL[k], "run": RUN[k], "logs": [R / p for p in s.get("logs", [])]}
+             for k, s in zip(KEYS, SYS)], OUT, COLOR))
 
 (OUT / "report.md").write_text("\n".join(report), encoding="utf-8")
 print(f"wrote {OUT / 'report.md'} ({len(list(OUT.glob('*.png')))} figures)")
