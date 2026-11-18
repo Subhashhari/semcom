@@ -205,6 +205,7 @@ def prepare(cfg: GenConfig, device: torch.device | None = None, batch: int = 64)
     if need > 0.95 * free:
         raise OSError(f"cache needs {need / 1e9:.1f} GB but only {free / 1e9:.1f} GB is free at {out}")
     pool = ThreadPoolExecutor(max_workers=min(8, os.cpu_count() or 1))  # JPEG decoding is the bottleneck
+    sub = max(1, batch * 128**2 // s**2)
     counts = {}
     for split, source in sources.items():
         n = len(source)
@@ -227,8 +228,13 @@ def prepare(cfg: GenConfig, device: torch.device | None = None, batch: int = 64)
             for flip in flips:
                 xf = x.flip(-1) if flip else x
                 suffix = "_flip" if flip else ""
-                arrays[f"latents{suffix}"][start:stop] = vae.encode(xf).half().cpu().numpy()
-                arrays[f"dino{suffix}"][start:stop] = dino(xf, g)[0].half().cpu().numpy()
+                # Encoded in sub-batches of the same pixel count as 64 images at 128 px, so the VAE's
+                # activations fit an 8 GB GPU at 256 px; every op is per image, so the values do not
+                # depend on the batching.
+                for a in range(0, len(xf), sub):
+                    xs, i = xf[a:a + sub], slice(start + a, start + a + len(xf[a:a + sub]))
+                    arrays[f"latents{suffix}"][i] = vae.encode(xs).half().cpu().numpy()
+                    arrays[f"dino{suffix}"][i] = dino(xs, g)[0].half().cpu().numpy()
             print(f"  {split}: {stop}/{n}", end="\r", flush=True)
         for a in arrays.values():
             a.flush()
