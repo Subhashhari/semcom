@@ -61,6 +61,52 @@ def channel(
     return eq / (hr.pow(2) + hi.pow(2)).clamp_min(1e-12).unsqueeze(-1)
 
 
+#: Cues an "est-<cue>" receiver view can estimate the SNR with (semcom.snr_estimation).
+RX_CUES = ("energy", "dd", "hybrid", "m2m4")
+
+
+def check_rx(rx: str) -> str:
+    """Validate a receiver view name (see receiver_view); returns it."""
+    if rx == "true" or (rx.startswith("est-") and rx[4:] in RX_CUES):
+        return rx
+    for head in ("gain", "offset"):
+        if rx.startswith(head):
+            try:
+                float(rx[len(head):])
+                return rx
+            except ValueError:
+                pass
+    raise ValueError(f"receiver view must be true, est-<{'|'.join(RX_CUES)}>, gain<dB> or offset<dB>, got {rx!r}")
+
+
+def receiver_view(y: torch.Tensor, snr_db: torch.Tensor, rx: str, points=None, signal_power=1.0):
+    """What the receiver works from, for the mismatch tests of the SNR-placement study.
+
+    Takes the received symbols y (B, k, 2) and the true SNR; returns (y', told SNR):
+      true         unchanged
+      gain<dB>     the received amplitude off by that many dB (an equaliser gain error); told SNR true
+      offset<dB>   the receiver is told the true SNR plus that many dB (a biased SNR report)
+      est-<cue>    the receiver is told an SNR estimated from y alone (semcom.snr_estimation;
+                   "dd" and "hybrid" need the constellation, "m2m4" uses the constellation's
+                   kurtosis when digital and 2.0 otherwise), clipped to [-20, 40] dB
+    A blind receiver ignores the told SNR, so only gain errors reach it."""
+    check_rx(rx)
+    if rx == "true":
+        return y, snr_db
+    if rx.startswith("gain"):
+        return y * 10 ** (float(rx[4:]) / 20), snr_db
+    if rx.startswith("offset"):
+        return y, snr_db + float(rx[6:])
+    from ..snr_estimation import QAM_KURTOSIS, implied_snr_db
+
+    cue = rx[4:]
+    kurt = None
+    if cue == "m2m4":
+        kurt = QAM_KURTOSIS.get(len(points), 2.0) if points is not None else 2.0
+    est, _ = implied_snr_db(cue, y.float(), points, float(signal_power), kurt, clip=(-20.0, 40.0))
+    return y, est.to(snr_db.dtype)
+
+
 def to_symbols(feat: torch.Tensor) -> torch.Tensor:
     """(B, C, g, g) -> (B, C*g*g/2, 2), pairing values into (I, Q)."""
     return feat.reshape(feat.shape[0], -1, 2)
@@ -296,11 +342,26 @@ class GenJSCC(EnergyReference, nn.Module):
         return self.diffusion.sample(eps_fn, (b, 4, lat, lat), steps, y_s.device, generator, eta,
                                      x_start=x_start, start=start)
 
+    def rx_reference(self):
+        """(constellation points or None, the signal energy the receiver assumes)."""
+        q = self.quantiser
+        es = self.es_ref.item() if hasattr(self, "es_ref") else self.cfg.avg_power
+        return (q.points if q is not None else None), es
+
     @torch.no_grad()
     def reconstruct(self, batch, snr_db, vae, steps=50, channel_gen=None, sample_gen=None,
-                    eta=0.0, cfg_scale=1.0, start=1.0) -> torch.Tensor:
+                    eta=0.0, cfg_scale=1.0, start=1.0, rx="true") -> torch.Tensor:
+        """`rx`: what the receiver works from (receiver_view); the channel always runs at snr_db."""
         y_s, y_d = self.received(batch, snr_db, channel_gen)
-        z = self.sample_latent(y_s, y_d, snr_db, steps, sample_gen, eta, cfg_scale)
+        told = snr_db
+        if rx != "true":
+            c, g = self.cfg, self.cfg.grid
+            y = torch.cat([to_symbols(y_s), to_symbols(y_d)], dim=1)
+            y, told = receiver_view(y, snr_db, rx, *self.rx_reference())
+            k_s = c.c_sem * g * g // 2
+            y_s = from_symbols(y[:, :k_s].contiguous(), c.c_sem, g)
+            y_d = from_symbols(y[:, k_s:].contiguous(), c.c_det, g)
+        z = self.sample_latent(y_s, y_d, told, steps, sample_gen, eta, cfg_scale)
         return vae.decode(z.float())
 
 
@@ -378,13 +439,26 @@ class CNNBaseline(EnergyReference, nn.Module):
             self.__dict__["_lpips_net"] = net
         return net
 
+    def rx_reference(self):
+        """(constellation points or None, the signal energy the receiver assumes)."""
+        q = self.quantiser
+        es = self.es_ref.item() if hasattr(self, "es_ref") else self.cfg.avg_power
+        return (q.points if q is not None else None), es
+
     @torch.no_grad()
     def reconstruct(self, batch, snr_db, vae=None, steps=None, channel_gen=None, sample_gen=None,
-                    eta=0.0, cfg_scale=1.0, start=1.0) -> torch.Tensor:
+                    eta=0.0, cfg_scale=1.0, start=1.0, rx="true") -> torch.Tensor:
+        """`rx`: what the receiver works from (receiver_view); the channel always runs at snr_db."""
         x = batch["image"]
         z = self.jscc.transmit(x, snr_db)
         y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z), channel_gen)
-        return self.jscc.decode(y, snr_db, z).float().clamp(0, 1)
+        if rx == "true":
+            return self.jscc.decode(y, snr_db, z).float().clamp(0, 1)
+        if not torch.is_tensor(snr_db) or snr_db.dim() == 0:
+            snr_db = torch.as_tensor(snr_db, device=x.device, dtype=torch.float32).expand(x.shape[0])
+        y, told = receiver_view(y, snr_db, rx, *self.rx_reference())
+        told = told if self.jscc.decoder_input == "snr" else None  # other decoders are not told an SNR
+        return self.jscc.decode(y, snr_db, z, decoder_snr=told).float().clamp(0, 1)
 
 
 #: CNN settings a refiner must share with the CNN it refines (checked when the weights load).

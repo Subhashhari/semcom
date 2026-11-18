@@ -61,7 +61,8 @@ def _sync(device):
 @torch.no_grad()
 def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images: int | None = None,
                  snrs=None, steps_list=None, external: bool = True, suffix: str = "",
-                 subset: str = "first", cfg_scale: float | None = None, start: float = 1.0) -> dict:
+                 subset: str = "first", cfg_scale: float | None = None, start: float = 1.0,
+                 rx: str = "true") -> dict:
     """`external=False` skips LPIPS and FID, whose networks download on first use. A `suffix`
     writes eval-<suffix>.json etc. next to the run's main evaluation instead of replacing it.
 
@@ -69,6 +70,11 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
     split is stored in class order, so the first 1000 cover only 3 of Imagenette's 10 classes.
     "spread" takes n evenly spaced images, covering every class in proportion."""
     # Classifier-free guidance scale for DiT sampling; default: the run's own (1.0 = none).
+    # `rx`: what the receiver works from (semcom.gen.model.receiver_view): the true SNR, an
+    # estimate from the received symbols, a biased report or a gain error. Use with a suffix.
+    from .model import check_rx
+
+    check_rx(rx)
     if subset not in ("first", "spread"):
         raise ValueError(f"subset must be 'first' or 'spread', got {subset!r}")
     if suffix and not all(c.isalnum() or c == "-" for c in suffix):
@@ -142,8 +148,9 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
                 sg = torch.Generator(device=device).manual_seed(seed_of("sample", snr, steps, b))
                 _sync(device)
                 t0 = time.time()
+                extra = {} if rx == "true" else {"rx": rx}
                 x_hat = model.reconstruct(batch, s, vae, steps=steps, channel_gen=ch, sample_gen=sg,
-                                          cfg_scale=cfg.cfg_scale, start=start).float()
+                                          cfg_scale=cfg.cfg_scale, start=start, **extra).float()
                 _sync(device)
                 seconds += time.time() - t0
                 count += x.shape[0]
@@ -173,7 +180,7 @@ def evaluate_run(run_dir: Path, device: torch.device | None = None, eval_images:
            "device": torch.cuda.get_device_name(0) if device.type == "cuda" else "cpu",
            "digital": cfg.digital, "modulation_order": cfg.modulation_order if cfg.digital else None,
            "symbols": symbols,
-           "snrs": snrs, "steps": steps_list, "cfg_scale": cfg.cfg_scale, "start": start, "results": results}
+           "snrs": snrs, "steps": steps_list, "cfg_scale": cfg.cfg_scale, "start": start, "rx": rx, "results": results}
     (run_dir / f"eval{tail}.json").write_text(json.dumps(out, indent=2), encoding="utf-8")
     np.savez_compressed(run_dir / f"eval_images{tail}.npz", **images)
     if first is not None:

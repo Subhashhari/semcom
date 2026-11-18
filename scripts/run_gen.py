@@ -99,6 +99,10 @@ def main() -> None:
     p.add_argument("--sample-steps", nargs="+", type=int, default=None)
     p.add_argument("--eval-cfg-scale", type=float, default=None,
                    help="with --evaluate: classifier-free guidance scale for DiT sampling (use with --eval-suffix)")
+    p.add_argument("--eval-rx", default="true",
+                   help="with --evaluate: what the receiver works from: true (default), est-<energy|dd|hybrid|m2m4> "
+                        "(told an SNR estimated from the received symbols), offset<dB> (told SNR + dB) or "
+                        "gain<dB> (received amplitude off by dB); use with --eval-suffix")
     p.add_argument("--eval-start", type=float, default=1.0,
                    help="with --evaluate, refiner only: start sampling from the CNN's output noised to this "
                         "fraction of the schedule (SDEdit; 1 = from pure noise, the default; use with --eval-suffix)")
@@ -189,7 +193,7 @@ def main() -> None:
         if args.evaluate and not (cfg.run_dir / f"eval{tail}.json").exists():
             evaluate_run(cfg.run_dir, external=cfg.dataset != "synthetic", snrs=args.eval_snrs,
                          steps_list=args.sample_steps, suffix=args.eval_suffix, subset=args.eval_subset,
-                         cfg_scale=args.eval_cfg_scale, start=args.eval_start)
+                         cfg_scale=args.eval_cfg_scale, start=args.eval_start, rx=args.eval_rx)
 
 
 if __name__ == "__main__":

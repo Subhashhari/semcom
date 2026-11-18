@@ -104,6 +104,18 @@ the image, and no SNR input. Each pair of those is taken.
 | [TokCom](https://arxiv.org/html/2502.12096), [Text-guided TokCom](https://arxiv.org/html/2507.05781) | Standard coded digital link, generative receiver with no SNR input, -5 to 5 dB, ImageNet 256 px | Not JSCC, not diffusion: coded bits plus masked-token filling |
 | [DeepJSCC-Q](https://arxiv.org/html/2111.13042) | Soft-to-hard QAM quantiser; one model over 0 to 10 dB with an SNR input; mismatch study | CNN decoder; SNR defined against nominal constellation power |
 
+**Track A, the SNR-placement study (checked 18 Nov).** A blind analog CNN JSCC is taken: CBJSCC
+([Sensors 2024](https://pmc.ncbi.nlm.nih.gov/articles/PMC11209452/)) works "without relying on
+external SNR information", trained over -5 to 20 dB, tested on AWGN and slow Rayleigh, against
+ADJSCC with perfect and fixed feedback; SIJSCC (AWGN only) reports "SNR estimation does not
+significantly benefit SIJSCC". Neither constrains the symbols to a constellation (both map to
+continuous complex symbols), and neither tests an estimated-SNR receiver against a true-SNR one or
+a gain error. A QAM-mapped JSCC for driving ([arXiv 2604.20278](https://arxiv.org/html/2604.20278))
+trains at one SNR (25 dB) with no blind/told comparison. So the open part of A is narrow: where
+the SNR must be known **under a constellation constraint**, with estimated-SNR and gain-error
+arms, for a CNN and a diffusion receiver. CBJSCC's Section 4.4 and SIJSCC's per-scenario results
+were read through a summary, not verbatim; read them before writing related work.
+
 **Wording to use and to avoid.**
 
 - Do not claim "first single-model, SNR-adaptive diffusion JSCC" or "SNR-independent JSCC".
@@ -204,7 +216,36 @@ the current recipe (`--extra-train`, no `--extra-per-class` cap).
 - If W1-C1 matches or beats the DiT everywhere **and** no lever moved the DiT, stop the DiT track
   and choose between an architecture-independent SNR-placement study and a different generator.
 
-### Week 2 (23 to 29 Nov): combine and scale
+### Revised plan after Gate 1 (agreed 18 Nov)
+
+What Gate 1 found: the blind 16-QAM perceptual CNN beats the DiT on PSNR, DINOv2 similarity
+and retrieval at every SNR and on FID from -5 dB up, after both are trained to convergence; the
+DiT keeps only LPIPS. One lever moved the DiT (more data, W1-F1), not enough. Two causes remain:
+a weak prior from 9.5k images, and the SD-VAE, which at 128 px already costs a quarter of the
+CNN's semantics on a round trip (g-s3) but much less at 256 px (`vae_resolution.py`). So the DiT is
+not developed further at 128 px. Two tracks, on separate hardware:
+
+- **A. SNR-placement study (Kaggle, from the 21 Nov quota reset; W3 brought forward).** Does the
+  receiver need the SNR? Arms: blind, told, SNR-aware transmitter, and told with an estimated SNR
+  (`--eval-rx est-<cue>`); 16-QAM over AWGN 0 to 20 dB and Rayleigh fading; gain error
+  (`--eval-rx gain<dB>`). CNN arms first (cheap); the DiT as the second architecture, to show the
+  answer does not depend on the decoder. Novelty is checked against the papers before it is
+  claimed (rule in section 7).
+- **B. One converged 256 px test (RTX 5060).** Blind 16-QAM DiT-S at 256 px, the g-v1 recipe
+  (`configs/gen/p256.yaml`, CBR 1/48, k = 4,096; `gen_5060.py dit256`), against the blind 16-QAM
+  perceptual CNN at 256 px trained at the 128 px reference's budget (40k pixel + 10k LPIPS steps;
+  `cnn256`, `cnn256-ft`). Imagenette only, so resolution is the one change. Pre-registered: the
+  rule of 17 Nov at 0 and +5 dB (LPIPS gain with the 95% interval below 0, or FID more than 5
+  lower, and no clear loss on DINOv2 or top-1). If it passes, converge the CNN at 256 px and
+  re-check, then add the 59k-image data; the DiT is again a candidate main model. If it fails, the
+  DiT stays only as the second architecture of A. A CNN at the reference's budget is enough for a
+  fail: a converged CNN is only stronger.
+- **Replications (Kaggle, this week's quota):** seed 1 of g-v1, g-v2 and g-cb2 (g-v3, g-v4, g-cb3).
+  REPA is kept only if its top-1 gain replicates with a clear paired interval.
+- **5060 order:** dit256, cnn256, cnn256-ft, then the paused 128 px convergence stages (the 16-QAM
+  CNN resumes from step 198k; converging it can only widen a gap that already favours the CNN).
+
+### Week 2 (23 to 29 Nov): combine and scale (superseded by the revised plan above)
 
 Kaggle, about 35 h:
 
@@ -304,3 +345,6 @@ RTX 5060: buffer and reruns.
 | 18 Nov | W1 option B | g-s3 | **Option B as built (a refiner in the SD-VAE latent at 128 px) cannot pass the rule.** SDEdit start 0 / 0.2 / 0.4 / 0.6 / 0.8, 0 dB: DINOv2 0.228 / 0.134 / 0.117 / 0.116 / 0.120 (CNN 0.292), top-1 13 / 5 / 4 / 5 / 5% (CNN 22%), FID 119 / 157 / 167 / 171 / 172 (CNN 118). Start 0 is only the VAE round trip of the CNN's output; paired against the CNN it gains LPIPS (-0.029 at 0 dB, -0.031 at +5) but loses top-1 (-8.4 pts at 0 dB) and DINOv2 (0.29 -> 0.23): **the SD-VAE at 128 px is itself a semantic bottleneck** (also on clean images: VAE ceiling DINOv2 0.81). Any noise above that (start 0.2 is already alpha_bar ~0.66) hands the image to this DiT's weak prior and semantics collapse. Implications: a latent-diffusion receiver at 128 px cannot beat the CNN on semantics; the options are 256 px (VAE at its native resolution), a pixel-space generator, or Gate 1's fallback (the SNR-placement study) |
 | 18 Nov | seeds | g-v3 (own), g-v4 (subhashhhh), g-cb3 (venkat96r) | Launched at 9e91d29, seed 1 replications of the results the decisions rest on: 16-QAM DiT to convergence (g-v1), with REPA (g-v2), and the two-stage blind 16-QAM perceptual CNN (g-cb2). The RTX 5060 queue now skips the refiner (stages cnn16, cnn16-ft, cnn, cnn-ft) |
 | 18 Nov | 256 px check | CPU (`scripts/gen_analysis/vae_resolution.py`) | **The SD-VAE bottleneck is mostly a 128 px problem.** 200 class-spread test images: clean round trip DINOv2 0.81 / PSNR 23.6 dB at 128 px vs 0.96 / 25.9 dB at 256 px. On the blind 16-QAM CNN's 0 dB outputs (upsampled for 256 px), the round trip costs DINOv2 -0.060 at 128 px but -0.017 at 256 px; class kept falls 8 / 7 pts at both (80 -> 72%, 79 -> 72%), so the class-level loss does not shrink. An 8-image first look had suggested equal losses at both sizes: too few images. Reading: 256 px removes most of the VAE's semantic cost, but not the weak-prior problem (data); a 256 px generative receiver is worth one converged test, not yet a commitment |
+| 18 Nov | Gate 1 | (decision) | Revised plan agreed (section 6): stop developing the DiT at 128 px; track A, the SNR-placement study, on Kaggle from the 21 Nov reset; track B, one converged 256 px test, on the RTX 5060; seed replications continue |
+| 18 Nov | 256 px test | RTX 5060 (`gen_5060.py dit256 cnn256 cnn256-ft`, then the 128 px stages) | Launched at 3091c72. The 128 px 16-QAM CNN (`p128-conv/cnn_cbr48_qam16_blind-5to5_s0`) paused at step 198k, still improving (best.pt updated at 198k; the Kaggle reference stopped at about 39k by its time limit). 256 px cache: 11.8 GB; the VAE pass now runs in sub-batches (it ran out of memory on the 8 GB GPU) |
+| 18 Nov | A (code) | none | For the SNR-placement study: the CNN takes an SNR-aware transmitter (`--encoder-snr`, the encoder's AF modules); evaluation can feed the receiver an estimated SNR, a biased one or a gain error (`--eval-rx est-<cue> / offset<dB> / gain<dB>`; a blind receiver sees only the gain error, tested) |

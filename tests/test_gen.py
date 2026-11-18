@@ -982,3 +982,51 @@ def test_sdedit_start_runs_from_the_given_latent():
     assert (near - x0).abs().max() < 0.05  # start 0: one step at t = 0 returns about x_start
     mid = d.sample(net, x0.shape, 5, torch.device("cpu"), g(), x_start=x0, start=0.3)
     assert (mid - x0).pow(2).mean() < (full - x0).pow(2).mean()
+
+
+def test_receiver_view_gain_offset_and_estimate():
+    from semcom.gen.model import check_rx, receiver_view
+
+    torch.manual_seed(0)
+    z = torch.randn(4, 4096, 2) * 0.5**0.5  # unit-energy Gaussian symbols
+    snr = torch.tensor([0.0, 5.0, 10.0, 15.0])
+    y = z + torch.randn_like(z) * (10 ** (-snr / 10) / 2).sqrt().view(-1, 1, 1)
+    assert torch.equal(receiver_view(y, snr, "true")[0], y)
+    g, told = receiver_view(y, snr, "gain+2")
+    assert torch.allclose(g, y * 10 ** 0.1) and torch.equal(told, snr)
+    assert torch.equal(receiver_view(y, snr, "offset-1.5")[1], snr - 1.5)
+    est = receiver_view(y, snr, "est-energy")[1]
+    assert (est - snr).abs().max() < 0.5  # 4,096 symbols: the energy estimate is within half a dB
+    for bad in ("est-genie", "gainx", "snr"):
+        with pytest.raises(ValueError):
+            check_rx(bad)
+
+
+def test_receiver_view_reaches_told_receivers_and_only_gain_reaches_blind_ones(tmp_path):
+    from semcom.gen.model import build_model
+
+    torch.manual_seed(0)
+    for model in ("cnn", "dit"):
+        outs = {}
+        for arm in ("snr", "blank"):
+            cfg = tiny(tmp_path, model=model, snr_mode=arm, digital=True, modulation_order=16, power_ref="actual")
+            m = build_model(cfg, dino_dim=768).eval()
+            vae = None
+            if model == "dit":
+                # adaLN-Zero: at init the DiT ignores its conditions, so give it random weights, and
+                # compare latents (an identity decoder) rather than clamped stand-in images.
+                with torch.no_grad():
+                    for p in m.dit.parameters():
+                        p.normal_(0, 0.05)
+                vae = type("Identity", (), {"decode": staticmethod(lambda z: z)})()
+            b = _w1_batch(cfg)
+            s = torch.full((2,), 0.0)
+
+            def run(rx):
+                ch, sg = torch.Generator().manual_seed(1), torch.Generator().manual_seed(2)
+                return m.reconstruct(b, s, vae, steps=2, channel_gen=ch, sample_gen=sg, rx=rx)
+
+            outs[arm] = {rx: run(rx) for rx in ("true", "offset+6", "gain+3")}
+        assert not torch.equal(outs["snr"]["true"], outs["snr"]["offset+6"]), model
+        assert torch.equal(outs["blank"]["true"], outs["blank"]["offset+6"]), model
+        assert not torch.equal(outs["blank"]["true"], outs["blank"]["gain+3"]), model
