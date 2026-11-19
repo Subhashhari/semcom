@@ -190,6 +190,14 @@ were read through a summary, not verbatim; read them before writing related work
     job's `results/` and resumes from its checkpoint.pt. Both jobs must be on the same account,
     and the first must end cleanly; a killed session cannot be attached.
   - At most two GPU sessions run at once per account.
+  - Measured by `a256-smoke` (19 Nov):
+    - Setup is 35 min, 30 of them the cache.
+    - DiT-S trains at 2.2 to 2.4 it/s; validation every 2k steps adds about 9%.
+    - The spread test at 5 SNRs takes about 25 min.
+    - So a converged run of about 140k steps is about 83k steps in session 1, then the rest
+      plus the test in session 2: about 19 h on one account.
+    - REPA peaks at 7.05 GB (6.76 GB without it). On the 5060 (about 7.3 GB free) that is
+      tight, so reboot Windows before `dit256-repa`.
 - Measured T4 costs: DiT-S 40k steps 1.5 h, DiT-B 40k steps 3.8 h, DiT-S 100k steps on 59k images
   3.7 h, evaluation about 0.3 h. Blind 16-QAM DiT-S to convergence (patience 10): 2.1 to 2.5 h
   (stops at 52k to 62k). 128 px CNN: 3.9 to 4.5 h per 40k pixel steps, 1.8 to 2.2 h per 10k LPIPS
@@ -382,7 +390,7 @@ diffusion receiver, with no quality claim against the CNN.
 - **Sessions:** a 256 px run takes two sessions on one account. The first uses `--max-hours 10.5`;
   a second job resumes it with `--input-job` and runs the test set. An account runs at most two
   sessions at once.
-- **Cost:** about 17 to 19 h per run, an estimate until `a256-smoke` measures the T4.
+- **Cost:** about 19 h per run (measured T4 speed, 19 Nov).
 - **Week of 21 Nov:**
 
   | Account | Runs |
