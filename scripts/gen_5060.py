@@ -20,6 +20,7 @@ the same test sets as the Kaggle runs. Outputs go to results/gen/p128-conv/.
   dit256        blind 16-QAM DiT-S to convergence, the recipe of the 128 px g-v1 (results/gen/p256-conv)
   cnn256        blind 16-QAM CNN, pixel MSE, 40k steps: the budget of the 128 px reference g-cb2
   cnn256-ft     + 0.1 LPIPS for 10k steps from cnn256 (results/gen/p256-perc)
+  dit256-s1     dit256 with seed 1;  dit256-repa  dit256 + REPA (0.5, depth 4); both to convergence
   dump256       reconstructions of the three for the analysis suite (results/gen/dump/p256; then
                 scripts/gen_analysis/suite.py scripts/gen_analysis/specs/p256.json on the development PC)
 The CNN is trained at the reference's budget, not to convergence: a DiT that loses to it loses to
@@ -97,6 +98,10 @@ RUNS256 = ["results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"]
 STAGES.update({
     "dit256": [DIT256 + GEN_STEPS + t for t in TESTS],
+    # Paired with dit256 on this GPU (19 Nov): its seed 1 (the 256 px seed spread, for the seed
+    # rule and for judging any 256 px variant) and REPA as at 128 px (g-v3: weight 0.5, depth 4).
+    "dit256-s1": [DIT256 + ["--seeds", "1"] + GEN_STEPS + t for t in TESTS],
+    "dit256-repa": [DIT256 + ["--repa-weight", "0.5", "--repa-depth", "4"] + GEN_STEPS + t for t in TESTS],
     "cnn256": [CNN256 + ["--steps", "40000"] + TESTS[1]],
     "cnn256-ft": [CNN256_FT + t for t in TESTS],
     # Reconstructions for the analysis suite (scripts/gen_analysis/specs/p256.json): the same 1,000
