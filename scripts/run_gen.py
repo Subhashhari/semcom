@@ -65,6 +65,8 @@ def main() -> None:
     p.add_argument("--dit-size", choices=["S", "B", "L"], default=None)
     p.add_argument("--prediction", choices=["eps", "v"], default=None, help="DiT target: noise or velocity")
     p.add_argument("--batch-size", type=int, default=None)
+    p.add_argument("--grad-accum", type=int, default=None,
+                   help="CNN: split each batch into this many chunks (same update; for small GPUs)")
     p.add_argument("--qam", type=int, default=None, metavar="M",
                    help="digital: transmit M-QAM symbols (4, 16, 64, ...); default analog")
     p.add_argument("--anneal-period", type=int, default=None, help="digital: quantiser temperature schedule")
@@ -133,7 +135,7 @@ def main() -> None:
     if args.eval_suffix and not all(c.isalnum() or c == "-" for c in args.eval_suffix):
         p.error(f"--eval-suffix must be letters, digits and '-', got {args.eval_suffix!r}")
 
-    overrides = {"steps": args.steps, "dit_size": args.dit_size, "prediction": args.prediction, "batch_size": args.batch_size,
+    overrides = {"steps": args.steps, "dit_size": args.dit_size, "prediction": args.prediction, "batch_size": args.batch_size, "grad_accum": args.grad_accum,
                  "max_hours": args.max_hours, "eval_images": args.eval_images,
                  "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode,
                  "anneal_period": args.anneal_period, "init_from": args.init_from,

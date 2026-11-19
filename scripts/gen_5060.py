@@ -30,7 +30,8 @@ usage (from the repo root, on the 5060 machine):
 
 First time: a PyTorch build with Blackwell (sm_120) support, e.g.
     pip install torch torchvision --index-url https://download.pytorch.org/whl/cu128
-    pip install -r requirements.txt diffusers lpips torch-fidelity pyyaml scipy
+    pip install -r requirements.txt diffusers lpips torch-fidelity torchmetrics pyyaml scipy
+(without torchmetrics the test sets run but FID is silently left out)
 The Imagenette data (about 0.3 GB) downloads on first use; the cache needs about 5 GB.
 
 Bring back: copy results/gen/p128-conv/ (with best.pt, about 0.3 GB per generative run) into the
@@ -75,10 +76,13 @@ STAGES = {
 P256 = ["--config", "configs/gen/p256.yaml", "--wandb-mode", "offline"]
 DIT256 = P256 + ["--models", "dit", "--arms", "blind", "--qam", "16", "--steps", "150000", "--patience", "10",
                  "--out-dir", "results/gen/p256-conv"]
+# The 256 px CNN needs about 12 GB at batch 64 (24 GB with LPIPS): each batch of 64 goes through
+# in chunks of 32 (8 with LPIPS) whose gradients are added up (grad_accum, CNN only; the gradient
+# matches the whole batch's to 0.03%). On the 5060: 1.18 batches/s, 0.59 with LPIPS.
 CNN256 = P256 + ["--models", "cnn", "--arms", "blind", "--qam", "16", "--sanity-steps", "0",
-                 "--out-dir", "results/gen/p256-perc"]
+                 "--out-dir", "results/gen/p256-perc", "--grad-accum", "2"]
 CNN256_FT = CNN256 + ["--init-from", "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0",
-                      "--cnn-lpips-weight", "0.1", "--steps", "10000", "--tag", "ft"]
+                      "--cnn-lpips-weight", "0.1", "--steps", "10000", "--tag", "ft", "--grad-accum", "8"]
 RUNS256 = ["results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"]

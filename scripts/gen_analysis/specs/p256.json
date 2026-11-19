@@ -6,11 +6,11 @@
  "closeups": ["tench", "church", "garbage truck", "parachute"],
  "systems": [
   {"key": "cnn", "label": "CNN, MSE+LPIPS, blind, 256 px", "run": "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
-   "logs": ["results/gen/p256-logs/gen_256.log"]},
+   "logs": ["results/gen/p256-logs/gen_256_cnn.log"]},
   {"key": "dit", "label": "DiT-S, blind, 256 px", "run": "results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
    "logs": ["results/gen/p256-logs/gen_256_try1.log", "results/gen/p256-logs/gen_256_try2.log", "results/gen/p256-logs/gen_256.log"]},
   {"key": "cnnpx", "label": "CNN, MSE only (stage 1), 256 px", "run": "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0",
-   "logs": ["results/gen/p256-logs/gen_256.log"]}],
+   "logs": ["results/gen/p256-logs/gen_256_cnn.log"]}],
  "context": [
   {"key": "cnn128", "label": "CNN, MSE+LPIPS, 128 px", "run": "results/gen/p128-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0"},
   {"key": "dit128", "label": "DiT-S, 128 px", "run": "results/gen/p128-conv/dit-S-v_cbr48_qam16_blind-5to5_s0"},

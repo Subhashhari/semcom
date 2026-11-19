@@ -136,6 +136,11 @@ class GenConfig:
     # Refiner: the CNN run folder (best.pt) whose transmitter, channel and decoder are frozen.
     refine_from: str = ""
     batch_size: int = 64
+    # Split each batch into this many equal chunks and add up their gradients before the update,
+    # for GPUs too small for the batch. CNN only: it has no batch norm, so the update is that of the
+    # full batch except for the training-time symbol energy, measured per chunk (32 x 4,096 symbols
+    # instead of 64 x 4,096; the test re-measures es_ref on the test images in any case).
+    grad_accum: int = 1
     steps: int = 50_000
     ema_decay: float = 0.9999  # cap on the EMA decay
     # Ramp the EMA decay as min(ema_decay, (1 + step) / (10 + step)), so the average spans about
@@ -227,6 +232,8 @@ class GenConfig:
             raise ValueError("cnn_lpips_weight applies to the CNN baseline only")
         if self.cnn_lpips_weight < 0:
             raise ValueError("cnn_lpips_weight must be >= 0")
+        if self.grad_accum < 1 or self.batch_size % self.grad_accum:
+            raise ValueError(f"grad_accum must divide batch_size, got {self.grad_accum} and {self.batch_size}")
         if self.snr_mode not in SNR_MODES:
             raise ValueError(f"snr_mode must be one of {SNR_MODES}, got {self.snr_mode!r}")
         if self.snr_mode == "fixed" and self.snr_train_fixed is None:

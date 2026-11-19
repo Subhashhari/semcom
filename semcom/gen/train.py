@@ -271,8 +271,21 @@ def train(cfg: GenConfig) -> dict | None:
         lr = lr_at(cfg, step)
         for g in opt.param_groups:
             g["lr"] = lr
-        with torch.autocast(device.type, dtype=torch.float16, enabled=use_amp):
-            out = model.loss(batch, sample_snr(cfg, batch["image"].shape[0], device))
+        snr = sample_snr(cfg, batch["image"].shape[0], device)
+        opt.zero_grad(set_to_none=True)
+        n_chunks, chunk_out = cfg.grad_accum, []
+        if n_chunks > 1 and cfg.model != "cnn":  # checked here: run_gen sets the model per run
+            raise ValueError("grad_accum is for the CNN baseline only (the DiT's batch-level terms are untested with it)")
+        for j in range(n_chunks):  # n_chunks = 1: the whole batch in one pass
+            part = batch if n_chunks == 1 else {
+                k: v.chunk(n_chunks)[j] if torch.is_tensor(v) else v for k, v in batch.items()}
+            with torch.autocast(device.type, dtype=torch.float16, enabled=use_amp):
+                o = model.loss(part, snr if n_chunks == 1 else snr.chunk(n_chunks)[j])
+            scaler.scale(o["loss"] / n_chunks).backward()
+            chunk_out.append(o)
+        out = chunk_out[0] if n_chunks == 1 else {  # the batch means of the logged terms
+            k: torch.stack([o[k].detach() for o in chunk_out]).mean() for k in chunk_out[0]
+            if torch.is_tensor(chunk_out[0][k]) and chunk_out[0][k].dim() == 0}
         if not torch.isfinite(out["loss"]):
             bad_streak += 1
             if bad_streak >= cfg.max_bad_steps:
@@ -280,8 +293,6 @@ def train(cfg: GenConfig) -> dict | None:
                 raise SanityError(f"{bad_streak} consecutive non-finite losses at step {step}")
         else:
             bad_streak = 0
-        opt.zero_grad(set_to_none=True)
-        scaler.scale(out["loss"]).backward()
         scaler.unscale_(opt)
         gnorm = torch.nn.utils.clip_grad_norm_(model.parameters(), cfg.grad_clip)
         scale_before = scaler.get_scale() if use_amp else 1.0
