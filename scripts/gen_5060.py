@@ -10,6 +10,8 @@ the same test sets as the Kaggle runs. Outputs go to results/gen/p128-conv/.
   2 cnn16-ft    + 0.1 LPIPS from stage 1's best weights: the converged reference
   3 cnn         blind analog CNN, pixel MSE
   4 cnn-ft      + 0.1 LPIPS: the converged analog reference
+  (stages 2-4 were dropped on 19 Nov: the 128 px DiT comparison is closed; month plan, section 6)
+  cnn16-cos     stage 1 with a cosine decay over 60k steps: does it reach the converged quality?
   ref16         CNN + diffusion refiner on the converged reference (option B); only when named:
                 the 18 Nov sweep (g-s3) showed a refiner in the SD-VAE latent at 128 px cannot keep
                 the CNN's semantics
@@ -66,8 +68,15 @@ CNN16, CNN16_FT = cnn(True)
 CNN, CNN_FT = cnn(False)
 REF16 = ["--models", "refiner", "--arms", "blind", "--qam", "16",
          "--refine-from", f"{OUT}/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0", "--steps", "200000"] + CONV
+# Recipe calibration (plan of 19 Nov): the cnn16 run with a cosine decay over 60k steps. If its
+# spread test lands within the seed spread of the converged constant-LR cnn16 (~200k steps), the
+# SNR-placement study's CNN arms and a converged 256 px CNN can use it at a third of the cost.
+CNN16_COS = [["--models", "cnn", "--arms", "blind", "--sanity-steps", "0", "--qam", "16",
+              "--lr-schedule", "cosine", "--steps", "60000", "--out-dir", OUT, "--wandb-mode", "offline"]
+             + TESTS[1]]
 STAGES = {
     "cnn16": CNN16,
+    "cnn16-cos": CNN16_COS,
     "cnn16-ft": CNN16_FT,
     "cnn": CNN,
     "cnn-ft": CNN_FT,

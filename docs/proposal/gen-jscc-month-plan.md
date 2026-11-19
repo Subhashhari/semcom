@@ -144,15 +144,23 @@ were read through a summary, not verbatim; read them before writing related work
 
 | Machine | Budget | Use for |
 |---|---|---|
-| Kaggle T4, 4 accounts (own, teammates) | About 120 h a week in total (30 h each, reset on Saturdays UTC), 12 h per session, jobs in parallel | Short and medium runs: recipe tests, controls, seeds, the final arms |
-| RTX 5060 (separate machine) | Unmetered, one run at a time; 8 GB memory assumed | Long single runs: pretraining, long training, 256 px |
+| Kaggle T4, 3 accounts (own, subhashhhh, venkat96r; a 4th token was never supplied) | 90 h a week in total (30 h each, reset Saturdays 00:00 UTC = 05:30 IST), 12 h per session, jobs in parallel | Short and medium runs: recipe tests, controls, seeds, the final arms |
+| RTX 5060 (separate machine) | Unmetered, one run at a time; 8.5 GB, of which about 7.3 GB is free with the display on the iGPU | Long single runs: long training, 256 px |
 
 - The development PC has CPU-only PyTorch and about 10 GB of free disk. Do not run the full test
   suite there: run targeted tests with `--basetemp` in a scratch folder and delete it.
 - The RTX 5060 needs a PyTorch build for CUDA 12.8 or newer and about 40 GB of disk for the
   ImageNet-100 cache. Its speed is unmeasured; measure it before planning around it.
 - Measured T4 costs: DiT-S 40k steps 1.5 h, DiT-B 40k steps 3.8 h, DiT-S 100k steps on 59k images
-  3.7 h, evaluation about 0.3 h.
+  3.7 h, evaluation about 0.3 h. Blind 16-QAM DiT-S to convergence (patience 10): 2.1 to 2.5 h
+  (stops at 52k to 62k). 128 px CNN: 3.9 to 4.5 h per 40k pixel steps, 1.8 to 2.2 h per 10k LPIPS
+  steps, so its ~200k-step convergence (below) would take about 22 h, two sessions.
+- Measured RTX 5060 speeds (19 Nov): 128 px CNN 3.6 it/s (1.4x the T4); 256 px DiT-S 3.1 to 3.4
+  it/s (140k steps plus tests: 14.7 h); 256 px CNN 0.97 it/s for pixel loss and 0.59 it/s with
+  LPIPS. The 256 px CNN needs about 12 GB at batch 64 (24 GB with LPIPS), so it runs each batch in
+  chunks (`--grad-accum 2`, 8 with LPIPS; the gradient matches the whole batch's to 0.03%). The
+  screen must stay on the iGPU: a desktop on the 5060 pushes training into system memory (10x
+  slower).
 - **Ruled out:** fine-tuning a public pretrained generator. The released checkpoints are
   [DiT-XL/2](https://github.com/facebookresearch/DiT) (256 and 512 px, non-commercial licence),
   [SiT-XL/2](https://github.com/willisma/SiT) (256 px, MIT) and
@@ -244,6 +252,98 @@ not developed further at 128 px. Two tracks, on separate hardware:
   REPA is kept only if its top-1 gain replicates with a clear paired interval.
 - **5060 order:** dit256, cnn256, cnn256-ft, then the paused 128 px convergence stages (the 16-QAM
   CNN resumes from step 198k; converging it can only widen a gap that already favours the CNN).
+  Superseded on 19 Nov by the plan below: three of those four stages are dropped.
+
+### Plan for 20 to 29 Nov (decided 19 Nov)
+
+**Evidence it rests on** (19 Nov; section 8 has the full rows):
+
+- *Budget CNNs are undertrained on semantics.* The 128 px blind 16-QAM pixel CNN on the 5060
+  (constant LR, 9 of 10 patience validations used at 198k): from 40k to 198k steps, validation
+  loss 0.0125 -> 0.0117 (-6%), PSNR +0.32 / +0.39 / +0.38 dB, DINOv2 0.04 / 0.14 / 0.21 ->
+  0.10 / 0.20 / 0.30 at -5 / 0 / +5 dB (32 validation images). PSNR is nearly flat after 60k, but
+  DINOv2 keeps rising. Every claim against a 40k-step CNN must say so; a converged CNN needs about
+  200k constant-LR steps (22 h on a T4) unless a decay schedule gets there sooner (C1 below).
+- *The seed spread is small.* Seed 0 vs 1 at 128 px (g-v3, g-cb3): DINOv2 within 0.013, top-1
+  within 1 pt, FID within 3, LPIPS within 0.004. Gaps of 3x that (0.04, 3 pts, 9, 0.012) are
+  treated as settled by one seed.
+- *The 256 px DiT converged by the rule but was still gaining semantics:* validation DINOv2 at
+  0 dB rose +0.009 per 10k steps over 100k to 140k (PSNR flat, loss -0.0006 per 10k).
+- *Quota:* 90 Kaggle hours a week (not 120); 10.4 h left until the 21 Nov reset (own 4.7, subhashhhh
+  3.1, venkat96r 2.6).
+
+**Dropped, with reasons:**
+
+| Item | Why | Saves |
+|---|---|---|
+| 5060 stages `cnn16-ft`, `cnn`, `cnn-ft` (converged 128 px perceptual and analog CNNs) | The 128 px DiT is closed (Gate 1); its gap to the budget CNN is already 8x the seed spread (DINOv2 0.11, top-1 12 pts at 0 dB) and converging the CNN only widens it; A uses neither the analog CNN nor the LPIPS stage | About 1.5 days of 5060 |
+| `ref16` and any 128 px refiner | g-s3: the SD-VAE at 128 px is itself the semantic bottleneck | (already off) |
+| ImageNet-100 pretraining of the 128 px DiT on the 5060, and the week 2 table (W2-K1 to K4) | 128 px DiT closed; the 59k-image data hurt at -5 and 0 dB (g-x2). Revisited only at 256 px, if B passes | Superseded |
+| LPIPS stage in A's CNN arms | A asks where SNR knowledge is needed; an MSE-trained CNN is the standard JSCC control (ADJSCC, DeepJSCC-Q), and the DiT arms already cover perceptual quality | About 2 h per CNN arm |
+| Separate week 3 (W3-B1 to B5) | Merged into A below | - |
+
+**Kept:** `cnn16` (finishes at its next validation, then its spread test: the converged reference
+for C1) and the 256 px CNN dump.
+
+#### Friday 20 Nov
+
+1. About 06:30 IST the 256 px CNN, its fine-tune and the dump finish. Copy back, run
+   `scripts/gen_analysis/suite.py scripts/gen_analysis/specs/p256.json`, read the verdict.
+   - *Seed rule:* if every margin that decides the verdict is at least 3x the seed spread above,
+     one seed stands for the 24 Nov meeting; otherwise seed 1 of both 256 px systems goes first on
+     the 5060 (about 30 h).
+   - *Extension rule (post hoc, reported as such):* if B fails only through a DINOv2 or top-1
+     loss, and the DINOv2 deficit is at most 0.04 at 0 and +5 dB, resume the DiT at constant LR to
+     200k steps (about 6 h) and re-score; the pre-registered verdict stays the headline.
+2. The 5060 then runs `cnn16` to its end and **C1, recipe calibration**: the same CNN with a cosine
+   decay over 60k steps (`gen_5060.py cnn16-cos`, about 5 h; `~/after_dump.sh` starts both). C1
+   passes if its spread test lands within the seed spread of the converged `cnn16` (PSNR 0.1 dB,
+   DINOv2 0.013, top-1 1 pt). Pass: every CNN that must be converged uses cosine 60k from here on.
+   Fail: try 100k (about 8 h on the 5060), else constant LR with patience on the 5060 only.
+   Ready about 13:00 IST.
+3. Kaggle, own account (4.7 h left): **A-smoke**, every A configuration below for 300 steps with a
+   50-image test, through rayleigh x 16-QAM x told / SNR-aware transmitter and the `--eval-rx`
+   est / gain / offset evaluations. Local `--dry-run` passes for all 15 configurations (19 Nov).
+4. Optional, on the 5060 between jobs: a Windows reboot frees the 2.6 GB the display process held
+   on the 5060 before the screen moved to the iGPU.
+
+**Track A, the SNR-placement study** (16-QAM, 128 px Imagenette, training range 0 to 20 dB,
+tests at 0 / 5 / 10 / 15 / 20 dB on the spread set, `--out-dir results/gen/p128-a`):
+
+| ID | Arms | Runs | Where | Cost |
+|---|---|---|---|---|
+| A-D | DiT-S to convergence (patience 10): AWGN blind / told / SNR-aware transmitter; Rayleigh blind / told | 5 | Kaggle from the 21 Nov reset | 2.8 h each, 14 h |
+| A-C | CNN, MSE, C1's recipe: AWGN and Rayleigh, each blind / told / SNR-aware transmitter | 6 | See branches | 5 h (5060) or 6.8 h (T4) each |
+| A-S | CNN seed 1 of AWGN blind and told | 2 | As A-C | as A-C |
+| A-P | CNN specialists at 0 / 10 / 20 dB, AWGN (the cost of one model across the range) | 3 | As A-C | as A-C |
+| A-E | Evaluation only, on the blind and told models of A-D and A-C: told with an estimated SNR (`--eval-rx est-energy` and `est-m2m4`), offset +-2 / 5 dB, gain error +-1 / 2 dB | about 20 | Same device as the model | 0.3 h each |
+
+All runs of one receiver family stay on one device type (section 7), so A-C, A-S, A-P and their
+A-E evaluations go together on either the 5060 or the T4.
+
+**Track B, by Friday's verdict:**
+
+- **B fails** (the DiT loses to the 40k-step CNN): the DiT at 256 px stops; it stays in A as the
+  second receiver at 128 px. The 5060 takes A-C, A-S, A-P (11 runs, about 2.3 days, from Saturday
+  midday). Kaggle runs A-D, then DiT seed 1 of AWGN blind and told (5.6 h) and DiT specialists at
+  0 / 10 / 20 dB (8.4 h): about 31 h of 90; the rest stays unused rather than spent on runs no
+  decision needs.
+- **B passes**: as pre-registered, the 5060 converges the 256 px CNN with C1's recipe (cosine 60k
+  pixel, about 17 h, then the LPIPS stage to convergence, about 5 to 10 h) and the rule is
+  re-checked, then seed 1 if the seed rule asks, then 256 px DiT + REPA (kept at 128 px, g-v3/g-v4)
+  and the 59k-image data (week of 30 Nov). A-C and A-S move to Kaggle: 8 runs x 6.8 h = 54 h, plus
+  A-D 14 h and A-E about 4 h = 72 h of 90; A-P waits for the 28 Nov reset.
+
+#### Milestones
+
+- **Tue 24 Nov, supervisor meeting:** the 256 px verdict with the full analysis report, the
+  convergence evidence above, C1, A's design and A-D's first results.
+- **Gate A (Fri 27 Nov):** for both receivers, blind against told with paired intervals on AWGN
+  and Rayleigh across 0 to 20 dB; the estimated-SNR and gain-error arms. Decision as Gate 3 below:
+  blind within about 0.1 dB of told keeps "needs no SNR"; if a 1 dB gain error costs more than
+  SNR knowledge ever gains, the claim becomes "no noise-level knowledge, gain tracking assumed".
+- **28 Nov reset:** A-P if not yet run, missing seeds, then W4-A4 (4-QAM / 64-QAM, optional) and
+  writing.
 
 ### Week 2 (23 to 29 Nov): combine and scale (superseded by the revised plan above)
 
@@ -262,7 +362,7 @@ if DiT-S is still improving.
 **Gate 2 (29 Nov).** Fix one recipe that costs at most about 4 h per run on a T4. Everything after
 this uses it.
 
-### Week 3 (30 Nov to 6 Dec): is "needs no SNR" true?
+### Week 3 (30 Nov to 6 Dec): is "needs no SNR" true? (merged into track A on 19 Nov)
 
 Kaggle, about 25 h, all with the fixed recipe:
 
@@ -350,3 +450,7 @@ RTX 5060: buffer and reruns.
 | 18 Nov | A (code) | none | For the SNR-placement study: the CNN takes an SNR-aware transmitter (`--encoder-snr`, the encoder's AF modules); evaluation can feed the receiver an estimated SNR, a biased one or a gain error (`--eval-rx est-<cue> / offset<dB> / gain<dB>`; a blind receiver sees only the gain error, tested) |
 | 18 Nov | seeds | g-v3, g-v4 | **Both DiT results replicate.** Seed 1 of the converged blind 16-QAM DiT matches seed 0 (spread set, 0 dB: DINOv2 0.179 vs 0.178, top-1 10.5% vs 9.7%, FID 141.5 vs 140.6, LPIPS 0.290 vs 0.291). REPA on seed 1, paired against seed 1 without it: top-1 +3.0 / +2.1 / +1.3 pts at -5 / 0 / +5 dB (the last not significant), top-5 +8.9 / +7.4 / +6.8 (all significant), FID 127.9 vs 141.5 at 0 dB and 113.9 vs 120.8 at +5 dB; LPIPS +0.010 / +0.014 and PSNR -0.2 / -0.26 dB worse at 0 / +5 dB. Seed 0 showed the same pattern (FID -7.6 / -5.6). REPA passes the 17 Nov rule on both seeds through FID, with no clear loss on DINOv2 or top-1: kept as a DiT lever. It does not close the gap to the CNN (0 dB DINOv2 0.215 vs 0.292, top-1 12.6% vs 22%) |
 | 18 Nov | seeds | g-cb3 | **The CNN control replicates.** Seed 1 of the two-stage blind 16-QAM CNN (40k pixel + 10k LPIPS 0.1) vs seed 0, spread set: DINOv2 0.132 / 0.300 / 0.411 vs 0.132 / 0.292 / 0.398 at -5 / 0 / +5 dB; top-1 2.9 / 21.6 / 43.0% vs 3.3 / 21.5 / 42.4%; FID 178 / 119 / 95 vs 180 / 118 / 98. Paired (s1 - s0): top-1 within 1 pt, none significant; top-5 +0.5 / +2.7 / +3.4 (only +5 dB significant); PSNR +0.04 to +0.09 dB and LPIPS +0.002 to +0.004 (significant but tiny). Seed 0's numbers stand as the 128 px CNN reference; the DiT-vs-CNN gaps logged above are well outside the seed spread |
+| 19 Nov | B (256 px) | RTX 5060 | **The 256 px DiT converged** (rule fired at 140k; last 0.2% gain at 120k; 14.7 h at 3.1-3.4 it/s once the screen moved to the iGPU). Spread set, 10 steps, -5 / 0 / +5 dB: PSNR 17.0 / 19.7 / 21.0, LPIPS 0.371 / 0.249 / 0.196, DINOv2 0.30 / 0.56 / 0.70, top-1 27 / 81 / 95%, FID 120 / 70 / 51; class kept 78 / 93 / 97% (dump, `results/gen/analysis/p256/report.md`). The 128 px DiT at 0 dB had DINOv2 0.18, top-1 10%, FID 141, but resolution changes the metrics' footing too, so only the 256 px CNN decides. Images: sharp, scene, colour and object kept at 0 dB; it invents text, faces and fine structure (two draws of one received signal differ by 14 / 9.5 / 8.3 grey levels). Training stable (loss jitter 0.8%), validation DINOv2 still +0.009 per 10k steps at the stop. The first-1,000 test set has no FID: the 5060's venv lacked torchmetrics (installed before the spread sets ran) |
+| 19 Nov | B (256 px) | RTX 5060 | The 256 px CNN does not fit the 8 GB card at batch 64 (about 12 GB; 24 GB with LPIPS) and crawled at 0.009 it/s for 3 h. Relaunched at 60451b6 with `--grad-accum 2` (8 for the LPIPS stage; CNN only, no batch norm, gradient within 0.03% of the whole batch's): 0.97 it/s. Validation at 12k: PSNR 18.7 / 20.9 / 22.2 dB, DINOv2 0.09 / 0.31 / 0.44 (DiT at the end: 16.5 / 19.2 / 20.6 dB, 0.38 / 0.66 / 0.77); the verdict waits for the LPIPS stage |
+| 19 Nov | convergence | RTX 5060 | The 128 px blind 16-QAM pixel CNN at 198k (constant LR, one validation from the patience limit): 40k -> 198k gains PSNR +0.32 / +0.39 / +0.38 dB and validation DINOv2 0.14 -> 0.20 at 0 dB, 0.21 -> 0.30 at +5 dB. The 40k-step budget leaves the CNN well short on semantics |
+| 19 Nov | plan | (decision) | Plan for 20 to 29 Nov written into section 6: 128 px stages `cnn16-ft`, `cnn`, `cnn-ft` dropped; C1 (cosine-60k CNN against the converged one) decides whether converged CNNs are affordable; track A as A-D / A-C / A-S / A-P / A-E on 16-QAM over 0 to 20 dB, AWGN and Rayleigh; track B branches on Friday's verdict; quota corrected to 90 h a week |
