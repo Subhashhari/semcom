@@ -60,6 +60,9 @@ def read_logs(name: str, logs: list[Path]) -> tuple[dict[int, dict], dict[int, d
     """STEP and VAL entries of run `name`, by step; later logs win."""
     steps, vals = {}, {}
     for f in logs:
+        if not f.exists():  # e.g. a run still on the GPU machine
+            print(f"[training] {f} not found; skipped")
+            continue
         text = f.read_text(encoding="utf-8", errors="replace")
         if text.lstrip().startswith("[{"):  # a Kaggle kernel log: JSON records of output chunks
             try:
@@ -145,7 +148,7 @@ def analyse(systems: list[dict], out: Path, colors: dict | None = None) -> list[
            "loss on the validation split, quality on 32 fixed validation images (noisy: compare trends, "
            "not single points). Loss jitter = standard deviation / mean of the logged training loss over "
            "2k-step windows.", "",
-           "| Run | Steps | State | Best val loss (step) | Last val loss | Validations since best | "
+           "| Run | Steps | State | Lowest val loss (step) | Last val loss | Validations since a 0.2% gain | "
            f"Loss jitter, last {TAIL // 1000}k | Grad norm, last {TAIL // 1000}k | AMP-skipped | "
            "Val DINOv2 @0 dB (best / last) |",
            "|---|---|---|---|---|---|---|---|---|---|"]
@@ -160,13 +163,17 @@ def analyse(systems: list[dict], out: Path, colors: dict | None = None) -> list[
         _, since, conv = rule_state(vl, pat, md_) if vl else ([], 0, False)
         bi = int(np.argmin(vl)) if vl else None
         tail = t["step"] >= (t["step"].max() - TAIL) if len(t["step"]) else np.array([], bool)
-        cv = np.std(t["loss"][tail]) / np.mean(t["loss"][tail]) if tail.any() else np.nan
+        # within 2k-step windows (as the caption and the jitter figure), so a falling loss is not jitter
+        wins = [w for w in (t["loss"][tail & (t["step"] // 2000 == b)] for b in np.unique(t["step"][tail] // 2000))
+                if len(w) >= 5]
+        cv = float(np.mean([np.std(w) / np.mean(w) for w in wins])) if wins else np.nan
         last_step = int(max(t["step"].max() if len(t["step"]) else 0, t["vstep"].max() if len(t["vstep"]) else 0))
         state = ("finished" if t["finished"] else "running") + (", converged" if conv else "")
         d0 = [e.get("dino@0") for e in t["val"]]
         md.append(f"| {label[k]} | {last_step:,} | {state} | "
                   + (f"{vl[bi]:.4f} ({int(t['vstep'][bi]):,}) | {vl[-1]:.4f} | {since}"
-                     + (f" of {pat}" if pat else "") if vl else "- | - | -")
+                     + (f" of {pat}" if pat else "")
+                     + f" (since {int(t['vstep'][len(vl) - 1 - since]):,})" if vl else "- | - | -")
                   + f" | {100 * cv:.1f}% | {np.nanmedian(t['gnorm'][tail]) if tail.any() else np.nan:.3f} | "
                   f"{int(t['skipped'].max()) if len(t['skipped']) else 0} | "
                   + (f"{d0[bi]:.3f} / {d0[-1]:.3f}" if vl and d0[-1] is not None and d0[bi] is not None else "-")
