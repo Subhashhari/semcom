@@ -36,14 +36,47 @@ from .dit import ConditionalDiT
 SNR_SCALE_DB = 10.0
 
 
+#: The range a told SNR is clipped to: an estimate's range, and the effective SNR's under fading.
+TOLD_CLIP_DB = (-20.0, 40.0)
+
+
+def fading_gain(b: int, device, generator: torch.Generator | None = None) -> torch.Tensor:
+    """One slow Rayleigh fade per image, h ~ CN(0, 1), as (B, 2) = (Re h, Im h)."""
+    return torch.randn(b, 2, device=device, dtype=torch.float32, generator=generator) * 0.5**0.5
+
+
+def told_snr(snr_db: torch.Tensor, h: torch.Tensor | None) -> torch.Tensor:
+    """The SNR a told receiver knows.
+
+    - Without a block fade (AWGN, or legacy fading): the channel SNR.
+    - With one: the image's effective SNR after equalisation, snr + 10 log10 |h|^2, clipped to
+      TOLD_CLIP_DB.
+    """
+    if h is None:
+        return snr_db
+    gain_db = 10 * torch.log10(h.float().pow(2).sum(-1).clamp_min(1e-12))
+    return (snr_db.float() + gain_db).clamp(*TOLD_CLIP_DB).to(snr_db.dtype)
+
+
+def block_fade(cfg: GenConfig, b: int, device, generator=None) -> torch.Tensor | None:
+    """The image's fade when cfg uses block Rayleigh fading, else None (AWGN, legacy fading)."""
+    if cfg.channel == "rayleigh" and cfg.fading == "block":
+        return fading_gain(b, device, generator)
+    return None
+
+
 def channel(
     z: torch.Tensor, snr_db: torch.Tensor, kind: str = "awgn", avg_power: float = 1.0,
-    generator: torch.Generator | None = None,
+    generator: torch.Generator | None = None, h: torch.Tensor | None = None,
 ) -> torch.Tensor:
     """AWGN or equalised slow Rayleigh fading on (B, k, 2) symbols, with an optional generator.
 
     Same models as semcom.channel, re-implemented so evaluation can draw the noise (and the
     fading) from a seeded generator and give every arm identical channel realisations.
+
+    Rayleigh: `h` (B, 2) is the image's fade, shared by every call for that image (block
+    fading). When it is None, a fade is drawn after the noise: legacy fading, which the DiT drew
+    once per stream.
     """
     b = z.shape[0]
     sigma_sq = snr_to_noise_power(snr_db.to(z.dtype), avg_power).view(-1, 1, 1)
@@ -52,7 +85,9 @@ def channel(
         return z + noise
     if kind != "rayleigh":
         raise ValueError(f"unknown channel {kind!r}")
-    h = torch.randn(b, 2, device=z.device, dtype=z.dtype, generator=generator) * 0.5**0.5
+    if h is None:
+        h = torch.randn(b, 2, device=z.device, dtype=z.dtype, generator=generator) * 0.5**0.5
+    h = h.to(z.dtype)
     hr, hi = h[:, :1], h[:, 1:]
     zr, zi = z[..., 0], z[..., 1]
     y = torch.stack([hr * zr - hi * zi, hr * zi + hi * zr], dim=-1) + noise
@@ -275,20 +310,26 @@ class GenJSCC(EnergyReference, nn.Module):
         """Every transmitted symbol of each image, (B, k, 2) (at snr_db for an SNR-aware transmitter)."""
         return torch.cat(self.transmit(batch, snr_db), dim=1)
 
-    def received(self, batch, snr_db, generator=None):
-        """Received symbol grids (y_sem, y_det) after the channel."""
+    def received_rx(self, batch, snr_db, generator=None):
+        """(y_sem, y_det, told): the received symbol grids after the channel, and the SNR a told
+        receiver knows (told_snr: the effective SNR under block fading, else snr_db)."""
         cfg, g = self.cfg, self.cfg.grid
         z_s, z_d = self.transmit(batch, snr_db)
         es = self.signal_energy(torch.cat([z_s, z_d], dim=1))
-        y_s = channel(z_s, snr_db, cfg.channel, es, generator)
-        y_d = channel(z_d, snr_db, cfg.channel, es, generator)
-        return from_symbols(y_s, cfg.c_sem, g), from_symbols(y_d, cfg.c_det, g)
+        h = block_fade(cfg, z_s.shape[0], z_s.device, generator)  # one fade for both streams
+        y_s = channel(z_s, snr_db, cfg.channel, es, generator, h)
+        y_d = channel(z_d, snr_db, cfg.channel, es, generator, h)
+        return from_symbols(y_s, cfg.c_sem, g), from_symbols(y_d, cfg.c_det, g), told_snr(snr_db, h)
+
+    def received(self, batch, snr_db, generator=None):
+        """Received symbol grids (y_sem, y_det) after the channel."""
+        return self.received_rx(batch, snr_db, generator)[:2]
 
     def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
         """Diffusion loss (noise or velocity target, cfg.prediction). `drop`: "train" drops the received symbols with probability
         cfg_dropout (for classifier-free guidance); "none" keeps them; "all" drops them for every
         image, which measures how much the receiver relies on the channel at all."""
-        y_s, y_d = self.received(batch, snr_db)
+        y_s, y_d, told = self.received_rx(batch, snr_db)
         x0 = batch["latent"]
         x_t, t, noise = self.diffusion.training_targets(x0)
         b = x0.shape[0]
@@ -299,7 +340,7 @@ class GenJSCC(EnergyReference, nn.Module):
         else:
             raise ValueError(f"drop must be 'train', 'none' or 'all', got {drop!r}")
         repa = bool(self.cfg.repa_weight) and self.training
-        out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, snr_db), mask,
+        out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, told), mask,
                        hidden_at=self.cfg.repa_depth if repa else None)
         if repa:
             out, hidden = out
@@ -352,12 +393,11 @@ class GenJSCC(EnergyReference, nn.Module):
     def reconstruct(self, batch, snr_db, vae, steps=50, channel_gen=None, sample_gen=None,
                     eta=0.0, cfg_scale=1.0, start=1.0, rx="true") -> torch.Tensor:
         """`rx`: what the receiver works from (receiver_view); the channel always runs at snr_db."""
-        y_s, y_d = self.received(batch, snr_db, channel_gen)
-        told = snr_db
+        y_s, y_d, told = self.received_rx(batch, snr_db, channel_gen)
         if rx != "true":
             c, g = self.cfg, self.cfg.grid
             y = torch.cat([to_symbols(y_s), to_symbols(y_d)], dim=1)
-            y, told = receiver_view(y, snr_db, rx, *self.rx_reference())
+            y, told = receiver_view(y, told, rx, *self.rx_reference())
             k_s = c.c_sem * g * g // 2
             y_s = from_symbols(y[:, :k_s].contiguous(), c.c_sem, g)
             y_d = from_symbols(y[:, k_s:].contiguous(), c.c_det, g)
@@ -419,8 +459,9 @@ class CNNBaseline(EnergyReference, nn.Module):
         # The JSCC's own forward pass, with this module's channel so the SNR reference applies.
         z = self.jscc.transmit(x, snr_db)
         self._kl = self.quantiser.kl_to_uniform() if self.quantiser is not None else None
-        y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z))
-        x_hat = self.jscc.decode(y, snr_db, z).float()
+        h = block_fade(self.cfg, x.shape[0], x.device)
+        y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z), h=h)
+        x_hat = self.jscc.decode(y, snr_db, z, decoder_snr=self._told(snr_db, h)).float()
         mse = F.mse_loss(x_hat, x)
         out = {**with_kl(self, mse), "pixel_mse": mse.detach()}
         if self.cfg.cnn_lpips_weight:
@@ -451,14 +492,24 @@ class CNNBaseline(EnergyReference, nn.Module):
         """`rx`: what the receiver works from (receiver_view); the channel always runs at snr_db."""
         x = batch["image"]
         z = self.jscc.transmit(x, snr_db)
-        y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z), channel_gen)
+        h = block_fade(self.cfg, x.shape[0], x.device, channel_gen)
+        y = channel(z, snr_db, self.cfg.channel, self.signal_energy(z), channel_gen, h)
         if rx == "true":
-            return self.jscc.decode(y, snr_db, z).float().clamp(0, 1)
+            return self.jscc.decode(y, snr_db, z, decoder_snr=self._told(snr_db, h)).float().clamp(0, 1)
         if not torch.is_tensor(snr_db) or snr_db.dim() == 0:
             snr_db = torch.as_tensor(snr_db, device=x.device, dtype=torch.float32).expand(x.shape[0])
-        y, told = receiver_view(y, snr_db, rx, *self.rx_reference())
+        y, told = receiver_view(y, told_snr(snr_db, h), rx, *self.rx_reference())
         told = told if self.jscc.decoder_input == "snr" else None  # other decoders are not told an SNR
         return self.jscc.decode(y, snr_db, z, decoder_snr=told).float().clamp(0, 1)
+
+    def _told(self, snr_db, h):
+        """decoder_snr for a told decoder under block fading (its effective SNR); None otherwise,
+        which leaves the decoder on snr_db exactly as before."""
+        if h is None or self.jscc.decoder_input != "snr":
+            return None
+        if not torch.is_tensor(snr_db) or snr_db.dim() == 0:
+            snr_db = torch.as_tensor(snr_db, device=h.device, dtype=torch.float32).expand(h.shape[0])
+        return told_snr(snr_db, h)
 
 
 #: CNN settings a refiner must share with the CNN it refines (checked when the weights load).

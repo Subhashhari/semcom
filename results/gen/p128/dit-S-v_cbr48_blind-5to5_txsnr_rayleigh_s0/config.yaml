@@ -11,6 +11,7 @@ c_sem: 8
 cfg_dropout: 0.1
 cfg_scale: 1.0
 channel: rayleigh
+fading: legacy
 ckpt_every: 2000
 cnn_c_out: 2
 cnn_hidden: 256

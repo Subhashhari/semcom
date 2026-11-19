@@ -72,6 +72,14 @@ class GenConfig:
 
     # --- channel and SNR
     channel: str = "awgn"
+    #: Rayleigh only.
+    #: "block" (from 20 Nov 2026): one slow fade h ~ CN(0, 1) per image, shared by every symbol it
+    #: sends. A told receiver is given the image's effective SNR after equalisation,
+    #: SNR + 10 log10 |h|^2, clipped to [-20, 40] dB like the estimates: a coherent receiver that
+    #: equalised with h knows |h|. The transmitter still knows only the average SNR.
+    #: "legacy": every Rayleigh run before 20 Nov. The DiT's semantic and detail streams faded
+    #: independently, and a told receiver got the average SNR.
+    fading: str = "block"
     avg_power: float = 1.0
     snr_mode: str = "fixed"
     #: The transmitter is also given the SNR. DiT: both encoders, through FiLM layers that start at
@@ -236,6 +244,8 @@ class GenConfig:
             raise ValueError(f"grad_accum must divide batch_size, got {self.grad_accum} and {self.batch_size}")
         if self.snr_mode not in SNR_MODES:
             raise ValueError(f"snr_mode must be one of {SNR_MODES}, got {self.snr_mode!r}")
+        if self.fading not in ("block", "legacy"):
+            raise ValueError(f"fading must be 'block' or 'legacy', got {self.fading!r}")
         if self.snr_mode == "fixed" and self.snr_train_fixed is None:
             raise ValueError("snr_mode='fixed' needs snr_train_fixed")
         if self.snr_mode != "fixed" and self.snr_train_min > self.snr_train_max:

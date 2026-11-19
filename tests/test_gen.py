@@ -1030,3 +1030,76 @@ def test_receiver_view_reaches_told_receivers_and_only_gain_reaches_blind_ones(t
         assert not torch.equal(outs["snr"]["true"], outs["snr"]["offset+6"]), model
         assert torch.equal(outs["blank"]["true"], outs["blank"]["offset+6"]), model
         assert not torch.equal(outs["blank"]["true"], outs["blank"]["gain+3"]), model
+
+
+# ------------------------------------------------------------------ block Rayleigh fading (20 Nov)
+
+
+def test_block_fade_sets_each_images_noise_and_the_told_snr_matches_it():
+    from semcom.gen.model import fading_gain, told_snr
+
+    g = torch.Generator().manual_seed(3)
+    z = torch.randn(32, 4096, 2) * 0.5**0.5  # unit-energy symbols
+    snr = torch.full((32,), 10.0)
+    h = fading_gain(32, "cpu", g)
+    y = channel(z, snr, "rayleigh", 1.0, g, h)
+    told = told_snr(snr, h)
+    measured = 10 * torch.log10((y - z).pow(2).sum(-1).mean(1))  # equalised noise power per image
+    keep = told > -19.9  # not clipped
+    assert torch.allclose(-measured[keep], told[keep], atol=0.3)
+    assert told.std() > 3  # the effective SNR really varies from image to image
+    assert torch.equal(told_snr(snr, None), snr)  # AWGN / legacy: the channel SNR
+
+
+def test_dit_streams_share_one_fade_and_a_told_receiver_gets_the_effective_snr(tmp_path):
+    from semcom.gen.model import from_symbols
+
+    def noise_db(cfg):
+        m = GenJSCC(cfg, 32).eval()
+        b = _batch(cfg)
+        snr = torch.full((8,), 10.0)
+        y_s, y_d, told = m.received_rx(b, snr, torch.Generator().manual_seed(5))
+        z_s, z_d = m.transmit(b)
+        n = lambda y, z, c: 10 * torch.log10((y - from_symbols(z, c, cfg.grid)).pow(2).mean((1, 2, 3)) * 2)  # noqa: E731
+        return n(y_s, z_s, cfg.c_sem), n(y_d, z_d, cfg.c_det), told, snr
+
+    base = dict(channel="rayleigh", snr_mode="snr", c_sem=64, c_det=64)  # many symbols per stream
+    n_s, n_d, told, snr = noise_db(tiny(tmp_path, **base))
+    assert torch.allclose(n_s, n_d, atol=0.5)  # one fade: both streams see the same noise level
+    assert torch.allclose(-n_s, told, atol=0.5)  # and the told SNR is that level
+    n_s, n_d, told, snr = noise_db(tiny(tmp_path, fading="legacy", **base))
+    assert (n_s - n_d).abs().max() > 1  # legacy: an independent fade per stream
+    assert torch.equal(told, snr)  # legacy: told the average SNR
+
+
+def test_awgn_draws_are_unchanged_by_the_fading_option(tmp_path):
+    outs = []
+    for fading in ("block", "legacy"):
+        cfg = tiny(tmp_path, fading=fading)
+        m = GenJSCC(cfg, 32).eval()
+        torch.manual_seed(0)
+        m = GenJSCC(cfg, 32).eval()
+        outs.append(m.received_rx(_batch(cfg), torch.full((8,), 0.0), torch.Generator().manual_seed(1)))
+    assert all(torch.equal(a, b) for a, b in zip(outs[0], outs[1]))
+
+
+def test_cnn_told_decoder_gets_the_effective_snr_only_under_block_fading(tmp_path):
+    from semcom.gen.model import fading_gain, told_snr
+
+    h = fading_gain(4, "cpu", torch.Generator().manual_seed(0))
+    s = torch.full((4,), 5.0)
+    told = CNNBaseline(tiny(tmp_path, model="cnn", snr_mode="snr", channel="rayleigh"))
+    assert torch.equal(told._told(s, h), told_snr(s, h))
+    assert told._told(s, None) is None  # AWGN and legacy: the decoder stays on the channel SNR
+    blind = CNNBaseline(tiny(tmp_path, model="cnn", snr_mode="blank", channel="rayleigh"))
+    assert blind._told(s, h) is None
+
+
+def test_fading_option_is_checked_and_old_configs_load_as_block(tmp_path):
+    with pytest.raises(ValueError):
+        GenConfig(fading="fast")
+    cfg = GenConfig(channel="rayleigh")
+    cfg.save(tmp_path / "c.yaml")
+    text = (tmp_path / "c.yaml").read_text().replace("fading: block\n", "")
+    (tmp_path / "old.yaml").write_text(text)
+    assert GenConfig.from_yaml(tmp_path / "old.yaml").fading == "block"
