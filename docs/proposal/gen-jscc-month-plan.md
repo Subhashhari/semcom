@@ -397,7 +397,7 @@ diffusion receiver, with no quality claim against the CNN.
   each sized to the account's remaining quota less about 1 h for setup and upload. On venkatrrr,
   `a256-ab-2` starts when `a256-ab` stops (about 06:30 on 20 Nov) with `--max-hours 6`, and `a256-ab-3`
   finishes it after the reset. A session costs about 0.6 h of setup, so each early session saves its
-  training hours, less nothing, from next week as long as the run still needs two more sessions.
+  training hours from next week, as long as the run still needs two more sessions.
 - **Week of 21 Nov:**
 
   | Account | Runs |
