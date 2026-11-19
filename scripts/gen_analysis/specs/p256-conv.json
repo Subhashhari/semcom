@@ -1,0 +1,15 @@
+{"title": "256 px re-check, 16-QAM, CBR 1/48: blind DiT-S against the blind two-stage CNN, both trained to convergence by the same rule (same images, same GPU)",
+ "out": "results/gen/analysis/p256-conv",
+ "dump": "results/gen/dump/p256-conv",
+ "reference": "cnn",
+ "snrs": [-5, 0, 5],
+ "closeups": ["tench", "church", "garbage truck", "parachute"],
+ "systems": [
+  {"key": "cnn", "label": "CNN, MSE+LPIPS, blind, converged, 256 px", "run": "results/gen/p256-conv/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
+   "logs": ["results/gen/p256-logs/gen_5060.log"]},
+  {"key": "dit", "label": "DiT-S, blind, 256 px", "run": "results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
+   "logs": ["results/gen/p256-logs/gen_256_try1.log", "results/gen/p256-logs/gen_256_try2.log", "results/gen/p256-logs/gen_256.log"]},
+  {"key": "cnnpx", "label": "CNN, MSE only (stage 1), converged, 256 px", "run": "results/gen/p256-conv/cnn_cbr48_qam16_blind-5to5_s0",
+   "logs": ["results/gen/p256-logs/gen_256_cnn.log", "results/gen/p256-logs/gen_5060.log"]}],
+ "context": [
+  {"key": "cnn40k", "label": "CNN, MSE+LPIPS, 40k + 10k steps, 256 px", "run": "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0"}]}

@@ -10,6 +10,36 @@ Every number below was recomputed on 16 Nov 2026 from the committed per-image re
 (`eval_images-*.npz`) unless marked otherwise. Literature statements come from paper text fetched
 that day; section 3 says which ones could not be confirmed verbatim.
 
+## Status on 19 Nov (read first)
+
+Sections 1 to 5 are the review of 16 Nov and still describe the 128 px prototype. Since then:
+
+- **128 px is closed.** Every lever was tried there:
+  - REPA was kept;
+  - pretraining on 59k ImageNet-100 images, then fine-tuning, was kept (the largest gain);
+  - cosine decay, the regression loss, DiT-B, more steps and the bandwidth split were not kept.
+  - The deciding pair (the DiT and the CNN) and REPA were trained to convergence and replicated
+    with a second seed.
+  - The blind 16-QAM perceptual CNN still beats the DiT on PSNR, DINOv2 and retrieval at every
+    SNR. At 0 dB: DINOv2 0.29 vs 0.18, top-1 22% vs 10%, FID 118 vs 141.
+  - The SD-VAE at 128 px is itself the semantic bottleneck (clean round trip DINOv2 0.81). A
+    refiner on the CNN's output cannot get past it either (g-s3).
+- **The SNR results hold at 128 px** for analog, 16-QAM and Rayleigh, in two seeds. Telling the
+  receiver the SNR gains at most 0.04 dB. An SNR-aware transmitter gains 0.4 to 0.5 dB at -5 dB, on
+  PSNR only.
+- **At 256 px the DiT changed a lot.** It is converged (140k steps on the RTX 5060). Spread set at
+  0 dB:
+  - DINOv2 0.56, top-1 81%, FID 70, class kept 93%;
+  - at +5 dB, top-1 95%.
+- **Whether it beats a CNN at 256 px is the pre-registered test B.** Its verdict is due on Fri
+  20 Nov. If it passes, the CNN is converged and the verdict re-checked, as fixed in advance.
+- **The position is unchanged, now at 256 px:** a constellation-constrained (16-QAM) diffusion JSCC
+  that needs no SNR at either end.
+  - The work rests on B and on study A at 256 px (blind / told / estimated SNR / gain error /
+    specialists, AWGN and Rayleigh, 0 to 20 dB).
+  - Everything else is optional. Section 6, "Plan from 19 Nov evening", lists each remaining task
+    with a decision.
+
 ## 1. Verdict of the review
 
 The evaluation method is sound and the measurements reproduce. The model they are measured on is
@@ -149,8 +179,17 @@ were read through a summary, not verbatim; read them before writing related work
 
 - The development PC has CPU-only PyTorch and about 10 GB of free disk. Do not run the full test
   suite there: run targeted tests with `--basetemp` in a scratch folder and delete it.
-- The RTX 5060 needs a PyTorch build for CUDA 12.8 or newer and about 40 GB of disk for the
-  ImageNet-100 cache. Its speed is unmeasured; measure it before planning around it.
+- The RTX 5060 needs a PyTorch build for CUDA 12.8 or newer. ImageNet-100 is not on it yet; at
+  256 px its cache would need about 55 GB (estimate from the Imagenette cache, 11.8 GB).
+- **Kaggle at 256 px (19 Nov):**
+  - The 256 px Imagenette cache (11.8 GB) is rebuilt in every session inside `/kaggle/working`,
+    which has 19.5 GB free.
+  - Setup counts against the 12 h session but not against `--max-hours`, which starts once
+    training does. So `--max-hours 10.5` leaves about 1.5 h for setup.
+  - A run longer than one session is chained: a second job with `--input-job` merges the first
+    job's `results/` and resumes from its checkpoint.pt. Both jobs must be on the same account,
+    and the first must end cleanly; a killed session cannot be attached.
+  - At most two GPU sessions run at once per account.
 - Measured T4 costs: DiT-S 40k steps 1.5 h, DiT-B 40k steps 3.8 h, DiT-S 100k steps on 59k images
   3.7 h, evaluation about 0.3 h. Blind 16-QAM DiT-S to convergence (patience 10): 2.1 to 2.5 h
   (stops at 52k to 62k). 128 px CNN: 3.9 to 4.5 h per 40k pixel steps, 1.8 to 2.2 h per 10k LPIPS
@@ -172,7 +211,8 @@ were read through a summary, not verbatim; read them before writing related work
   estimate. The full ImageNet-100 set (about 126k images, Kaggle dataset `ambityga/imagenet100`)
   fits.
 - **Recipe cap:** the final recipe must cost at most about 4 h per run on a T4, so the 12 final
-  runs fit in one Kaggle week.
+  runs fit in one Kaggle week. (Given up on 19 Nov: a converged 256 px DiT-S costs about 17 to 19 h
+  on a T4, so study A is spread over the weeks of 21 and 28 Nov.)
 
 ## 5. Levers for a better model, ranked by expected gain per GPU hour
 
@@ -184,6 +224,23 @@ were read through a summary, not verbatim; read them before writing related work
 | 4 | Pretrain broad, then fine-tune on Imagenette | 1.5 h first test | The 59k-image model was still improving at 100k steps; `--init-from` exists | None |
 | 5 | 256 px | About 6 h per run (estimate) | 4x the symbols; VAE at its native resolution; matches the literature | Check config |
 | 6 | Longer training, DiT-B | 10 to 15 h | Only after 2 to 4: both overfitted on 9.5k images | None |
+
+**Outcome at 128 px (19 Nov).** By lever number from the table above:
+
+1. **Diagnostics:** the noise-free DiT caps at DINOv2 0.39 (W1-D1), so the limit is the
+   transmitter and the generator, not the noise.
+2. **REPA:** kept. FID -7 to -14 and top-1 +2 to +3 pts, at -0.2 dB PSNR and +0.01 LPIPS, in two
+   seeds.
+3. **Recipe:** not kept. Cosine decay hurt the undertrained 40k-step runs, and the regression loss
+   adds PSNR only.
+4. **Pretrain, then fine-tune:** kept, the largest gain. Top-1 +5 / +14 pts and FID -12 / -21 at
+   0 / +5 dB.
+5. **256 px:** run on the RTX 5060. At 0 dB, DINOv2 went from 0.18 to 0.56 and top-1 from 10% to
+   81%, the largest change seen.
+6. **Longer training and DiT-B:** not kept; both overfit on 9.5k images.
+
+None of them closed the 128 px gap to the CNN. At 256 px only REPA and pretraining remain to try,
+and both are optional (section 6).
 
 ## 6. Timeline
 
@@ -254,40 +311,120 @@ not developed further at 128 px. Two tracks, on separate hardware:
   CNN resumes from step 198k; converging it can only widen a gap that already favours the CNN).
   Superseded on 19 Nov by the plan below: three of those four stages are dropped.
 
-### DiT runs for 19 Nov to 6 Dec, all at 256 px (decided 19 Nov evening)
+### Plan from 19 Nov evening: what is still worth doing
 
-Decision (user, 19 Nov evening): no further 128 px DiT runs. Every DiT run of the next two to
-three weeks starts now, in parallel, without waiting for CNN results. Study A moves to 256 px
-(`configs/gen/p256.yaml`, `results/gen/p256-a`). At 128 px the SD-VAE is itself the semantic
-bottleneck (clean round trip DINOv2 0.81 vs 0.96 at 256 px, 18 Nov), so a 128 px SNR study would
-measure a receiver held back by its VAE. This replaces A-D, A-S and A-P of the plan below; their
-design (16-QAM, training range 0 to 20 dB, tests at 0 / 5 / 10 / 15 / 20 dB on the spread set) is
-unchanged.
+Decided 19 Nov evening after a review of every result. The user ruled out further 128 px models
+and asked that DiT runs start without waiting for CNN results. This plan supersedes the two
+subsections below wherever they differ.
 
-Cost: a converged 256 px DiT-S takes about 140k steps (14.7 h on the 5060); on a T4 about 17 to 19 h
-(estimate, measured by `a256-smoke`). Each Kaggle run is therefore two sessions: `--max-hours 10.5`,
-then a second job with `--input-job` resumes from its checkpoint.pt and runs the test set. A run's
-sessions stay on one account (private kernel outputs cannot be attached across accounts).
+**What the results say, in short** (details in "Status on 19 Nov" at the top and in section 8):
 
-| Run | Where | Started |
-|---|---|---|
-| A, AWGN blind / told (`a256-ab`, `a256-at`) | Kaggle, venkatrrr | 19 Nov, first sessions |
-| A, AWGN SNR-aware transmitter; Rayleigh blind / told | Kaggle, own / subhashhhh / venkat96r | 21 Nov reset |
-| A, seed 1 of AWGN blind / told | Kaggle | 21 Nov week, as sessions free up |
-| A, specialists at 0 / 10 / 20 dB | Kaggle | 21 Nov week (first sessions), 28 Nov (second) |
-| `dit256-s1`: seed 1 of the 256 px blind DiT (-5 to 5 dB) | RTX 5060, after `dump256` | 20 Nov, about 15 h |
-| `dit256-repa`: + REPA (0.5, depth 4) | RTX 5060, after `dit256-s1` | about 21 Nov, about 15 h |
+1. **128 px is closed for both receivers.** The DiT loses to the CNN on every semantic measure, in
+   two seeds each. The SD-VAE at 128 px is itself the bottleneck: its clean round trip reaches only
+   DINOv2 0.81. No 128 px run can change a decision any more.
+2. **256 px is the one change that moved the DiT a lot.** On the spread set at 0 dB, DINOv2 went
+   from 0.18 to 0.56, top-1 from 10% to 81% and FID from 141 to 70. Resolution also changes the
+   footing of these metrics, so this is not yet a win over the CNN.
+3. **Whether the DiT beats the CNN at 256 px is open until Friday.**
+   - The CNN's pixel stage reaches validation DINOv2 0.33 at 0 dB after 20k steps, against the
+     DiT's 0.44 at the same step and 0.66 at its end.
+   - But at 128 px, the 10k-step LPIPS stage tripled the CNN's validation DINOv2 (0.13 to 0.44 at
+     0 dB) and lifted it past the DiT.
+   - So validation DINOv2 cannot be compared across loss stages, and the pixel stage predicts
+     nothing about the final CNN.
+4. **The paper rests on two experiments.** The first is B: the DiT against the CNN at 256 px, with
+   the pre-registered converged re-check. The second is A at 256 px: where the SNR must be known,
+   under 16-QAM. Model levers are optional.
 
-- Kaggle budget: ten A runs x about 19 h = about 190 h, against about 30 h left this week
-  (venkatrrr) plus 120 h in each of the next two weeks; done about 3 Dec if the T4 estimate holds.
-- The two 5060 runs are paired with `dit256` on the same GPU: seed 1 gives the 256 px seed spread
-  (for Friday's seed rule and for judging REPA); REPA is the variant kept from 128 px (g-v3, g-v4).
-- Not yet scheduled: the 59k-image data at 256 px (ImageNet-100 is not on the 5060; on Kaggle it
-  needs a T4 baseline run, so it waits for spare quota or a download); the 200k extension (Friday's
-  extension rule); A-E evaluations (once the told models finish); A's CNN control, whose resolution
-  and device are decided after Friday's verdict and C1 (a 256 px CNN costs 0.97 it/s on the 5060).
-- 128 px work left: `a-smoke` (code paths only), and `cnn16` with C1 on the 5060 only if B passes,
-  as a cheap recipe calibration for converging the 256 px CNN.
+**The recipe for A is frozen.** A's DiT arms use the recipe that B tests (`configs/gen/p256.yaml`):
+DiT-S with v-prediction, constant LR 1e-4, patience 10, a cap of 150k steps, Imagenette only and
+no REPA.
+- Levers found later are reported as add-ons on the blind model. A is not retrained with them.
+- Blind against told is unlikely to depend on the recipe, and retraining A would cost about 190 T4
+  hours.
+
+**Each remaining task:**
+
+| Task | Serves | Decision | Why |
+|---|---|---|---|
+| `cnn256-ft`, `dump256`, the analysis suite | B | Do (running, ends Fri about 06:00) | The pre-registered verdict |
+| Converged 256 px CNN (`cnn256-conv`, `cnn256-conv-ft`, `dump256-conv`, spec `p256-conv.json`) | B re-check | Do if B passes; first on the 5060 | Pre-registered on 18 Nov. Converged by the DiT's own rule: constant LR, patience 10, the pixel stage continued from its 40k checkpoint, then the LPIPS stage. About 2 to 3 days (estimate) |
+| A, AWGN blind / told (`a256-ab`, `a256-at`) | A | Do (running) | The core comparison |
+| A, Rayleigh blind / told | A | Do | Fading is where an SNR input is most likely to matter |
+| A, specialists at 0 and 20 dB | Claim 2 | Do | DiT-JSCC trains one model per SNR. The two ends of the range are where a single model is most likely to fall short |
+| A, SNR-aware transmitter | Claim 4 (a contrast) | Do, after the rows above | Shows what SNR feedback buys. At 128 px it gained PSNR only |
+| A-E evaluations: `est-energy`, `est-m2m4`, offsets of 2 and 5 dB, gain errors of 1 and 2 dB | A, the gain assumption | Do, once the told models finish | Cheap. These evaluations define what "needs no SNR" assumes |
+| `dit256-s1`, seed 1 of the 256 px DiT | B and the levers | Do; after the converged CNN if B passes | Gives the seed spread at 256 px, needed to judge any 256 px lever |
+| REPA at 256 px (`dit256-repa`) | Lever | Optional, after `dit256-s1` | At 128 px: FID -7 / -14, top-1 +2 to +3 pts, PSNR -0.2 dB |
+| ImageNet-100 pretraining, then fine-tuning, at 256 px | Lever | Optional, 5060 only | The largest lever at 128 px (top-1 +5 / +14 pts, FID -12 / -21). Needs the data downloaded to the 5060 and a cache of about 55 GB (estimate); too large for Kaggle's 20 GB working disk |
+| A specialist at 10 dB; seed 1 of A's blind and told | A | Only if needed | At 128 px blind and told differed by at most 0.04 dB, and seed noise in the mean is about 0.01 dB. Run only if the 256 px gap is borderline |
+| 200k-step extension of `dit256` | B | Only on a narrow fail (the rule of 19 Nov below) | Post hoc |
+| `cnn16` to its end and C1 (128 px) | A CNN recipe | **Dropped** | 128 px is closed, and the 256 px CNN is converged by the DiT's rule, so no cheaper recipe needs calibrating |
+| A's CNN arms (A-C, A-S, A-P) at 128 px | A | **Dropped** | A 128 px CNN against a 256 px DiT confounds resolution, and blind CNN JSCC is published (CBJSCC, SIJSCC). If 5060 time is left over: a 256 px CNN blind / told pair at the 40k-step budget (about 11 h each) |
+| A's DiT arms at 128 px (`p128-a`) | A | **Dropped** | The 128 px DiT is closed |
+| 4-QAM / 64-QAM (W4-A4), the week 2 to 4 tables | - | **Dropped** / superseded | No decision needs them |
+
+**RTX 5060 order.**
+- After `dump256` (Fri about 06:00), `~/after_dump.sh` starts `dit256-s1` and then
+  `dit256-repa`.
+- When the verdict is in (about 07:00):
+  - **B passes:** stop `dit256-s1`, which later resumes from its checkpoint. Run
+    `gen_5060.py cnn256-conv cnn256-conv-ft dump256-conv`, then the re-check, then
+    `dit256-s1`, `dit256-repa` and the ImageNet-100 lever.
+  - **B fails:** keep `dit256-s1`, then try the two kept levers as possible rescues (REPA, then
+    ImageNet-100). The converged CNN is not needed.
+
+**If B fails,** A's DiT arms still run (user, 19 Nov), because they answer A for a diffusion
+receiver either way. The paper then becomes an SNR-placement study of a constellation-constrained
+diffusion receiver, with no quality claim against the CNN.
+
+**Kaggle.**
+- **Sessions:** a 256 px run takes two sessions on one account. The first uses `--max-hours 10.5`;
+  a second job resumes it with `--input-job` and runs the test set. An account runs at most two
+  sessions at once.
+- **Cost:** about 17 to 19 h per run, an estimate until `a256-smoke` measures the T4.
+- **Week of 21 Nov:**
+
+  | Account | Runs |
+  |---|---|
+  | venkatrrr | second sessions of `a256-ab` and `a256-at` (about 16 h), then the first session of spec20 |
+  | own | Rayleigh blind, then the AWGN A-E evaluations |
+  | subhashhhh | Rayleigh told |
+  | venkat96r | spec0, then the first session of the SNR-aware transmitter |
+
+- **28 Nov week:** the second sessions of spec20 and the SNR-aware transmitter, the Rayleigh A-E
+  evaluations, and the conditional runs.
+- **Budget:** the "Do" rows cost about 6 x 19 + 19 + 9 = about 140 h, against about 270 h
+  available: venkatrrr's 30 h this week plus 2 x 120 h.
+
+**Milestones.**
+
+- **Fri 20 Nov, about 07:00:** the B verdict, by the rules of 19 Nov morning below.
+- **Sat 21 Nov, 05:30:** Kaggle reset; launch as in the table.
+- **Tue 24 Nov, supervisor meeting:**
+  - the B verdict and its report;
+  - the converged re-check, running (done about 25 to 26 Nov);
+  - the first 256 px blind-against-told results;
+  - this plan.
+- **Fri 27 Nov, Gate A (DiT):** blind against told on AWGN and Rayleigh across 0 to 20 dB, with the
+  estimated-SNR and gain-error arms, plus the specialists if they are done. The decision rule is
+  Gate 3's (below).
+- **From 30 Nov:** writing, W4-T1 (deployment table) and W4-L1 (literature re-check), and the
+  optional levers as the 5060 frees up.
+
+### Plan for 20 to 29 Nov (decided 19 Nov morning; partly superseded the same evening, above)
+
+Still in force:
+
+- the evidence list;
+- Friday steps 1 (the verdict, with the seed and extension rules), 3 (A-smoke, run on 19 Nov) and 4.
+
+Superseded by the plan above:
+
+- step 2 (`cnn16` and C1 are dropped);
+- the 128 px track A table (A now runs at 256 px);
+- the track B branches;
+- the milestones.
 
 **Evidence it rests on** (19 Nov; section 8 has the full rows):
 
@@ -302,8 +439,8 @@ sessions stay on one account (private kernel outputs cannot be attached across a
   treated as settled by one seed.
 - *The 256 px DiT converged by the rule but was still gaining semantics:* validation DINOv2 at
   0 dB rose +0.009 per 10k steps over 100k to 140k (PSNR flat, loss -0.0006 per 10k).
-- *Quota:* 90 Kaggle hours a week (not 120); 10.4 h left until the 21 Nov reset (own 4.7, subhashhhh
-  3.1, venkat96r 2.6).
+- *Quota:* 90 Kaggle hours a week on three accounts; 10.4 h left until the 21 Nov reset (own 4.7,
+  subhashhhh 3.1, venkat96r 2.6). A fourth account (venkatrrr) joined the same evening: 120 h a week.
 
 **Dropped, with reasons:**
 
@@ -443,6 +580,12 @@ RTX 5060: buffer and reruns.
 - A Kaggle job that stays queued for more than about 20 minutes while other accounts start at once
   is stuck: delete the kernel and push the same kernel folder again.
 - The repository is public. Never commit Kaggle tokens.
+- Validation metrics (32 images, logged every 2k steps) are for tracking one run.
+  - Do not compare them across loss stages or architectures. The LPIPS stage tripled the 128 px
+    CNN's validation DINOv2.
+  - Decide only on the test sets.
+- `results/gen/kaggle_jobs.json` is the committed copy of `.kaggle_jobs/*/job.json`, without token
+  paths. Add new jobs to it when their results are logged.
 - Record each finished experiment in section 8 with its job name, the paired result and the gate
   decision it feeds.
 
@@ -487,4 +630,7 @@ RTX 5060: buffer and reruns.
 | 19 Nov | B (256 px) | RTX 5060 | The 256 px CNN does not fit the 8 GB card at batch 64 (about 12 GB; 24 GB with LPIPS) and crawled at 0.009 it/s for 3 h. Relaunched at 60451b6 with `--grad-accum 2` (8 for the LPIPS stage; CNN only, no batch norm, gradient within 0.03% of the whole batch's): 0.97 it/s. Validation at 12k: PSNR 18.7 / 20.9 / 22.2 dB, DINOv2 0.09 / 0.31 / 0.44 (DiT at the end: 16.5 / 19.2 / 20.6 dB, 0.38 / 0.66 / 0.77); the verdict waits for the LPIPS stage |
 | 19 Nov | convergence | RTX 5060 | The 128 px blind 16-QAM pixel CNN at 198k (constant LR, one validation from the patience limit): 40k -> 198k gains PSNR +0.32 / +0.39 / +0.38 dB and validation DINOv2 0.14 -> 0.20 at 0 dB, 0.21 -> 0.30 at +5 dB. The 40k-step budget leaves the CNN well short on semantics |
 | 19 Nov | plan | (decision) | Plan for 20 to 29 Nov written into section 6: 128 px stages `cnn16-ft`, `cnn`, `cnn-ft` dropped; C1 (cosine-60k CNN against the converged one) decides whether converged CNNs are affordable; track A as A-D / A-C / A-S / A-P / A-E on 16-QAM over 0 to 20 dB, AWGN and Rayleigh; track B branches on Friday's verdict; quota corrected to 90 h a week |
-| 19 Nov | plan | (decision) | All DiT runs at 256 px from now, started without waiting for CNN results (section 6, "DiT runs for 19 Nov to 6 Dec"): A's DiT arms on Kaggle (`a256-ab`, `a256-at` first, on a 4th account, venkatrrr: 120 h a week), seed 1 and REPA of the 256 px DiT on the 5060 after the dump; the 5060's 256 px CNN restarted at 16k after slowing to 0.25 it/s (cause unknown; 1.10 it/s after the restart) |
+| 19 Nov | plan | (decision) | All DiT runs at 256 px from now, started without waiting for CNN results (user): A's DiT arms on Kaggle (`a256-ab`, `a256-at` first, on a 4th account, venkatrrr: 120 h a week), seed 1 and REPA of the 256 px DiT on the 5060 after the dump; the 5060's 256 px CNN restarted at 16k after slowing to 0.25 it/s (cause unknown; 1.10 it/s after the restart) |
+| 19 Nov | A (256 px) | a256-ab, a256-at (venkatrrr), a256-smoke (subhashhhh), a-smoke (own) | Launched at 268779d. a256-ab / a256-at: A's AWGN blind and told DiT-S at 256 px over 0 to 20 dB, first sessions (`--max-hours 10.5`, `results/gen/p256-a`). a256-smoke: 300-step checks at 256 px of told, SNR-aware transmitter, Rayleigh, `est-energy`, `gain2` and REPA, and the T4's 256 px speed. a-smoke: the same checks at 128 px (code paths only) |
+| 19 Nov | B (256 px) | RTX 5060 | **Validation DINOv2 is not comparable across loss stages.** At 128 px the LPIPS stage took the CNN's validation DINOv2 at 0 dB from 0.13 to 0.44 in 10k steps, past the converged 128 px DiT's 0.24 at its best step. So the 256 px CNN's pixel stage (0.33 at 20k, against the DiT's 0.44 at 20k and 0.66 at 140k) says nothing about the verdict; it waits for the LPIPS stage and the test set |
+| 19 Nov | review | (decision) | Every result re-read; each remaining task given a decision (section 6, "Plan from 19 Nov evening"). Dropped: `cnn16` and C1, A's CNN arms and every other 128 px run. Kept: B and its converged re-check (stages `cnn256-conv`, `cnn256-conv-ft`, `dump256-conv`, spec `p256-conv.json`: the CNN continued from its checkpoint by the DiT's own rule, constant LR and patience 10), and A at 256 px with the B recipe frozen. Optional: REPA and ImageNet-100 pretraining at 256 px. The job registry (`results/gen/kaggle_jobs.json`) gains the 21 jobs since 15 Nov |

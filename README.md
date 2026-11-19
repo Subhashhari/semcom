@@ -1,10 +1,18 @@
 # Deep JSCC: blind decoding and generative receivers
 
-## Current work (Nov 2026): a small DiT-JSCC with an SNR slot
+## Current work (Nov 2026): a constellation-constrained diffusion JSCC that needs no SNR
 
-One generative receiver, told the
-SNR or blind, against per-SNR specialists. Design, novelty position, gate and schedule:
-[`docs/proposal/gen-jscc-prototype.md`](docs/proposal/gen-jscc-prototype.md). Code in `semcom/gen/`.
+A small DiT-JSCC (DiT-S in the SD-VAE latent) sending 16-QAM symbols.
+
+- At 128 px it loses to a CNN JSCC on semantics, and that resolution is closed.
+- At 256 px it is being tested against a CNN (test B), and for whether the receiver or transmitter
+  needs the SNR (study A).
+
+Current state, plan and log: [`docs/proposal/gen-jscc-month-plan.md`](docs/proposal/gen-jscc-month-plan.md)
+(read its "Status" section first). The original design and the 9 to 15 Nov results are in
+[`docs/proposal/gen-jscc-prototype.md`](docs/proposal/gen-jscc-prototype.md). Code is in `semcom/gen/`.
+Long runs on the RTX 5060 go through `scripts/gen_5060.py`; Kaggle jobs go through
+`scripts/kaggle_jobs.py`.
 
 ```bash
 pip install -r requirements.txt diffusers lpips torch-fidelity

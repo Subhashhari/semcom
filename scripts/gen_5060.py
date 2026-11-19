@@ -10,7 +10,7 @@ the same test sets as the Kaggle runs. Outputs go to results/gen/p128-conv/.
   2 cnn16-ft    + 0.1 LPIPS from stage 1's best weights: the converged reference
   3 cnn         blind analog CNN, pixel MSE
   4 cnn-ft      + 0.1 LPIPS: the converged analog reference
-  (stages 2-4 were dropped on 19 Nov: the 128 px DiT comparison is closed; month plan, section 6)
+  (stages 1-4 and cnn16-cos were dropped on 19 Nov: 128 px is closed; month plan, section 6)
   cnn16-cos     stage 1 with a cosine decay over 60k steps: does it reach the converged quality?
   ref16         CNN + diffusion refiner on the converged reference (option B); only when named:
                 the 18 Nov sweep (g-s3) showed a refiner in the SD-VAE latent at 128 px cannot keep
@@ -24,10 +24,12 @@ the same test sets as the Kaggle runs. Outputs go to results/gen/p128-conv/.
   dump256       reconstructions of the three for the analysis suite (results/gen/dump/p256; then
                 scripts/gen_analysis/suite.py scripts/gen_analysis/specs/p256.json on the development PC)
 The CNN is trained at the reference's budget, not to convergence: a DiT that loses to it loses to
-a converged one too; only a DiT that wins needs the converged CNN (pre-registered 18 Nov).
+a converged one too; only a DiT that wins needs the converged CNN (pre-registered 18 Nov):
+  cnn256-conv     the cnn256 run continued from its checkpoint to convergence (patience 10, as the DiT)
+  cnn256-conv-ft  + 0.1 LPIPS from it, to convergence; both in results/gen/p256-conv
+  dump256-conv    reconstructions for scripts/gen_analysis/specs/p256-conv.json
 
 usage (from the repo root, on the 5060 machine):
-    python scripts/gen_5060.py                 # the default stages in order
     python scripts/gen_5060.py cnn16 cnn16-ft  # only these stages
     python scripts/gen_5060.py --check         # environment check only
 
@@ -89,10 +91,19 @@ DIT256 = P256 + ["--models", "dit", "--arms", "blind", "--qam", "16", "--steps",
 # The 256 px CNN needs about 12 GB at batch 64 (24 GB with LPIPS): each batch of 64 goes through
 # in chunks of 32 (8 with LPIPS) whose gradients are added up (grad_accum, CNN only; the gradient
 # matches the whole batch's to 0.03%). On the 5060: 1.18 batches/s, 0.59 with LPIPS.
-CNN256 = P256 + ["--models", "cnn", "--arms", "blind", "--qam", "16", "--sanity-steps", "0",
-                 "--out-dir", "results/gen/p256-perc", "--grad-accum", "2"]
+CNN256_BASE = P256 + ["--models", "cnn", "--arms", "blind", "--qam", "16", "--sanity-steps", "0"]
+CNN256 = CNN256_BASE + ["--out-dir", "results/gen/p256-perc", "--grad-accum", "2"]
 CNN256_FT = CNN256 + ["--init-from", "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0",
                       "--cnn-lpips-weight", "0.1", "--steps", "10000", "--tag", "ft", "--grad-accum", "8"]
+# The pre-registered re-check if the DiT passes (18 Nov): the same CNN trained to convergence by
+# the DiT's rule (constant LR, patience 10). The pixel stage continues the 40k-step run from its
+# checkpoint (optimiser state and validation history kept), then the LPIPS stage to convergence.
+CONV256 = "results/gen/p256-conv"
+CNN256_SRC = "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"
+CNN256_CONV = CNN256_BASE + ["--out-dir", CONV256, "--grad-accum", "2", "--steps", "300000", "--patience", "10"]
+CNN256_CONV_FT = CNN256_BASE + ["--out-dir", CONV256, "--init-from", f"{CONV256}/cnn_cbr48_qam16_blind-5to5_s0",
+                                "--cnn-lpips-weight", "0.1", "--tag", "ft", "--grad-accum", "8",
+                                "--steps", "200000", "--patience", "10"]
 RUNS256 = ["results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"]
@@ -108,8 +119,26 @@ STAGES.update({
     # class-spread test images, channel and sampling seeds as the eval-spread scores, on this GPU.
     "dump256": [["scripts/gen_analysis/dump.py", "results/gen/dump/p256", "1000", "-5,0,5", *RUNS256,
                  "--base", "configs/gen/p256.yaml"]],
+    "cnn256-conv": [["continue", CNN256_SRC, CONV256], CNN256_CONV + TESTS[1]],
+    "cnn256-conv-ft": [CNN256_CONV_FT + t for t in TESTS],
+    # A separate folder: the converged CNNs have the same run names as the 40k-step ones.
+    "dump256-conv": [["scripts/gen_analysis/dump.py", "results/gen/dump/p256-conv", "1000", "-5,0,5",
+                      RUNS256[0], f"{CONV256}/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
+                      f"{CONV256}/cnn_cbr48_qam16_blind-5to5_s0", "--base", "configs/gen/p256.yaml"]],
 })
-DEFAULT = ["cnn16", "cnn16-ft", "cnn", "cnn-ft"]
+
+
+def continue_run(src: str, out_dir: str) -> None:
+    """Copy a finished run into out_dir without its history.json and test results, so run_gen.py
+    resumes it from checkpoint.pt (step, optimiser and validation history) under a new step cap."""
+    import shutil
+
+    dst = R / out_dir / Path(src).name
+    if (dst / "history.json").exists() or (dst / "checkpoint.pt").exists():
+        print(f"{dst} already set up; skipped")
+        return
+    shutil.copytree(R / src, dst, ignore=shutil.ignore_patterns("history.json", "eval*"))
+    print(f"copied {src} -> {dst}")
 
 
 def check() -> None:
@@ -135,13 +164,18 @@ def main() -> None:
     check()
     if "--check" in args:
         return
-    names = args or DEFAULT
+    names = args
+    if not names:
+        raise SystemExit(f"name the stages to run (month plan, section 6, says which); choose from {list(STAGES)}")
     bad = [n for n in names if n not in STAGES]
     if bad:
         raise SystemExit(f"unknown stages {bad}; choose from {list(STAGES)}")
     for n in names:
         for plan in STAGES[n]:
             t0 = time.time()
+            if plan[0] == "continue":
+                continue_run(*plan[1:])
+                continue
             cmd = plan if plan[0].endswith(".py") else ["scripts/run_gen.py", *plan]  # a script, or a run_gen plan
             print(f"\n=== {n}: {' '.join(cmd)}", flush=True)
             subprocess.run([sys.executable, *cmd], cwd=R, check=True)
