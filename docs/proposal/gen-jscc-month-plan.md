@@ -37,6 +37,15 @@ Sections 1 to 5 are the review of 16 Nov and still describe the 128 px prototype
   top-1 (+9.4 and +5.6 pts at 0 and +5 dB) and FID (70 vs 82, 51 vs 56), all with intervals
   clear of 0; it loses 1.2 to 1.5 dB PSNR. The verdict is not final: the pre-registered converged
   CNN re-check (`cnn256-conv`, on the 5060 since 20 Nov 08:00) decides it, about 23 Nov.
+- **Study A, first result (AWGN, 256 px, 20 Nov): telling the receiver the SNR adds nothing.**
+  Blind and told DiTs (0 to 20 dB, 16-QAM) both converged at 76k steps on Kaggle. Told minus
+  blind, paired on the 1,000 spread images: PSNR -0.13 / -0.11 / -0.06 / -0.04 / -0.02 dB at
+  0 / 5 / 10 / 15 / 20 dB (intervals below 0 except at 20 dB), LPIPS +0.001 to +0.002, top-1
+  and top-5 within their intervals of 0. The told receiver is never better, so a gain from the
+  SNR is ruled out at every SNR (largest upper bound +0.009 dB). Whether told is genuinely
+  slightly worse is a seed question and does not affect the claim. Still to come: the
+  estimated-SNR and gain-error evaluations (`a256-ae-awgn`, running), Rayleigh, the
+  specialists and the SNR-aware transmitter (from the 21 Nov reset).
 - **The position is unchanged, now at 256 px:** a constellation-constrained (16-QAM) diffusion JSCC
   that needs no SNR at either end.
   - The work rests on B and on study A at 256 px (blind / told / estimated SNR / gain error /
@@ -108,7 +117,7 @@ All rows use the 1,000-image 10-class set (`--eval-subset spread`), 10 sampling 
 |---|---|---|---|---|
 | 1 | One DiT receiver works over -5 to 5 dB | Yes | No (DiffJSCC, FlowSem, OSD-JSCC) | Low |
 | 2 | Its gap to per-SNR specialists: 0 at 0 and +5 dB, 0.64 dB at -5 dB | Yes, 2 seeds | Yes, narrowly: no paper read compares against separately trained specialists | Moderate |
-| 3 | Telling the receiver the SNR adds nothing | Yes, 3 settings | Weak: SIJSCC shows it for a non-generative codec; OSD-JSCC has a partial ablation | Small |
+| 3 | Telling the receiver the SNR adds nothing | Yes, 3 settings at 128 px; at 256 px on AWGN, 0 to 20 dB (20 Nov: told never better, -0.02 to -0.13 dB) | Weak: SIJSCC shows it for a non-generative codec; OSD-JSCC has a partial ablation | Small |
 | 4 | SNR at the transmitter only recovers 75% of the -5 dB gap | Yes, 2 seeds | Not found anywhere, but a search cannot prove absence | PSNR only |
 | 5 | Wrong-SNR sensitivity at the transmitter | Weak (200 images, CPU) | Partly (DeepJSCC-Q has one for CNNs) | Minor |
 | 6 | 16-QAM symbols into a diffusion receiver that generates from noise, 0.3 to 0.8 dB cost | Yes | Yes, still open | Best claim; uncoded, toy scale |
@@ -361,11 +370,11 @@ no REPA.
 |---|---|---|---|
 | `cnn256-ft`, `dump256`, the analysis suite | B | **Done 20 Nov: B passes** | The pre-registered verdict |
 | Converged 256 px CNN (`cnn256-conv`, `cnn256-conv-ft`, `dump256-conv`, spec `p256-conv.json`) | B re-check | **Running** on the 5060 since 20 Nov 08:00 | Pre-registered on 18 Nov. Converged by the DiT's own rule: constant LR, patience 10, the pixel stage continued from its 40k checkpoint, then the LPIPS stage. About 2 to 3 days (estimate) |
-| A, AWGN blind / told (`a256-ab`, `a256-at`) | A | Do (running) | The core comparison |
+| A, AWGN blind / told (`a256-ab`, `a256-at`) | A | **Done 20 Nov**: both converged at 76k; told adds nothing (section 8) | The core comparison |
 | A, Rayleigh blind / told | A | Do, with block fading (20 Nov change, `fading: block`), after the smoke test `r256-smoke` | Fading is where an SNR input is most likely to matter. One fade per image for every symbol, and the told arm is given the image's effective SNR after equalisation (SNR + 10 log10 \|h\|^2), which a coherent receiver knows. Before 20 Nov the DiT's two streams faded independently and the told arm got only the average SNR, a weak comparator |
 | A, specialists at 0 and 20 dB | Claim 2 | Do | DiT-JSCC trains one model per SNR. The two ends of the range are where a single model is most likely to fall short |
 | A, SNR-aware transmitter | Claim 4 (a contrast) | Do, after the rows above | Shows what SNR feedback buys. At 128 px it gained PSNR only |
-| A-E evaluations: `est-energy`, `est-m2m4`, offsets of 2 and 5 dB, gain errors of 1 and 2 dB | A, the gain assumption | Do, once the told models finish | Cheap. These evaluations define what "needs no SNR" assumes |
+| A-E evaluations: `est-energy`, `est-m2m4`, offsets of 2 and 5 dB, gain errors of 1 and 2 dB | A, the gain assumption | AWGN: running (`a256-ae-awgn`; `gain1` in `a256-ae-awgn2` after the reset). Rayleigh: once its models finish, on the accounts that hold them | Cheap. These evaluations define what "needs no SNR" assumes |
 | `dit256-s1`, seed 1 of the 256 px DiT | B and the levers | Do; after the converged CNN if B passes | Gives the seed spread at 256 px, needed to judge any 256 px lever |
 | REPA at 256 px (`dit256-repa`) | Lever | Optional, after `dit256-s1` | At 128 px: FID -7 / -14, top-1 +2 to +3 pts, PSNR -0.2 dB |
 | ImageNet-100 pretraining, then fine-tuning, at 256 px | Lever | Optional, 5060 only | The largest lever at 128 px (top-1 +5 / +14 pts, FID -12 / -21). Needs the data downloaded to the 5060 and a cache of about 55 GB (estimate); too large for Kaggle's 20 GB working disk |
@@ -376,7 +385,9 @@ no REPA.
 | A's DiT arms at 128 px (`p128-a`) | A | **Dropped** | The 128 px DiT is closed |
 | 4-QAM / 64-QAM (W4-A4), the week 2 to 4 tables | - | **Dropped** / superseded | No decision needs them |
 
-**RTX 5060 order.**
+**RTX 5060 order.** B passed (20 Nov), so the first branch below is the one in force: the
+converged CNN runs from 20 Nov 08:00 IST (`~/gen_256_conv.log`), then the re-check, then
+`dit256-s1` and `dit256-repa`.
 - After `dump256` (Fri about 06:00), `~/after_dump.sh` starts `dit256-s1` and then
   `dit256-repa`.
 - When the verdict is in (about 07:00):
@@ -407,23 +418,32 @@ diffusion receiver, with no quality claim against the CNN.
   | Account | Runs |
   |---|---|
   | venkatrrr | `a256-at-3` if `a256-at-2` (20 Nov) does not finish, then spec20 (`a256-p20`, `a256-p20-2`) |
-  | own | Rayleigh blind, then the AWGN A-E evaluations |
-  | subhashhhh | Rayleigh told |
-  | venkat96r | spec0, then the first session of the SNR-aware transmitter |
+  | own | Rayleigh blind (`a256-rb`, resuming `a256-rb-0`; `a256-rb-2` if needed), then the blind Rayleigh gain-error evaluations |
+  | subhashhhh | Rayleigh told (`a256-rt`, `a256-rt-2` if needed), then the Rayleigh A-E evaluations of the told model |
+  | venkat96r | spec0 (`a256-p0`, `a256-p0-2` if needed) and the first session of the SNR-aware transmitter (`a256-tx`) side by side |
+  | venkatrrr (also) | `a256-ae-awgn2`: `gain1` for told and blind |
 
-- **28 Nov week:** the second sessions of spec20 and the SNR-aware transmitter, the Rayleigh A-E
+  A Kaggle job can only read the outputs of jobs on its own account, so each evaluation runs on
+  the account that trained the model. The AWGN runs converged at 76k steps (about 9.7 h), so a
+  run that starts from a short first session may finish in one more session; the queue then
+  skips its `-2` job.
+
+- **28 Nov week:** the second session of the SNR-aware transmitter (`a256-tx-2`), anything the
+  21 Nov week did not finish, the Rayleigh A-E
   evaluations, and the conditional runs.
 - **Budget:** the "Do" rows cost about 6 x 19 + 19 + 9 = about 140 h, against about 270 h
   available: venkatrrr's 30 h this week plus 2 x 120 h.
 
 **Milestones.**
 
-- **Fri 20 Nov, about 07:00:** the B verdict, by the rules of 19 Nov morning below.
+- **Fri 20 Nov, about 07:00:** the B verdict, by the rules of 19 Nov morning below. **Done 08:00:
+  B passes; AWGN blind / told also done the same morning.**
 - **Sat 21 Nov, 05:30:** Kaggle reset; launch as in the table.
 - **Tue 24 Nov, supervisor meeting:**
   - the B verdict and its report;
-  - the converged re-check, running (done about 25 to 26 Nov);
-  - the first 256 px blind-against-told results;
+  - the converged re-check, running (estimate now about 23 Nov);
+  - the AWGN blind-against-told result with the estimated-SNR and gain-error evaluations, and
+    the first Rayleigh runs;
   - this plan.
 - **Fri 27 Nov, Gate A (DiT):** blind against told on AWGN and Rayleigh across 0 to 20 dB, with the
   estimated-SNR and gain-error arms, plus the specialists if they are done. The decision rule is
@@ -657,4 +677,4 @@ RTX 5060: buffer and reruns.
 | 20 Nov | A (Kaggle) | `a256-rb-0`, `a256-rt-0`, `a256-p0-0` | Short first sessions on the week's leftover quota (own 3.0 h, subhashhhh 2.1 h, venkat96r 2.6 h left): Rayleigh blind, Rayleigh told and spec0 with `--max-hours` 2.0 / 1.1 / 1.6, pushed 21:14 UTC 19 Nov; the 21 Nov sessions now resume them. `a256-ab-2` moved forward to start when `a256-ab` stops, with `--max-hours 6` (venkatrrr has about 7.6 h left after its two running sessions); `a256-ab-3` added after the reset |
 | 20 Nov | B | `cnn256`, `cnn256-ft`, `dump256` (5060) | **B passes** (spec `p256.json`, rule of 17 Nov). The 256 px CNN: pixel stage 40k steps (6.4 h), LPIPS 0.1 stage 10k steps (4.7 h). Spread set, DiT minus CNN, paired, 95% intervals: LPIPS -0.076 / -0.083 / -0.087 and DINOv2 +0.086 / +0.028 [+0.017, +0.038] / +0.031 [+0.023, +0.039] at -5 / 0 / +5 dB; top-1 +11.0 / +9.4 / +5.6 pts; FID 120 vs 174, 70 vs 82, 51 vs 56; PSNR -1.20 / -1.23 / -1.49 dB; class kept equal at 0 and +5 dB (93%, 97%), 78% vs 68% at -5 dB. The DiT wins on both LPIPS and DINOv2 on 55% / 61% of images at 0 / +5 dB. Its high-frequency power is 0.98 of the originals' at 0 dB (CNN 0.18): it restores texture where the CNN blurs. The pixel-only CNN (cnnpx) is far behind on every semantic measure (DINOv2 0.28 at 0 dB). *Seed rule:* 128 px seed spreads (CNN DINOv2 0.008 / 0.013 at 0 / +5 dB, LPIPS 0.004, top-1 1 pt) against the shift that would flip the verdict (an LPIPS gain lost: 0.08, 20x; a clear DINOv2 loss: 0.038 / 0.039, 4.8x / 3.0x; top-1: 13x): every margin is at least 3x, so one seed stands for 24 Nov; the thinnest is DINOv2 at +5 dB, and the 256 px spread is measured by `dit256-s1` later. *Extension rule:* not needed. Next, as pre-registered: the converged CNN (`cnn256-conv` from the 40k checkpoint, constant LR, patience 10, then the LPIPS stage), started 20 Nov 08:00 IST (resumed at step 40,100, 0.92 it/s); `dit256-s1` waits for it. The `~/after_dump.sh` hand-off stalled for 35 min (its `pgrep -f gen_5060.py` matched the tmux server's command line) and was launched by hand |
 | 20 Nov | A (Kaggle) | `a256-ab`, `a256-at`, `a256-at-2`, `a256-p20-0` | **AWGN blind converged in one session:** `a256-ab` stopped on patience at 76k steps (best validation loss at 66k; 9.7 h) and ran its spread test (0 / 5 / 10 / 15 / 20 dB: DINOv2 0.40 / 0.66 / 0.75 / 0.78 / 0.79, top-1 57 / 92 / 97 / 98 / 99%, PSNR 18.8 / 20.8 / 21.8 / 22.2 / 22.3 dB), so `a256-ab-2` was skipped. `a256-at` (told) stopped on `--max-hours` at step 67,008; its second session `a256-at-2` was moved forward onto venkatrrr's 8.0 h left this week (`--max-hours 4.5`, `a256-at-3` after the reset if needed), with a short first session of the 20 dB specialist (`a256-p20-0`, 1.3 h; `a256-p20`, `a256-p20-2` after the reset). The short sessions on own / subhashhhh / venkat96r completed (`a256-rb-0` stopped at step 12,309: Rayleigh trains at 1.86 it/s against 2.38 for AWGN) |
-| 20 Nov | A (Kaggle) | `a256-at-2`, `a256-ae-awgn` | **AWGN blind against told at 256 px, first look (means only, 1,000 spread images, one seed each):** `a256-at-2` converged at 76k steps (best at 64k), the same stop as blind. Blind / told at 0 / 5 / 10 / 15 / 20 dB: PSNR 18.79 / 18.66, 20.84 / 20.73, 21.80 / 21.75, 22.23 / 22.19, 22.34 / 22.32 dB; DINOv2 0.404 / 0.402, 0.658 / 0.647, 0.753 / 0.747, 0.785 / 0.777, 0.791 / 0.787; top-1 56.9 / 54.0, 91.9 / 91.4, 97.4 / 97.4, 98.2 / 97.6, 98.8 / 98.4%; FID 108 / 109, 61 / 63, 45 / 46, 39 / 41, 39 / 39. Telling the receiver the SNR buys nothing; the told model is slightly behind everywhere (by 0.02 to 0.12 dB), within what a second seed might move. Paired intervals come from the analysis suite. Short sessions: `a256-rt-0` stopped at 8,492 steps, `a256-p0-0` at 13,274, `a256-p20-0` at 10,271. `a256-ae-awgn` (venkatrrr, 3.7 h left) evaluates the told model with `est-energy`, `est-m2m4`, `offset2`, `offset5`, `gain2` and the blind one with `gain2`; `gain1` and the Rayleigh set follow next week |
+| 20 Nov | A (Kaggle) | `a256-at-2`, `a256-ae-awgn` | **AWGN blind against told at 256 px, first look (means only, 1,000 spread images, one seed each):** `a256-at-2` converged at 76k steps (best at 64k), the same stop as blind. Blind / told at 0 / 5 / 10 / 15 / 20 dB: PSNR 18.79 / 18.66, 20.84 / 20.73, 21.80 / 21.75, 22.23 / 22.19, 22.34 / 22.32 dB; DINOv2 0.404 / 0.402, 0.658 / 0.647, 0.753 / 0.747, 0.785 / 0.777, 0.791 / 0.787; top-1 56.9 / 54.0, 91.9 / 91.4, 97.4 / 97.4, 98.2 / 97.6, 98.8 / 98.4%; FID 108 / 109, 61 / 63, 45 / 46, 39 / 41, 39 / 39. Telling the receiver the SNR buys nothing. Paired, told minus blind (`results/gen/analysis/paired_p256a_told_vs_blind_awgn.json`): PSNR -0.125 [-0.152, -0.099] / -0.109 [-0.135, -0.084] / -0.055 [-0.081, -0.029] / -0.044 [-0.066, -0.019] / -0.019 [-0.047, +0.009] dB at 0 / 5 / 10 / 15 / 20 dB; LPIPS +0.001 to +0.002 (significant, tiny); top-1 -2.9 [-6.0, 0.0] at 0 dB and within 1 pt elsewhere; top-5 not significant. The told model is slightly but significantly worse at 0 to 15 dB. That is more than the 128 px seed spread of the means (about 0.01 dB), so it may be real (an SNR input the receiver can read off the signal anyway, at the cost of capacity) or a larger seed spread at 256 px; seed 1 of blind and told would settle it but is not needed for the claim, which needs only that told is not better. Short sessions: `a256-rt-0` stopped at 8,492 steps, `a256-p0-0` at 13,274, `a256-p20-0` at 10,271. `a256-ae-awgn` (venkatrrr, 3.7 h left) evaluates the told model with `est-energy`, `est-m2m4`, `offset2`, `offset5`, `gain2` and the blind one with `gain2`; `gain1` and the Rayleigh set follow next week |

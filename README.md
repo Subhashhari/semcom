@@ -5,8 +5,10 @@
 A small DiT-JSCC (DiT-S in the SD-VAE latent) sending 16-QAM symbols.
 
 - At 128 px it loses to a CNN JSCC on semantics, and that resolution is closed.
-- At 256 px it is being tested against a CNN (test B), and for whether the receiver or transmitter
-  needs the SNR (study A).
+- At 256 px it beats a perceptual CNN JSCC on LPIPS, DINOv2, retrieval and FID at -5 to +5 dB
+  (test B, 20 Nov), at 1.2 to 1.5 dB lower PSNR; a re-check against a converged CNN is running.
+- Study A asks whether the receiver or transmitter needs the SNR. First result (AWGN, 0 to
+  20 dB): telling the receiver the SNR adds nothing.
 
 Current state, plan and log: [`docs/proposal/gen-jscc-month-plan.md`](docs/proposal/gen-jscc-month-plan.md)
 (read its "Status" section first). The original design and the 9 to 15 Nov results are in
