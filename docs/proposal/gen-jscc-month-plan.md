@@ -10,7 +10,7 @@ Every number below was recomputed on 16 Nov 2026 from the committed per-image re
 (`eval_images-*.npz`) unless marked otherwise. Literature statements come from paper text fetched
 that day; section 3 says which ones could not be confirmed verbatim.
 
-## Status on 19 Nov (read first)
+## Status on 20 Nov (read first)
 
 Sections 1 to 5 are the review of 16 Nov and still describe the 128 px prototype. Since then:
 
@@ -31,8 +31,12 @@ Sections 1 to 5 are the review of 16 Nov and still describe the 128 px prototype
   0 dB:
   - DINOv2 0.56, top-1 81%, FID 70, class kept 93%;
   - at +5 dB, top-1 95%.
-- **Whether it beats a CNN at 256 px is the pre-registered test B.** Its verdict is due on Fri
-  20 Nov. If it passes, the CNN is converged and the verdict re-checked, as fixed in advance.
+- **B passed on 20 Nov** (`results/gen/analysis/p256/report.md`, local). Against the blind
+  perceptual CNN (40k pixel + 10k LPIPS steps), paired on the 1,000 spread images, the DiT wins
+  at -5, 0 and +5 dB on LPIPS (-0.08 to -0.09), DINOv2 (+0.03 at 0 and +5 dB, +0.09 at -5 dB),
+  top-1 (+9.4 and +5.6 pts at 0 and +5 dB) and FID (70 vs 82, 51 vs 56), all with intervals
+  clear of 0; it loses 1.2 to 1.5 dB PSNR. The verdict is not final: the pre-registered converged
+  CNN re-check (`cnn256-conv`, on the 5060 since 20 Nov 08:00) decides it, about 23 Nov.
 - **The position is unchanged, now at 256 px:** a constellation-constrained (16-QAM) diffusion JSCC
   that needs no SNR at either end.
   - The work rests on B and on study A at 256 px (blind / told / estimated SNR / gain error /
@@ -355,8 +359,8 @@ no REPA.
 
 | Task | Serves | Decision | Why |
 |---|---|---|---|
-| `cnn256-ft`, `dump256`, the analysis suite | B | Do (running, ends Fri about 06:00) | The pre-registered verdict |
-| Converged 256 px CNN (`cnn256-conv`, `cnn256-conv-ft`, `dump256-conv`, spec `p256-conv.json`) | B re-check | Do if B passes; first on the 5060 | Pre-registered on 18 Nov. Converged by the DiT's own rule: constant LR, patience 10, the pixel stage continued from its 40k checkpoint, then the LPIPS stage. About 2 to 3 days (estimate) |
+| `cnn256-ft`, `dump256`, the analysis suite | B | **Done 20 Nov: B passes** | The pre-registered verdict |
+| Converged 256 px CNN (`cnn256-conv`, `cnn256-conv-ft`, `dump256-conv`, spec `p256-conv.json`) | B re-check | **Running** on the 5060 since 20 Nov 08:00 | Pre-registered on 18 Nov. Converged by the DiT's own rule: constant LR, patience 10, the pixel stage continued from its 40k checkpoint, then the LPIPS stage. About 2 to 3 days (estimate) |
 | A, AWGN blind / told (`a256-ab`, `a256-at`) | A | Do (running) | The core comparison |
 | A, Rayleigh blind / told | A | Do, with block fading (20 Nov change, `fading: block`), after the smoke test `r256-smoke` | Fading is where an SNR input is most likely to matter. One fade per image for every symbol, and the told arm is given the image's effective SNR after equalisation (SNR + 10 log10 \|h\|^2), which a coherent receiver knows. Before 20 Nov the DiT's two streams faded independently and the told arm got only the average SNR, a weak comparator |
 | A, specialists at 0 and 20 dB | Claim 2 | Do | DiT-JSCC trains one model per SNR. The two ends of the range are where a single model is most likely to fall short |
@@ -651,3 +655,4 @@ RTX 5060: buffer and reruns.
 | 19 Nov | review | (decision) | Every result re-read; each remaining task given a decision (section 6, "Plan from 19 Nov evening"). Dropped: `cnn16` and C1, A's CNN arms and every other 128 px run. Kept: B and its converged re-check (stages `cnn256-conv`, `cnn256-conv-ft`, `dump256-conv`, spec `p256-conv.json`: the CNN continued from its checkpoint by the DiT's own rule, constant LR and patience 10), and A at 256 px with the B recipe frozen. Optional: REPA and ImageNet-100 pretraining at 256 px. The job registry (`results/gen/kaggle_jobs.json`) gains the 21 jobs since 15 Nov |
 | 20 Nov | A (code) | none | **Rayleigh fading corrected** (`GenConfig.fading`, default `block`). Two problems in every Rayleigh run so far: (1) the DiT's semantic and detail streams each drew their own fade, two independent fades per image (a diversity the one-stream CNN did not get); (2) a told receiver was given the average SNR, although it equalises with h and so knows the image's effective SNR, SNR + 10 log10 \|h\|^2. Now one fade per image for every symbol, and told receivers (DiT and CNN) get the effective SNR, clipped to [-20, 40] dB; `receiver_view` offsets and gain errors start from it; transmitters still know only the average. AWGN draws are unchanged (tested). The 128 px Rayleigh runs (g-r1, g-r2, 15 Nov: told = blind, SNR-aware transmitter +0.26 dB at -5 dB) used the old model; their configs now say `fading: legacy`, and their told-vs-blind result is a weak test. Rayleigh smoke at 256 px (`r256-smoke`, own account) first; `scripts/kaggle_queue.py` then pushes the Rayleigh runs (own, subhashhhh) at the 21 Nov reset only if it completes, with the AWGN second sessions and spec0. **`r256-smoke` passed** (COMPLETE at 062019d, 58 min): blind, told and SNR-aware-transmitter DiTs train under block fading, and the `est-energy`, `offset+3` and `gain1` evaluations each change the told receiver's output |
 | 20 Nov | A (Kaggle) | `a256-rb-0`, `a256-rt-0`, `a256-p0-0` | Short first sessions on the week's leftover quota (own 3.0 h, subhashhhh 2.1 h, venkat96r 2.6 h left): Rayleigh blind, Rayleigh told and spec0 with `--max-hours` 2.0 / 1.1 / 1.6, pushed 21:14 UTC 19 Nov; the 21 Nov sessions now resume them. `a256-ab-2` moved forward to start when `a256-ab` stops, with `--max-hours 6` (venkatrrr has about 7.6 h left after its two running sessions); `a256-ab-3` added after the reset |
+| 20 Nov | B | `cnn256`, `cnn256-ft`, `dump256` (5060) | **B passes** (spec `p256.json`, rule of 17 Nov). The 256 px CNN: pixel stage 40k steps (6.4 h), LPIPS 0.1 stage 10k steps (4.7 h). Spread set, DiT minus CNN, paired, 95% intervals: LPIPS -0.076 / -0.083 / -0.087 and DINOv2 +0.086 / +0.028 [+0.017, +0.038] / +0.031 [+0.023, +0.039] at -5 / 0 / +5 dB; top-1 +11.0 / +9.4 / +5.6 pts; FID 120 vs 174, 70 vs 82, 51 vs 56; PSNR -1.20 / -1.23 / -1.49 dB; class kept equal at 0 and +5 dB (93%, 97%), 78% vs 68% at -5 dB. The DiT wins on both LPIPS and DINOv2 on 55% / 61% of images at 0 / +5 dB. Its high-frequency power is 0.98 of the originals' at 0 dB (CNN 0.18): it restores texture where the CNN blurs. The pixel-only CNN (cnnpx) is far behind on every semantic measure (DINOv2 0.28 at 0 dB). *Seed rule:* 128 px seed spreads (CNN DINOv2 0.008 / 0.013 at 0 / +5 dB, LPIPS 0.004, top-1 1 pt) against the shift that would flip the verdict (an LPIPS gain lost: 0.08, 20x; a clear DINOv2 loss: 0.038 / 0.039, 4.8x / 3.0x; top-1: 13x): every margin is at least 3x, so one seed stands for 24 Nov; the thinnest is DINOv2 at +5 dB, and the 256 px spread is measured by `dit256-s1` later. *Extension rule:* not needed. Next, as pre-registered: the converged CNN (`cnn256-conv` from the 40k checkpoint, constant LR, patience 10, then the LPIPS stage), started 20 Nov 08:00 IST (resumed at step 40,100, 0.92 it/s); `dit256-s1` waits for it. The `~/after_dump.sh` hand-off stalled for 35 min (its `pgrep -f gen_5060.py` matched the tmux server's command line) and was launched by hand |

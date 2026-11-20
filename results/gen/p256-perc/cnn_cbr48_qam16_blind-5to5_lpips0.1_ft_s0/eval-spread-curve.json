@@ -1,0 +1,106 @@
+{
+  "run_name": "cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "cnn",
+  "arm": "blind-5to5",
+  "snr_mode": "blank",
+  "seed": 0,
+  "checkpoint": "best",
+  "k": 4096,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "NVIDIA GeForce RTX 5060",
+  "digital": true,
+  "modulation_order": 16,
+  "symbols": {
+    "qam_usage": 0.9913546127214943,
+    "qam_kurtosis": 1.2691252619462206,
+    "qam_power": 1.0898788094520568,
+    "on_constellation": true,
+    "modulation_order": 16,
+    "power_ref": "actual",
+    "es_ref_trained": 1.088729739189148
+  },
+  "snrs": [
+    -10.0,
+    -7.5,
+    -2.5,
+    2.5,
+    7.5,
+    10.0
+  ],
+  "steps": [
+    null
+  ],
+  "cfg_scale": 1.0,
+  "start": 1.0,
+  "rx": "true",
+  "results": {
+    "-10": {
+      "psnr": 14.293665885925293,
+      "lpips": 0.6031068563461304,
+      "dino_sim": 0.025966135784983635,
+      "retrieval_rank": 329.6180114746094,
+      "retrieval_top1": 0.003000000026077032,
+      "retrieval_top5": 0.027000000700354576,
+      "fid": 288.71087646484375,
+      "seconds_per_image": 0.007070397853851319,
+      "n_images": 1000
+    },
+    "-7.5": {
+      "psnr": 16.460081100463867,
+      "lpips": 0.5242305397987366,
+      "dino_sim": 0.0838550329208374,
+      "retrieval_rank": 179.21400451660156,
+      "retrieval_top1": 0.035999998450279236,
+      "retrieval_top5": 0.11100000143051147,
+      "fid": 237.5950469970703,
+      "seconds_per_image": 0.004345748662948608,
+      "n_images": 1000
+    },
+    "-2.5": {
+      "psnr": 19.74689292907715,
+      "lpips": 0.38037756085395813,
+      "dino_sim": 0.3954857587814331,
+      "retrieval_rank": 9.723999977111816,
+      "retrieval_top1": 0.4620000123977661,
+      "retrieval_top5": 0.7289999723434448,
+      "fid": 116.444580078125,
+      "seconds_per_image": 0.007045385122299195,
+      "n_images": 1000
+    },
+    "2.5": {
+      "psnr": 21.875207901000977,
+      "lpips": 0.3017492890357971,
+      "dino_sim": 0.6191586852073669,
+      "retrieval_rank": 0.6959999799728394,
+      "retrieval_top1": 0.8700000047683716,
+      "retrieval_top5": 0.9660000205039978,
+      "fid": 64.28217315673828,
+      "seconds_per_image": 0.007061117649078369,
+      "n_images": 1000
+    },
+    "7.5": {
+      "psnr": 22.908456802368164,
+      "lpips": 0.2740517258644104,
+      "dino_sim": 0.6993935704231262,
+      "retrieval_rank": 0.2840000092983246,
+      "retrieval_top1": 0.9200000166893005,
+      "retrieval_top5": 0.9900000095367432,
+      "fid": 51.69112777709961,
+      "seconds_per_image": 0.007119226932525635,
+      "n_images": 1000
+    },
+    "10": {
+      "psnr": 23.15073013305664,
+      "lpips": 0.268966943025589,
+      "dino_sim": 0.7126097083091736,
+      "retrieval_rank": 0.2630000114440918,
+      "retrieval_top1": 0.9350000023841858,
+      "retrieval_top5": 0.9909999966621399,
+      "fid": 49.42630386352539,
+      "seconds_per_image": 0.00706771206855774,
+      "n_images": 1000
+    }
+  }
+}
