@@ -427,7 +427,7 @@ diffusion receiver, with no quality claim against the CNN.
   | own | Rayleigh blind (`a256-rb`, resuming `a256-rb-0`; `a256-rb-2` if needed), then the blind Rayleigh gain-error evaluations |
   | subhashhhh | Rayleigh told (`a256-rt`, `a256-rt-2` if needed), then the Rayleigh A-E evaluations of the told model |
   | venkat96r | spec0 (`a256-p0`, `a256-p0-2` if needed) and the first session of the SNR-aware transmitter (`a256-tx`) side by side |
-  | venkatrrr (also) | `a256-ae-awgn2`: `gain1` for told and blind |
+  | venkatrrr (also) | `a256-ae-awgn2`: gain errors of +1, +0.5, -1 and -2 dB for told and blind (about 3.7 h), to size the receive-gain tolerance of the blind receiver |
 
   A Kaggle job can only read the outputs of jobs on its own account, so each evaluation runs on
   the account that trained the model. The AWGN runs converged at 76k steps (about 9.7 h), so a
