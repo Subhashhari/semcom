@@ -100,7 +100,9 @@ CNN256_FT = CNN256 + ["--init-from", "results/gen/p256-perc/cnn_cbr48_qam16_blin
 # checkpoint (optimiser state and validation history kept), then the LPIPS stage to convergence.
 CONV256 = "results/gen/p256-conv"
 CNN256_SRC = "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"
-CNN256_CONV = CNN256_BASE + ["--out-dir", CONV256, "--grad-accum", "2", "--steps", "300000", "--patience", "10"]
+# Capped at 140k steps on 21 Nov, the converged DiT's step count: at 132k the validation loss was
+# still falling by about 0.05% per validation, so patience alone would have run on for hours.
+CNN256_CONV = CNN256_BASE + ["--out-dir", CONV256, "--grad-accum", "2", "--steps", "140000", "--patience", "10"]
 CNN256_CONV_FT = CNN256_BASE + ["--out-dir", CONV256, "--init-from", f"{CONV256}/cnn_cbr48_qam16_blind-5to5_s0",
                                 "--cnn-lpips-weight", "0.1", "--tag", "ft", "--grad-accum", "8",
                                 "--steps", "200000", "--patience", "10"]
