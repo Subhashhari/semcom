@@ -219,19 +219,26 @@ class MinSum:
 
 def bler_point(code: dict, decoder: MinSum, M: int, snr_db: float, max_words: int = 4000,
                min_errors: int = 200, batch: int = 500, seed: int = 0) -> tuple[float, int, int]:
-    """(BLER, errors, words) over AWGN at one SNR (see the module docstring for the method)."""
+    """(BLER, errors, words) over AWGN at one SNR (see the module docstring for the method).
+
+    When n is not a multiple of log2 M (n = 2048 with 64-QAM), codewords in a real frame run across
+    symbol boundaries, so a word's first bit lands on any of the m label positions. Each word is then
+    placed at a uniform random offset in 0..m-1 inside a frame of whole symbols, the rest filled with
+    random bits, which reproduces that mix of label positions."""
     m = int(round(math.log2(M)))
     n = code["n"]
-    if n % m:
-        raise ValueError(f"code length {n} is not a multiple of {m} bits per symbol")
+    P = n if n % m == 0 else -(-(n + m - 1) // m) * m  # frame length in bits, whole symbols
     g = torch.Generator().manual_seed(seed)
     n0 = 10 ** (-snr_db / 10)
     err = words = 0
     while words < max_words and err < min_errors:
-        s = torch.randint(2, (batch, n), generator=g, dtype=torch.uint8)
+        s = torch.randint(2, (batch, P), generator=g, dtype=torch.uint8)
         x = modulate(s, M)
         z = (torch.randn(x.shape, generator=g) + 1j * torch.randn(x.shape, generator=g)) * math.sqrt(n0 / 2)
         L = llr(x + z, n0, M) * (1 - 2 * s.float())  # unscramble: LLRs of the all-zero codeword
+        if P != n:
+            o = torch.randint(m, (batch, 1), generator=g)
+            L = L.gather(1, o + torch.arange(n))
         hard = decoder.decode(L)
         err += int(hard.any(1).sum())
         words += batch
