@@ -1,0 +1,178 @@
+{
+ "AWGN": {
+  "reference": "dit-S-v_cbr48_qam16_blind0to20_s0",
+  "file": "results/gen/analysis/paired_p256a_told_vs_blind_awgn.json+results/gen/analysis/paired_p256a_ae_vs_blind_awgn.json+results/gen/analysis/paired_p256a_spec_vs_blind_awgn.json",
+  "rows": {
+   "Receiver told the SNR": {
+    "0": {
+     "diff": -2.9000000000000004,
+     "lo": -6.0,
+     "hi": 0.0,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "5": {
+     "diff": -0.5,
+     "lo": -2.1999999999999997,
+     "hi": 1.3,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "10": {
+     "diff": 0.0,
+     "lo": -1.0,
+     "hi": 1.0,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "15": {
+     "diff": -0.6,
+     "lo": -1.5,
+     "hi": 0.3,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "20": {
+     "diff": -0.4,
+     "lo": -1.2,
+     "hi": 0.5,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    }
+   },
+   "Specialist trained at the test SNR": {
+    "0": {
+     "diff": 20.599999999999998,
+     "lo": 17.5,
+     "hi": 23.802499999999984,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_spec0_s0"
+    },
+    "20": {
+     "diff": -1.2,
+     "lo": -2.1999999999999997,
+     "hi": -0.2,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_spec20_s0"
+    }
+   },
+   "Receiver estimates the SNR from the received energy": {
+    "0": {
+     "diff": -2.6,
+     "lo": -5.6000000000000005,
+     "hi": 0.2,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "5": {
+     "diff": 0.0,
+     "lo": -1.7000000000000002,
+     "hi": 1.802499999999986,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "10": {
+     "diff": 0.0,
+     "lo": -1.0,
+     "hi": 1.0,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "15": {
+     "diff": -0.5,
+     "lo": -1.4000000000000001,
+     "hi": 0.4,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "20": {
+     "diff": -0.7000000000000001,
+     "lo": -1.4024999999999999,
+     "hi": 0.1,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    }
+   }
+  }
+ },
+ "Block Rayleigh": {
+  "reference": "dit-S-v_cbr48_qam16_blind0to20_rayleigh_s0",
+  "file": "results/gen/analysis/paired_p256a_told_vs_blind_rayleigh.json+results/gen/analysis/paired_p256a_ae_vs_blind_rayleigh.json",
+  "rows": {
+   "Receiver told the SNR": {
+    "0": {
+     "diff": 0.5,
+     "lo": -1.6,
+     "hi": 2.6,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "5": {
+     "diff": 0.0,
+     "lo": -1.9,
+     "hi": 1.7999999999999998,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "10": {
+     "diff": -0.6,
+     "lo": -2.0,
+     "hi": 0.8,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "15": {
+     "diff": -1.0,
+     "lo": -2.1999999999999997,
+     "hi": 0.3,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "20": {
+     "diff": -0.3,
+     "lo": -1.0999999999999999,
+     "hi": 0.5,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    }
+   },
+   "Receiver estimates the SNR from the received energy": {
+    "0": {
+     "diff": 0.5,
+     "lo": -1.6,
+     "hi": 2.6,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "5": {
+     "diff": -0.5,
+     "lo": -2.4,
+     "hi": 1.4000000000000001,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "10": {
+     "diff": -0.6,
+     "lo": -2.0,
+     "hi": 0.8,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "15": {
+     "diff": -1.0999999999999999,
+     "lo": -2.3024999999999998,
+     "hi": 0.2,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "20": {
+     "diff": -0.3,
+     "lo": -1.0999999999999999,
+     "hi": 0.6,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    }
+   }
+  }
+ }
+}

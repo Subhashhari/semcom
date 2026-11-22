@@ -1,0 +1,178 @@
+{
+ "AWGN": {
+  "reference": "dit-S-v_cbr48_qam16_blind0to20_s0",
+  "file": "results/gen/analysis/paired_p256a_told_vs_blind_awgn.json+results/gen/analysis/paired_p256a_ae_vs_blind_awgn.json+results/gen/analysis/paired_p256a_spec_vs_blind_awgn.json",
+  "rows": {
+   "Receiver told the SNR": {
+    "0": {
+     "diff": -0.12469474601745606,
+     "lo": -0.15189475405216218,
+     "hi": -0.09934686198234557,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "5": {
+     "diff": -0.10907403945922851,
+     "lo": -0.13481048238277435,
+     "hi": -0.08426102523803711,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "10": {
+     "diff": -0.0554220085144043,
+     "lo": -0.08124574809074402,
+     "hi": -0.029274770331382753,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "15": {
+     "diff": -0.04353792762756348,
+     "lo": -0.06648811531066895,
+     "hi": -0.01897361259460451,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    },
+    "20": {
+     "diff": -0.01931598663330078,
+     "lo": -0.04691609122753143,
+     "hi": 0.008816714811325068,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0"
+    }
+   },
+   "Specialist trained at the test SNR": {
+    "0": {
+     "diff": 0.8559929418563843,
+     "lo": 0.8092443567037583,
+     "hi": 0.9016258538007735,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_spec0_s0"
+    },
+    "20": {
+     "diff": -0.23603005504608154,
+     "lo": -0.26235425655841826,
+     "hi": -0.21010169324874878,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_spec20_s0"
+    }
+   },
+   "Receiver estimates the SNR from the received energy": {
+    "0": {
+     "diff": -0.11348928546905518,
+     "lo": -0.14089063971042634,
+     "hi": -0.08791228590011597,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "5": {
+     "diff": -0.11039312744140625,
+     "lo": -0.1362543301105499,
+     "hi": -0.08570268430709839,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "10": {
+     "diff": -0.05766788959503174,
+     "lo": -0.08334799613952637,
+     "hi": -0.03100138695240021,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "15": {
+     "diff": -0.056198145866394045,
+     "lo": -0.07869699523448943,
+     "hi": -0.03151384603977204,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    },
+    "20": {
+     "diff": -0.10520644283294678,
+     "lo": -0.13322591454982757,
+     "hi": -0.07727498102188113,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_s0:spread-est-energy"
+    }
+   }
+  }
+ },
+ "Block Rayleigh": {
+  "reference": "dit-S-v_cbr48_qam16_blind0to20_rayleigh_s0",
+  "file": "results/gen/analysis/paired_p256a_told_vs_blind_rayleigh.json+results/gen/analysis/paired_p256a_ae_vs_blind_rayleigh.json",
+  "rows": {
+   "Receiver told the SNR": {
+    "0": {
+     "diff": -0.03393141269683838,
+     "lo": -0.06345113229751587,
+     "hi": -0.003184151697158837,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "5": {
+     "diff": -0.03799886178970337,
+     "lo": -0.06700892159938812,
+     "hi": -0.009038225173950247,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "10": {
+     "diff": -0.04255051231384278,
+     "lo": -0.0668529854297638,
+     "hi": -0.01827770159244538,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "15": {
+     "diff": -0.015929976463317872,
+     "lo": -0.04240626192092895,
+     "hi": 0.010130359768867492,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    },
+    "20": {
+     "diff": -0.01534054946899414,
+     "lo": -0.04003664922714233,
+     "hi": 0.00860047028064727,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0"
+    }
+   },
+   "Receiver estimates the SNR from the received energy": {
+    "0": {
+     "diff": -0.034908639907836915,
+     "lo": -0.06440708940029144,
+     "hi": -0.004293798470497185,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "5": {
+     "diff": -0.04022881269454956,
+     "lo": -0.0692128476023674,
+     "hi": -0.011202524721622543,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "10": {
+     "diff": -0.04816749000549316,
+     "lo": -0.0720455599308014,
+     "hi": -0.023681667137146024,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "15": {
+     "diff": -0.02940184211730957,
+     "lo": -0.05599726169109344,
+     "hi": -0.003577610421180731,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    },
+    "20": {
+     "diff": -0.05117426204681397,
+     "lo": -0.07620166010856629,
+     "hi": -0.02639439005851746,
+     "n": 1000,
+     "run": "dit-S-v_cbr48_qam16_told0to20_rayleigh_s0:spread-est-energy"
+    }
+   }
+  }
+ }
+}

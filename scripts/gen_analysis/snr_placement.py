@@ -5,6 +5,8 @@
 with 95% paired bootstrap intervals, read from paired.py outputs whose reference is the blind run.
 
 usage: snr_placement.py OUT.png TITLE=PAIRED.json [TITLE=PAIRED.json ...] [--steps 10] [--metric psnr]
+                        [--snrs -5,0,5] [--range "-5..5"]
+  A panel may list several paired files (TITLE=A.json+B.json) with the same reference; their runs merge.
   e.g. snr_placement.py results/gen/analysis/snr_placement.png \
          "Analog=results/gen/analysis/paired_spread_vs_blind_s0.json" \
          "16-QAM=results/gen/analysis/paired_spread_qam16_vs_blind_s0.json\""""
@@ -30,12 +32,14 @@ def opt(name: str, default: str) -> str:
 
 
 steps, metric = opt("--steps", "10"), opt("--metric", "psnr")
+SNRS = [int(x) for x in opt("--snrs", "-5,0,5").split(",")]
+train_range = opt("--range", "-5..5")
 out, panels = Path(args[0]), [a.split("=", 1) for a in args[1:]]
-SNRS = [-5, 0, 5]
 ARMS = [  # (label, run-name test, colour): reference categorical palette, fixed order
-    ("Receiver told the SNR", lambda r, s: "_told-" in r, "#2a78d6"),
+    ("Receiver told the SNR", lambda r, s: "_told" in r and ":" not in r, "#2a78d6"),
     ("SNR-aware transmitter, blind receiver", lambda r, s: "_txsnr_" in r, "#eb6834"),
-    ("Specialist trained at the test SNR", lambda r, s: f"_spec{s}_" in r, "#1baf7a"),
+    ("Specialist trained at the test SNR", lambda r, s: f"_spec{s}_" in r and ":" not in r, "#1baf7a"),
+    ("Receiver estimates the SNR from the received energy", lambda r, s: "_told" in r and r.endswith(":spread-est-energy"), "#eda100"),
 ]
 INK, MUTED, GRID = "#0b0b0b", "#52514e", "#e4e3df"
 unit = {"psnr": "dB", "lpips": "", "top1": "pts"}.get(metric, "")
@@ -44,25 +48,29 @@ plt.rcParams.update({"font.size": 9, "axes.edgecolor": MUTED, "axes.labelcolor":
 fig, axes = plt.subplots(1, len(panels), figsize=(5.2 * len(panels), 3.6), constrained_layout=True,
                          squeeze=False)
 table = {}
-w = 0.26
+w = 0.8 / len(ARMS)
 for ax, (title, path) in zip(axes[0], panels):
-    d = json.loads(Path(path).read_text())
+    parts = [json.loads(Path(f).read_text()) for f in path.split("+")]
+    assert len({x["reference"] for x in parts}) == 1, "panels merge only paired files with one reference"
+    d = {"reference": parts[0]["reference"], "runs": {k: v for x in parts for k, v in x["runs"].items()}}
     runs = {r: v for r, v in d["runs"].items() if not r.startswith("cnn")}
     table[title] = {"reference": d["reference"], "file": path, "rows": {}}
     for j, (label, pick, colour) in enumerate(ARMS):
         xs, ys, lo, hi = [], [], [], []
         for i, s in enumerate(SNRS):
             seed = d["reference"].rsplit("_", 1)[-1]  # the reference's own seed (e.g. s0)
-            hits = [r for r in runs if pick(r, s) and r.endswith(f"_{seed}")]
+            hits = [r for r in runs if pick(r, s) and r.split(":")[0].endswith(f"_{seed}")]
             key = next((k for k in (f"{metric}_{s}_{steps}", f"{metric}_{s}") if hits and k in runs[hits[0]]), None)
             if len(hits) != 1 or key is None:
                 continue
             v = runs[hits[0]][key]
-            xs.append(i + (j - 1) * w)
+            xs.append(i + (j - (len(ARMS) - 1) / 2) * w)
             ys.append(v["diff"])
             lo.append(v["diff"] - v["lo"])
             hi.append(v["hi"] - v["diff"])
             table[title]["rows"].setdefault(label, {})[f"{s:g}"] = {**v, "run": hits[0]}
+        if not xs:
+            continue
         ax.bar(xs, ys, width=w - 0.03, color=colour, label=label, zorder=2)
         ax.errorbar(xs, ys, yerr=[lo, hi], fmt="none", ecolor=INK, elinewidth=1, capsize=2, zorder=3)
         for x, y, l, h in zip(xs, ys, lo, hi):
@@ -83,8 +91,12 @@ ymax = max(a.get_ylim()[1] for a in axes[0])
 for a in axes[0]:
     a.set_ylim(ymin, ymax)  # same scale across panels, so analog and digital compare by eye
 handles, labels = axes[0][0].get_legend_handles_labels()
-fig.legend(handles, labels, loc="outside lower center", ncol=3, frameon=False, fontsize=8)
-fig.suptitle("Where knowing the SNR helps: gain over one blind model trained on -5..5 dB "
+seen = dict(zip(labels, handles))  # arms with no data in any panel are left out
+for a in axes[0][1:]:
+    for h, l in zip(*a.get_legend_handles_labels()):
+        seen.setdefault(l, h)
+fig.legend(list(seen.values()), list(seen), loc="outside lower center", ncol=2, frameon=False, fontsize=8)
+fig.suptitle(f"Where knowing the SNR helps: gain over one blind model trained on {train_range} dB "
              "(95% paired bootstrap intervals)", fontsize=10, color=INK, x=0.01, ha="left")
 out.parent.mkdir(parents=True, exist_ok=True)
 fig.savefig(out, dpi=160)
