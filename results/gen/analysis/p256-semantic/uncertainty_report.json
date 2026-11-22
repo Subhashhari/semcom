@@ -1,0 +1,237 @@
+{
+ "table": {
+  "-5": {
+   "error_rates": {
+    "class flip (DINOv2 k-NN vs label)": 0.219,
+    "retrieval miss (DINOv2)": 0.728
+   },
+   "AUROC CLIP draws -> class flip (DINOv2 k-NN vs label)": {
+    "auroc": 0.3826437245306626,
+    "ci": [
+     0.3425154703823227,
+     0.42525899934094835
+    ]
+   },
+   "AUROC CLIP draws -> retrieval miss (DINOv2)": {
+    "auroc": 0.40167461215255335,
+    "ci": [
+     0.3659695171132629,
+     0.442867954032527
+    ]
+   },
+   "Spearman CLIP draws vs DINOv2 similarity": {
+    "r": 0.2874851103475657,
+    "p": 1.7559027735136172e-20
+   },
+   "AUROC DINOv2 draws -> class flip (DINOv2 k-NN vs label)": {
+    "auroc": 0.7111828296470396,
+    "ci": [
+     0.6759159223622131,
+     0.7472989740558023
+    ]
+   },
+   "AUROC DINOv2 draws -> retrieval miss (DINOv2)": {
+    "auroc": 0.6524826276664512,
+    "ci": [
+     0.6115828684009208,
+     0.6881049908803979
+    ]
+   },
+   "Spearman DINOv2 draws vs DINOv2 similarity": {
+    "r": -0.5239874451313699,
+    "p": 1.3216109813064083e-71
+   },
+   "error after flagging the most uncertain (CLIP draws)": {
+    "0%": {
+     "class flip (DINOv2 k-NN vs label)": 0.219,
+     "retrieval miss (DINOv2)": 0.728
+    },
+    "10%": {
+     "class flip (DINOv2 k-NN vs label)": 0.23666666666666666,
+     "retrieval miss (DINOv2)": 0.7522222222222222
+    },
+    "20%": {
+     "class flip (DINOv2 k-NN vs label)": 0.24875,
+     "retrieval miss (DINOv2)": 0.75625
+    },
+    "30%": {
+     "class flip (DINOv2 k-NN vs label)": 0.2557142857142857,
+     "retrieval miss (DINOv2)": 0.76
+    }
+   },
+   "medoid draw vs evaluation draw": {
+    "DINOv2 similarity": [
+     0.3044953942298889,
+     0.30005544424057007
+    ],
+    "DINOv2 retrieval top-1": [
+     0.272,
+     0.276
+    ],
+    "class kept": [
+     0.781,
+     0.773
+    ]
+   },
+   "AUROC (1 - draw class agreement) -> class flip": 0.8726606212618174
+  },
+  "0": {
+   "error_rates": {
+    "class flip (DINOv2 k-NN vs label)": 0.071,
+    "retrieval miss (DINOv2)": 0.191
+   },
+   "AUROC CLIP draws -> class flip (DINOv2 k-NN vs label)": {
+    "auroc": 0.40391758516654286,
+    "ci": [
+     0.34015759309335697,
+     0.4745514084283082
+    ]
+   },
+   "AUROC CLIP draws -> retrieval miss (DINOv2)": {
+    "auroc": 0.48678803253968767,
+    "ci": [
+     0.4424775278873045,
+     0.5317016771264204
+    ]
+   },
+   "Spearman CLIP draws vs DINOv2 similarity": {
+    "r": 0.04710106124236443,
+    "p": 0.13663764567237052
+   },
+   "AUROC DINOv2 draws -> class flip (DINOv2 k-NN vs label)": {
+    "auroc": 0.788671750632969,
+    "ci": [
+     0.748289380467313,
+     0.8273376593872465
+    ]
+   },
+   "AUROC DINOv2 draws -> retrieval miss (DINOv2)": {
+    "auroc": 0.6622033536328865,
+    "ci": [
+     0.6210930040443946,
+     0.7039034537118435
+    ]
+   },
+   "Spearman DINOv2 draws vs DINOv2 similarity": {
+    "r": -0.7682469962469963,
+    "p": 1.5418644100286742e-195
+   },
+   "error after flagging the most uncertain (CLIP draws)": {
+    "0%": {
+     "class flip (DINOv2 k-NN vs label)": 0.071,
+     "retrieval miss (DINOv2)": 0.191
+    },
+    "10%": {
+     "class flip (DINOv2 k-NN vs label)": 0.07555555555555556,
+     "retrieval miss (DINOv2)": 0.19555555555555557
+    },
+    "20%": {
+     "class flip (DINOv2 k-NN vs label)": 0.0775,
+     "retrieval miss (DINOv2)": 0.185
+    },
+    "30%": {
+     "class flip (DINOv2 k-NN vs label)": 0.08285714285714285,
+     "retrieval miss (DINOv2)": 0.18714285714285714
+    }
+   },
+   "medoid draw vs evaluation draw": {
+    "DINOv2 similarity": [
+     0.5609967708587646,
+     0.5611004829406738
+    ],
+    "DINOv2 retrieval top-1": [
+     0.809,
+     0.793
+    ],
+    "class kept": [
+     0.929,
+     0.932
+    ]
+   },
+   "AUROC (1 - draw class agreement) -> class flip": 0.8830788823359966
+  },
+  "5": {
+   "error_rates": {
+    "class flip (DINOv2 k-NN vs label)": 0.032,
+    "retrieval miss (DINOv2)": 0.046
+   },
+   "AUROC CLIP draws -> class flip (DINOv2 k-NN vs label)": {
+    "auroc": 0.48172778925619836,
+    "ci": [
+     0.38721655070318284,
+     0.5723753965177188
+    ]
+   },
+   "AUROC CLIP draws -> retrieval miss (DINOv2)": {
+    "auroc": 0.45927900829459484,
+    "ci": [
+     0.37508915463812476,
+     0.5357820818876726
+    ]
+   },
+   "Spearman CLIP draws vs DINOv2 similarity": {
+    "r": -0.14715082003372498,
+    "p": 2.9689308699784168e-06
+   },
+   "AUROC DINOv2 draws -> class flip (DINOv2 k-NN vs label)": {
+    "auroc": 0.8308044938016529,
+    "ci": [
+     0.7783424283921345,
+     0.8833550373976005
+    ]
+   },
+   "AUROC DINOv2 draws -> retrieval miss (DINOv2)": {
+    "auroc": 0.6487102360769301,
+    "ci": [
+     0.5516202181733983,
+     0.7380164145179803
+    ]
+   },
+   "Spearman DINOv2 draws vs DINOv2 similarity": {
+    "r": -0.8222176131509189,
+    "p": 1.663675972951145e-246
+   },
+   "error after flagging the most uncertain (CLIP draws)": {
+    "0%": {
+     "class flip (DINOv2 k-NN vs label)": 0.032,
+     "retrieval miss (DINOv2)": 0.046
+    },
+    "10%": {
+     "class flip (DINOv2 k-NN vs label)": 0.03333333333333333,
+     "retrieval miss (DINOv2)": 0.04777777777777778
+    },
+    "20%": {
+     "class flip (DINOv2 k-NN vs label)": 0.035,
+     "retrieval miss (DINOv2)": 0.05
+    },
+    "30%": {
+     "class flip (DINOv2 k-NN vs label)": 0.03428571428571429,
+     "retrieval miss (DINOv2)": 0.05142857142857143
+    }
+   },
+   "medoid draw vs evaluation draw": {
+    "DINOv2 similarity": [
+     0.7031491994857788,
+     0.7000385522842407
+    ],
+    "DINOv2 retrieval top-1": [
+     0.954,
+     0.943
+    ],
+    "class kept": [
+     0.968,
+     0.97
+    ]
+   },
+   "AUROC (1 - draw class agreement) -> class flip": 0.8207967458677686
+  }
+ },
+ "lpips_vgg": {
+  "lpips_vgg_dit_-5": 0.4562593698501587,
+  "lpips_vgg_dit_0": 0.3547377288341522,
+  "lpips_vgg_dit_5": 0.30263811349868774,
+  "lpips_vgg_cnn_-5": 0.4428756833076477,
+  "lpips_vgg_cnn_0": 0.3304867446422577,
+  "lpips_vgg_cnn_5": 0.2793417274951935
+ }
+}
