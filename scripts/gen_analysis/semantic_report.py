@@ -233,7 +233,7 @@ for j, s in enumerate(snrs):
 ax.axvline(0, color="#52514e", lw=0.8)
 ax.set_yticks(range(len(names)), [m[3] for m in METRICS], fontsize=8)
 ax.invert_yaxis()
-ax.set_xlabel("Paired effect size, DiT minus CNN (mean / s.d. of the per-image difference); right = DiT better")
+ax.set_xlabel("Paired effect size (mean / s.d. of the per-image difference); right = DiT better")
 ax.grid(axis="x", color="#e4e3df", lw=0.6)
 ax.spines[["top", "right"]].set_visible(False)
 ax.legend(frameon=False, fontsize=8, loc="lower right")
