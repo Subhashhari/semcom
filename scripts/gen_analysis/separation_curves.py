@@ -9,7 +9,7 @@ Series (absolute values from each run's eval-spread*.json):
   - separation, ideal: AVIF at the 16-QAM capacity of the channel uses (error-free code)
 The SD-VAE reconstruction ceiling of the JSCC is drawn on the PSNR row.
 
-usage: separation_curves.py OUT.png"""
+usage: separation_curves.py OUT.png [--metrics psnr,lpips,retrieval_top1]  (wide: channels as rows)"""
 import json
 import sys
 from pathlib import Path
@@ -21,7 +21,13 @@ import matplotlib.pyplot as plt  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 G = ROOT / "results/gen"
-out = Path(sys.argv[1])
+args = sys.argv[1:]
+pick = None
+if "--metrics" in args:  # e.g. psnr,lpips,retrieval_top1: a wide slide version, channels as rows
+    i = args.index("--metrics")
+    pick = args[i + 1].split(",")
+    del args[i:i + 2]
+out = Path(args[0])
 
 # (label, colour, line style, marker, {channel: [(run dir, eval suffix), ...]}): reference
 # categorical palette in fixed slot order; separation dashed, so identity is not colour alone.
@@ -60,10 +66,17 @@ def curve(runs: list[tuple[Path, str]]) -> dict[float, dict]:
     return dict(sorted(pts.items()))
 
 
+if pick:
+    METRICS = [m for m in METRICS if m[0] in pick]
 plt.rcParams.update({"font.size": 8, "axes.edgecolor": MUTED, "axes.labelcolor": INK,
                      "xtick.color": MUTED, "ytick.color": MUTED})
-fig, axes = plt.subplots(len(METRICS), len(CHANNELS), figsize=(9.6, 10.5), sharex=True,
-                         constrained_layout=True)
+if pick:
+    fig, ax_ = plt.subplots(len(CHANNELS), len(METRICS), figsize=(4.2 * len(METRICS), 6.4), sharex=True,
+                            constrained_layout=True, squeeze=False)
+    axes = [[ax_[c][r] for c in range(len(CHANNELS))] for r in range(len(METRICS))]  # axes[metric][channel]
+else:
+    fig, axes = plt.subplots(len(METRICS), len(CHANNELS), figsize=(9.6, 10.5), sharex=True,
+                             constrained_layout=True)
 table = {}
 for c, (ch, ch_title) in enumerate(CHANNELS):
     for r, (m, ylabel, scale) in enumerate(METRICS):
@@ -83,17 +96,23 @@ for c, (ch, ch_title) in enumerate(CHANNELS):
         ax.set_ylabel(ylabel)
         ax.grid(color=GRID, lw=0.6, zorder=0)
         ax.spines[["top", "right"]].set_visible(False)
-        if r == 0:
-            ax.set_title(ch_title, fontsize=9, color=INK, loc="left")
-        if r == len(METRICS) - 1:
-            ax.set_xlabel("Average SNR (dB)")
+        if pick:
+            ax.set_title(f"{ch_title.split(' (')[0]}: {ylabel}", fontsize=9, color=INK, loc="left")
+            ax.set_ylabel("")
+            if c == len(CHANNELS) - 1:
+                ax.set_xlabel("Average SNR (dB)")
+        else:
+            if r == 0:
+                ax.set_title(ch_title, fontsize=9, color=INK, loc="left")
+            if r == len(METRICS) - 1:
+                ax.set_xlabel("Average SNR (dB)")
 for r in range(len(METRICS)):  # one y-scale per metric, so the channels compare by eye
     lo = min(axes[r][c].get_ylim()[0] for c in range(len(CHANNELS)))
     hi = max(axes[r][c].get_ylim()[1] for c in range(len(CHANNELS)))
     for c in range(len(CHANNELS)):
         axes[r][c].set_ylim(lo, hi)
 handles, labels = axes[0][0].get_legend_handles_labels()
-fig.legend(handles, labels, loc="outside lower center", ncol=2, frameon=False, fontsize=8)
+fig.legend(handles, labels, loc="outside lower center", ncol=3 if pick else 2, frameon=False, fontsize=8)
 fig.suptitle("Diffusion JSCC against separate coding, 4096 16-QAM symbols per 256 px image "
              "(1/48 of a channel use per pixel), 1000 test images", fontsize=9, color=INK, x=0.01, ha="left")
 out.parent.mkdir(parents=True, exist_ok=True)
