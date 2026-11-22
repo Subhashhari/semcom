@@ -103,9 +103,11 @@ CNN256_SRC = "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"
 # Capped at 140k steps on 21 Nov, the converged DiT's step count: at 132k the validation loss was
 # still falling by about 0.05% per validation, so patience alone would have run on for hours.
 CNN256_CONV = CNN256_BASE + ["--out-dir", CONV256, "--grad-accum", "2", "--steps", "140000", "--patience", "10"]
+# LPIPS stage capped at 36k on 22 Nov (user): validation loss still fell about 0.15% per validation,
+# DINOv2 on validation had flattened (+0.007 over the last 12k), patience would have run 10-20 h more.
 CNN256_CONV_FT = CNN256_BASE + ["--out-dir", CONV256, "--init-from", f"{CONV256}/cnn_cbr48_qam16_blind-5to5_s0",
                                 "--cnn-lpips-weight", "0.1", "--tag", "ft", "--grad-accum", "8",
-                                "--steps", "200000", "--patience", "10"]
+                                "--steps", "36000", "--patience", "10"]
 RUNS256 = ["results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"]
