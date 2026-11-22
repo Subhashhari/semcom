@@ -1,0 +1,83 @@
+{
+  "run_name": "separation_rayleigh_mcs_ideal_qam16_r0.10",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "separation",
+  "channel": "rayleigh",
+  "snrs": [
+    -5,
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "results": {
+    "-5": {
+      "psnr": 14.4420747756958,
+      "lpips": 0.8259474039077759,
+      "dino_sim": 0.06965034455060959,
+      "retrieval_rank": 365.382,
+      "retrieval_top1": 0.076,
+      "retrieval_top5": 0.146,
+      "fid": 248.73723278863994,
+      "delivered": 0.308,
+      "n_images": 1000
+    },
+    "0": {
+      "psnr": 17.60226058959961,
+      "lpips": 0.7301549315452576,
+      "dino_sim": 0.14205360412597656,
+      "retrieval_rank": 229.494,
+      "retrieval_top1": 0.141,
+      "retrieval_top5": 0.283,
+      "fid": 222.8123283372817,
+      "delivered": 0.616,
+      "n_images": 1000
+    },
+    "5": {
+      "psnr": 19.02772331237793,
+      "lpips": 0.6864056587219238,
+      "dino_sim": 0.1754368543624878,
+      "retrieval_rank": 172.982,
+      "retrieval_top1": 0.17,
+      "retrieval_top5": 0.34,
+      "fid": 219.75957569114857,
+      "delivered": 0.752,
+      "n_images": 1000
+    },
+    "10": {
+      "psnr": 19.648902893066406,
+      "lpips": 0.666475772857666,
+      "dino_sim": 0.19275404512882233,
+      "retrieval_rank": 142.816,
+      "retrieval_top1": 0.181,
+      "retrieval_top5": 0.365,
+      "fid": 219.97287174635227,
+      "delivered": 0.816,
+      "n_images": 1000
+    },
+    "15": {
+      "psnr": 19.831430435180664,
+      "lpips": 0.6610791683197021,
+      "dino_sim": 0.19790780544281006,
+      "retrieval_rank": 133.959,
+      "retrieval_top1": 0.186,
+      "retrieval_top5": 0.374,
+      "fid": 220.65275968551663,
+      "delivered": 0.834,
+      "n_images": 1000
+    },
+    "20": {
+      "psnr": 19.920211791992188,
+      "lpips": 0.6586374640464783,
+      "dino_sim": 0.20069476962089539,
+      "retrieval_rank": 129.621,
+      "retrieval_top1": 0.189,
+      "retrieval_top5": 0.378,
+      "fid": 220.78862095942867,
+      "delivered": 0.841,
+      "n_images": 1000
+    }
+  }
+}

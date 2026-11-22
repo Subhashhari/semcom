@@ -1,0 +1,83 @@
+{
+  "run_name": "separation_rayleigh_mcs_ldpc_qam16_r3-4",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "separation",
+  "channel": "rayleigh",
+  "snrs": [
+    -5,
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "results": {
+    "-5": {
+      "psnr": 11.2396240234375,
+      "lpips": 0.9249334931373596,
+      "dino_sim": -0.007229362148791552,
+      "retrieval_rank": 499.5,
+      "retrieval_top1": 0.001,
+      "retrieval_top5": 0.005,
+      "fid": 351.82044849892407,
+      "delivered": 0.0,
+      "n_images": 1000
+    },
+    "0": {
+      "psnr": 11.2396240234375,
+      "lpips": 0.9249334931373596,
+      "dino_sim": -0.007229362148791552,
+      "retrieval_rank": 499.5,
+      "retrieval_top1": 0.001,
+      "retrieval_top5": 0.005,
+      "fid": 351.82044849892407,
+      "delivered": 0.0,
+      "n_images": 1000
+    },
+    "5": {
+      "psnr": 11.726255416870117,
+      "lpips": 0.9032064080238342,
+      "dino_sim": 0.01772305741906166,
+      "retrieval_rank": 484.096,
+      "retrieval_top1": 0.032,
+      "retrieval_top5": 0.036,
+      "fid": 313.40308554325657,
+      "delivered": 0.031,
+      "n_images": 1000
+    },
+    "10": {
+      "psnr": 16.690507888793945,
+      "lpips": 0.6971553564071655,
+      "dino_sim": 0.26470422744750977,
+      "retrieval_rank": 337.87,
+      "retrieval_top1": 0.323,
+      "retrieval_top5": 0.329,
+      "fid": 177.32428789806744,
+      "delivered": 0.326,
+      "n_images": 1000
+    },
+    "15": {
+      "psnr": 23.09907341003418,
+      "lpips": 0.4293386936187744,
+      "dino_sim": 0.5833560824394226,
+      "retrieval_rank": 146.587,
+      "retrieval_top1": 0.7,
+      "retrieval_top5": 0.708,
+      "fid": 88.08864951164475,
+      "delivered": 0.712,
+      "n_images": 1000
+    },
+    "20": {
+      "psnr": 25.9645938873291,
+      "lpips": 0.3081587255001068,
+      "dino_sim": 0.7233371734619141,
+      "retrieval_rank": 62.258,
+      "retrieval_top1": 0.869,
+      "retrieval_top5": 0.881,
+      "fid": 62.32496680615657,
+      "delivered": 0.885,
+      "n_images": 1000
+    }
+  }
+}

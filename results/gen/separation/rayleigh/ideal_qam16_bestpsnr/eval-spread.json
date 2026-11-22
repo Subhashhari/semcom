@@ -1,0 +1,89 @@
+{
+  "run_name": "separation_rayleigh_ideal_qam16_bestpsnr",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "separation",
+  "channel": "rayleigh",
+  "snrs": [
+    -5,
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "results": {
+    "-5": {
+      "psnr": 14.4420747756958,
+      "lpips": 0.8259474039077759,
+      "dino_sim": 0.06965034455060959,
+      "retrieval_rank": 365.382,
+      "retrieval_top1": 0.076,
+      "retrieval_top5": 0.146,
+      "fid": 248.73723278863994,
+      "delivered": 0.308,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_r0.10"
+    },
+    "0": {
+      "psnr": 17.60226058959961,
+      "lpips": 0.7301549315452576,
+      "dino_sim": 0.14205360412597656,
+      "retrieval_rank": 229.494,
+      "retrieval_top1": 0.141,
+      "retrieval_top5": 0.283,
+      "fid": 222.8123283372817,
+      "delivered": 0.616,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_r0.10"
+    },
+    "5": {
+      "psnr": 20.670351028442383,
+      "lpips": 0.5766682028770447,
+      "dino_sim": 0.356558233499527,
+      "retrieval_rank": 115.611,
+      "retrieval_top1": 0.486,
+      "retrieval_top5": 0.641,
+      "fid": 161.21198857782042,
+      "delivered": 0.8,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_r0.20"
+    },
+    "10": {
+      "psnr": 22.765583038330078,
+      "lpips": 0.4529927968978882,
+      "dino_sim": 0.5479673743247986,
+      "retrieval_rank": 96.202,
+      "retrieval_top1": 0.722,
+      "retrieval_top5": 0.79,
+      "fid": 105.31286306955712,
+      "delivered": 0.815,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_r0.40"
+    },
+    "15": {
+      "psnr": 24.76626968383789,
+      "lpips": 0.35925915837287903,
+      "dino_sim": 0.6664847135543823,
+      "retrieval_rank": 74.791,
+      "retrieval_top1": 0.83,
+      "retrieval_top5": 0.851,
+      "fid": 75.38105392855664,
+      "delivered": 0.86,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_r0.60"
+    },
+    "20": {
+      "psnr": 26.381214141845703,
+      "lpips": 0.29036661982536316,
+      "dino_sim": 0.7471800446510315,
+      "retrieval_rank": 37.554,
+      "retrieval_top1": 0.905,
+      "retrieval_top5": 0.921,
+      "fid": 59.73283429322339,
+      "delivered": 0.927,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_r0.70"
+    }
+  }
+}

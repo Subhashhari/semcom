@@ -1,0 +1,89 @@
+{
+  "run_name": "separation_awgn_ideal_qam16_bestpsnr",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "separation",
+  "channel": "awgn",
+  "snrs": [
+    -5,
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "results": {
+    "-5": {
+      "psnr": 19.80743408203125,
+      "lpips": 0.6630571484565735,
+      "dino_sim": 0.19392776489257812,
+      "retrieval_rank": 136.932,
+      "retrieval_top1": 0.178,
+      "retrieval_top5": 0.368,
+      "fid": 220.9841878067327,
+      "delivered": 0.831,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_cap-5"
+    },
+    "0": {
+      "psnr": 23.675052642822266,
+      "lpips": 0.4456249475479126,
+      "dino_sim": 0.5203481316566467,
+      "retrieval_rank": 7.186,
+      "retrieval_top1": 0.714,
+      "retrieval_top5": 0.876,
+      "fid": 141.43769379010496,
+      "delivered": 1.0,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_cap0"
+    },
+    "5": {
+      "psnr": 26.17404556274414,
+      "lpips": 0.30560556054115295,
+      "dino_sim": 0.731404185295105,
+      "retrieval_rank": 0.858,
+      "retrieval_top1": 0.938,
+      "retrieval_top5": 0.982,
+      "fid": 75.29638564706505,
+      "delivered": 1.0,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_cap5"
+    },
+    "10": {
+      "psnr": 28.074459075927734,
+      "lpips": 0.22143661975860596,
+      "dino_sim": 0.8278215527534485,
+      "retrieval_rank": 0.048,
+      "retrieval_top1": 0.985,
+      "retrieval_top5": 0.997,
+      "fid": 47.37768014002012,
+      "delivered": 1.0,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_cap10"
+    },
+    "15": {
+      "psnr": 29.00286102294922,
+      "lpips": 0.18665343523025513,
+      "dino_sim": 0.8627924919128418,
+      "retrieval_rank": 0.022,
+      "retrieval_top1": 0.99,
+      "retrieval_top5": 0.998,
+      "fid": 40.11439614836348,
+      "delivered": 1.0,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_cap15"
+    },
+    "20": {
+      "psnr": 29.088674545288086,
+      "lpips": 0.18377362191677094,
+      "dino_sim": 0.8648057579994202,
+      "retrieval_rank": 0.02,
+      "retrieval_top1": 0.99,
+      "retrieval_top5": 0.998,
+      "fid": 38.90686440775232,
+      "delivered": 1.0,
+      "n_images": 1000,
+      "scheme": "ideal_qam16_cap20"
+    }
+  }
+}

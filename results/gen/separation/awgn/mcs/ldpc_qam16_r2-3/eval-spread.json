@@ -1,0 +1,83 @@
+{
+  "run_name": "separation_awgn_mcs_ldpc_qam16_r2-3",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "separation",
+  "channel": "awgn",
+  "snrs": [
+    -5,
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "results": {
+    "-5": {
+      "psnr": 11.2396240234375,
+      "lpips": 0.9249334931373596,
+      "dino_sim": -0.007229362148791552,
+      "retrieval_rank": 499.5,
+      "retrieval_top1": 0.001,
+      "retrieval_top5": 0.005,
+      "fid": 351.82044849892407,
+      "delivered": 0.0,
+      "n_images": 1000
+    },
+    "0": {
+      "psnr": 11.2396240234375,
+      "lpips": 0.9249334931373596,
+      "dino_sim": -0.007229362148791552,
+      "retrieval_rank": 499.5,
+      "retrieval_top1": 0.001,
+      "retrieval_top5": 0.005,
+      "fid": 351.82044849892407,
+      "delivered": 0.0,
+      "n_images": 1000
+    },
+    "5": {
+      "psnr": 11.2396240234375,
+      "lpips": 0.9249334931373596,
+      "dino_sim": -0.007229362148791552,
+      "retrieval_rank": 499.5,
+      "retrieval_top1": 0.001,
+      "retrieval_top5": 0.005,
+      "fid": 351.82044849892407,
+      "delivered": 0.0,
+      "n_images": 1000
+    },
+    "10": {
+      "psnr": 27.363815307617188,
+      "lpips": 0.2502835690975189,
+      "dino_sim": 0.7962819933891296,
+      "retrieval_rank": 0.171,
+      "retrieval_top1": 0.973,
+      "retrieval_top5": 0.993,
+      "fid": 55.38283919979068,
+      "delivered": 1.0,
+      "n_images": 1000
+    },
+    "15": {
+      "psnr": 27.363815307617188,
+      "lpips": 0.2502835690975189,
+      "dino_sim": 0.7962819933891296,
+      "retrieval_rank": 0.171,
+      "retrieval_top1": 0.973,
+      "retrieval_top5": 0.993,
+      "fid": 55.38283919979068,
+      "delivered": 1.0,
+      "n_images": 1000
+    },
+    "20": {
+      "psnr": 27.363815307617188,
+      "lpips": 0.2502835690975189,
+      "dino_sim": 0.7962819933891296,
+      "retrieval_rank": 0.171,
+      "retrieval_top1": 0.973,
+      "retrieval_top5": 0.993,
+      "fid": 55.38283919979068,
+      "delivered": 1.0,
+      "n_images": 1000
+    }
+  }
+}

@@ -1,0 +1,83 @@
+{
+  "run_name": "separation_awgn_mcs_ldpc_qam4_r5-6",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "separation",
+  "channel": "awgn",
+  "snrs": [
+    -5,
+    0,
+    5,
+    10,
+    15,
+    20
+  ],
+  "results": {
+    "-5": {
+      "psnr": 11.2396240234375,
+      "lpips": 0.9249334931373596,
+      "dino_sim": -0.007229362148791552,
+      "retrieval_rank": 499.5,
+      "retrieval_top1": 0.001,
+      "retrieval_top5": 0.005,
+      "fid": 351.82044849892407,
+      "delivered": 0.0,
+      "n_images": 1000
+    },
+    "0": {
+      "psnr": 11.2396240234375,
+      "lpips": 0.9249334931373596,
+      "dino_sim": -0.007229362148791552,
+      "retrieval_rank": 499.5,
+      "retrieval_top1": 0.001,
+      "retrieval_top5": 0.005,
+      "fid": 351.82044849892407,
+      "delivered": 0.0,
+      "n_images": 1000
+    },
+    "5": {
+      "psnr": 11.298528671264648,
+      "lpips": 0.9228927493095398,
+      "dino_sim": -0.004725285340100527,
+      "retrieval_rank": 498.382,
+      "retrieval_top1": 0.004,
+      "retrieval_top5": 0.009,
+      "fid": 344.33840129002004,
+      "delivered": 0.004,
+      "n_images": 1000
+    },
+    "10": {
+      "psnr": 25.531526565551758,
+      "lpips": 0.3378992974758148,
+      "dino_sim": 0.6874868869781494,
+      "retrieval_rank": 0.716,
+      "retrieval_top1": 0.893,
+      "retrieval_top5": 0.972,
+      "fid": 89.1194425845311,
+      "delivered": 1.0,
+      "n_images": 1000
+    },
+    "15": {
+      "psnr": 25.531526565551758,
+      "lpips": 0.3378992974758148,
+      "dino_sim": 0.6874868869781494,
+      "retrieval_rank": 0.716,
+      "retrieval_top1": 0.893,
+      "retrieval_top5": 0.972,
+      "fid": 89.1194425845311,
+      "delivered": 1.0,
+      "n_images": 1000
+    },
+    "20": {
+      "psnr": 25.531526565551758,
+      "lpips": 0.3378992974758148,
+      "dino_sim": 0.6874868869781494,
+      "retrieval_rank": 0.716,
+      "retrieval_top1": 0.893,
+      "retrieval_top5": 0.972,
+      "fid": 89.1194425845311,
+      "delivered": 1.0,
+      "n_images": 1000
+    }
+  }
+}

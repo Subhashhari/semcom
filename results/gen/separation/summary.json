@@ -1,0 +1,1097 @@
+{
+  "schemes": {
+    "ldpc_qam4_r1-8": {
+      "M": 4,
+      "rate": 0.125,
+      "k": 256,
+      "blocks": 4,
+      "bytes": 128
+    },
+    "ldpc_qam4_r1-5": {
+      "M": 4,
+      "rate": 0.2001953125,
+      "k": 410,
+      "blocks": 4,
+      "bytes": 205
+    },
+    "ldpc_qam4_r1-4": {
+      "M": 4,
+      "rate": 0.25,
+      "k": 512,
+      "blocks": 4,
+      "bytes": 256
+    },
+    "ldpc_qam4_r1-3": {
+      "M": 4,
+      "rate": 0.33349609375,
+      "k": 683,
+      "blocks": 4,
+      "bytes": 341
+    },
+    "ldpc_qam4_r2-5": {
+      "M": 4,
+      "rate": 0.39990234375,
+      "k": 819,
+      "blocks": 4,
+      "bytes": 409
+    },
+    "ldpc_qam4_r1-2": {
+      "M": 4,
+      "rate": 0.5,
+      "k": 1024,
+      "blocks": 4,
+      "bytes": 512
+    },
+    "ldpc_qam4_r2-3": {
+      "M": 4,
+      "rate": 0.66650390625,
+      "k": 1365,
+      "blocks": 4,
+      "bytes": 682
+    },
+    "ldpc_qam4_r3-4": {
+      "M": 4,
+      "rate": 0.75,
+      "k": 1536,
+      "blocks": 4,
+      "bytes": 768
+    },
+    "ldpc_qam4_r5-6": {
+      "M": 4,
+      "rate": 0.83349609375,
+      "k": 1707,
+      "blocks": 4,
+      "bytes": 853
+    },
+    "ldpc_qam16_r1-2": {
+      "M": 16,
+      "rate": 0.5,
+      "k": 1024,
+      "blocks": 8,
+      "bytes": 1024
+    },
+    "ldpc_qam16_r2-3": {
+      "M": 16,
+      "rate": 0.66650390625,
+      "k": 1365,
+      "blocks": 8,
+      "bytes": 1365
+    },
+    "ldpc_qam16_r3-4": {
+      "M": 16,
+      "rate": 0.75,
+      "k": 1536,
+      "blocks": 8,
+      "bytes": 1536
+    },
+    "ldpc_qam16_r5-6": {
+      "M": 16,
+      "rate": 0.83349609375,
+      "k": 1707,
+      "blocks": 8,
+      "bytes": 1707
+    },
+    "ldpc_qam64_r1-2": {
+      "M": 64,
+      "rate": 0.5,
+      "k": 1024,
+      "blocks": 12,
+      "bytes": 1536
+    },
+    "ldpc_qam64_r2-3": {
+      "M": 64,
+      "rate": 0.66650390625,
+      "k": 1365,
+      "blocks": 12,
+      "bytes": 2047
+    },
+    "ldpc_qam64_r3-4": {
+      "M": 64,
+      "rate": 0.75,
+      "k": 1536,
+      "blocks": 12,
+      "bytes": 2304
+    },
+    "ldpc_qam64_r5-6": {
+      "M": 64,
+      "rate": 0.83349609375,
+      "k": 1707,
+      "blocks": 12,
+      "bytes": 2560
+    },
+    "ideal_qam16_r0.10": {
+      "M": 16,
+      "rate": 0.1,
+      "bytes": 204
+    },
+    "ideal_qam16_r0.20": {
+      "M": 16,
+      "rate": 0.2,
+      "bytes": 409
+    },
+    "ideal_qam16_r0.30": {
+      "M": 16,
+      "rate": 0.3,
+      "bytes": 614
+    },
+    "ideal_qam16_r0.40": {
+      "M": 16,
+      "rate": 0.4,
+      "bytes": 819
+    },
+    "ideal_qam16_r0.50": {
+      "M": 16,
+      "rate": 0.5,
+      "bytes": 1024
+    },
+    "ideal_qam16_r0.60": {
+      "M": 16,
+      "rate": 0.6,
+      "bytes": 1228
+    },
+    "ideal_qam16_r0.70": {
+      "M": 16,
+      "rate": 0.7,
+      "bytes": 1433
+    },
+    "ideal_qam16_r0.80": {
+      "M": 16,
+      "rate": 0.8,
+      "bytes": 1638
+    },
+    "ideal_qam16_r0.90": {
+      "M": 16,
+      "rate": 0.9,
+      "bytes": 1843
+    },
+    "ideal_qam16_r1.00": {
+      "M": 16,
+      "rate": 1.0,
+      "bytes": 2048
+    },
+    "ideal_qam16_cap-5": {
+      "M": 16,
+      "rate": 0.09851913568699322,
+      "bytes": 201
+    },
+    "ideal_qam16_cap0": {
+      "M": 16,
+      "rate": 0.2469246694104711,
+      "bytes": 505
+    },
+    "ideal_qam16_cap5": {
+      "M": 16,
+      "rate": 0.4930165525720196,
+      "bytes": 1009
+    },
+    "ideal_qam16_cap10": {
+      "M": 16,
+      "rate": 0.7906033450525781,
+      "bytes": 1619
+    },
+    "ideal_qam16_cap15": {
+      "M": 16,
+      "rate": 0.9818070713783701,
+      "bytes": 2010
+    },
+    "ideal_qam16_cap20": {
+      "M": 16,
+      "rate": 0.999989731185087,
+      "bytes": 2047
+    }
+  },
+  "channels": {
+    "awgn": {
+      "ldpc_qam16_bestpsnr": {
+        "-5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "0": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "10": {
+          "psnr": 27.363815307617188,
+          "lpips": 0.2502835690975189,
+          "dino_sim": 0.7962819933891296,
+          "retrieval_rank": 0.171,
+          "retrieval_top1": 0.973,
+          "retrieval_top5": 0.993,
+          "fid": 55.38283919979068,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r2-3"
+        },
+        "15": {
+          "psnr": 28.300159454345703,
+          "lpips": 0.2125200629234314,
+          "dino_sim": 0.8370174765586853,
+          "retrieval_rank": 0.04,
+          "retrieval_top1": 0.988,
+          "retrieval_top5": 0.998,
+          "fid": 45.441651766886764,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r5-6"
+        },
+        "20": {
+          "psnr": 28.300159454345703,
+          "lpips": 0.2125200629234314,
+          "dino_sim": 0.8370174765586853,
+          "retrieval_rank": 0.04,
+          "retrieval_top1": 0.988,
+          "retrieval_top5": 0.998,
+          "fid": 45.441651766886764,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r5-6"
+        }
+      },
+      "ldpc_qam16_bestlpips": {
+        "-5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "0": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "10": {
+          "psnr": 27.363815307617188,
+          "lpips": 0.2502835690975189,
+          "dino_sim": 0.7962819933891296,
+          "retrieval_rank": 0.171,
+          "retrieval_top1": 0.973,
+          "retrieval_top5": 0.993,
+          "fid": 55.38283919979068,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r2-3"
+        },
+        "15": {
+          "psnr": 28.300159454345703,
+          "lpips": 0.2125200629234314,
+          "dino_sim": 0.8370174765586853,
+          "retrieval_rank": 0.04,
+          "retrieval_top1": 0.988,
+          "retrieval_top5": 0.998,
+          "fid": 45.441651766886764,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r5-6"
+        },
+        "20": {
+          "psnr": 28.300159454345703,
+          "lpips": 0.2125200629234314,
+          "dino_sim": 0.8370174765586853,
+          "retrieval_rank": 0.04,
+          "retrieval_top1": 0.988,
+          "retrieval_top5": 0.998,
+          "fid": 45.441651766886764,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r5-6"
+        }
+      },
+      "ldpc_all_bestpsnr": {
+        "-5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-8"
+        },
+        "0": {
+          "psnr": 22.249591827392578,
+          "lpips": 0.5376791954040527,
+          "dino_sim": 0.3792589008808136,
+          "retrieval_rank": 33.942,
+          "retrieval_top1": 0.478,
+          "retrieval_top5": 0.717,
+          "fid": 178.13317095359687,
+          "delivered": 0.975,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-3"
+        },
+        "5": {
+          "psnr": 25.153976440429688,
+          "lpips": 0.35788652300834656,
+          "dino_sim": 0.6593857407569885,
+          "retrieval_rank": 0.87,
+          "retrieval_top1": 0.868,
+          "retrieval_top5": 0.969,
+          "fid": 97.82885710751964,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r3-4"
+        },
+        "10": {
+          "psnr": 27.363815307617188,
+          "lpips": 0.2502835690975189,
+          "dino_sim": 0.7962819933891296,
+          "retrieval_rank": 0.171,
+          "retrieval_top1": 0.973,
+          "retrieval_top5": 0.993,
+          "fid": 55.38283919979068,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r2-3"
+        },
+        "15": {
+          "psnr": 29.088674545288086,
+          "lpips": 0.18377362191677094,
+          "dino_sim": 0.8648057579994202,
+          "retrieval_rank": 0.02,
+          "retrieval_top1": 0.99,
+          "retrieval_top5": 0.998,
+          "fid": 38.90686440775232,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam64_r2-3"
+        },
+        "20": {
+          "psnr": 30.09096908569336,
+          "lpips": 0.1510445922613144,
+          "dino_sim": 0.8936349153518677,
+          "retrieval_rank": 0.004,
+          "retrieval_top1": 0.996,
+          "retrieval_top5": 1.0,
+          "fid": 31.986024622352318,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam64_r5-6"
+        }
+      },
+      "ldpc_all_bestlpips": {
+        "-5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-8"
+        },
+        "0": {
+          "psnr": 22.249591827392578,
+          "lpips": 0.5376791954040527,
+          "dino_sim": 0.3792589008808136,
+          "retrieval_rank": 33.942,
+          "retrieval_top1": 0.478,
+          "retrieval_top5": 0.717,
+          "fid": 178.13317095359687,
+          "delivered": 0.975,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-3"
+        },
+        "5": {
+          "psnr": 25.153976440429688,
+          "lpips": 0.35788652300834656,
+          "dino_sim": 0.6593857407569885,
+          "retrieval_rank": 0.87,
+          "retrieval_top1": 0.868,
+          "retrieval_top5": 0.969,
+          "fid": 97.82885710751964,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r3-4"
+        },
+        "10": {
+          "psnr": 27.363815307617188,
+          "lpips": 0.2502835690975189,
+          "dino_sim": 0.7962819933891296,
+          "retrieval_rank": 0.171,
+          "retrieval_top1": 0.973,
+          "retrieval_top5": 0.993,
+          "fid": 55.38283919979068,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r2-3"
+        },
+        "15": {
+          "psnr": 29.088674545288086,
+          "lpips": 0.18377362191677094,
+          "dino_sim": 0.8648057579994202,
+          "retrieval_rank": 0.02,
+          "retrieval_top1": 0.99,
+          "retrieval_top5": 0.998,
+          "fid": 38.90686440775232,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam64_r2-3"
+        },
+        "20": {
+          "psnr": 30.09096908569336,
+          "lpips": 0.1510445922613144,
+          "dino_sim": 0.8936349153518677,
+          "retrieval_rank": 0.004,
+          "retrieval_top1": 0.996,
+          "retrieval_top5": 1.0,
+          "fid": 31.986024622352318,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam64_r5-6"
+        }
+      },
+      "ideal_qam16_bestpsnr": {
+        "-5": {
+          "psnr": 19.80743408203125,
+          "lpips": 0.6630571484565735,
+          "dino_sim": 0.19392776489257812,
+          "retrieval_rank": 136.932,
+          "retrieval_top1": 0.178,
+          "retrieval_top5": 0.368,
+          "fid": 220.9841878067327,
+          "delivered": 0.831,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap-5"
+        },
+        "0": {
+          "psnr": 23.675052642822266,
+          "lpips": 0.4456249475479126,
+          "dino_sim": 0.5203481316566467,
+          "retrieval_rank": 7.186,
+          "retrieval_top1": 0.714,
+          "retrieval_top5": 0.876,
+          "fid": 141.43769379010496,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap0"
+        },
+        "5": {
+          "psnr": 26.17404556274414,
+          "lpips": 0.30560556054115295,
+          "dino_sim": 0.731404185295105,
+          "retrieval_rank": 0.858,
+          "retrieval_top1": 0.938,
+          "retrieval_top5": 0.982,
+          "fid": 75.29638564706505,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap5"
+        },
+        "10": {
+          "psnr": 28.074459075927734,
+          "lpips": 0.22143661975860596,
+          "dino_sim": 0.8278215527534485,
+          "retrieval_rank": 0.048,
+          "retrieval_top1": 0.985,
+          "retrieval_top5": 0.997,
+          "fid": 47.37768014002012,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap10"
+        },
+        "15": {
+          "psnr": 29.00286102294922,
+          "lpips": 0.18665343523025513,
+          "dino_sim": 0.8627924919128418,
+          "retrieval_rank": 0.022,
+          "retrieval_top1": 0.99,
+          "retrieval_top5": 0.998,
+          "fid": 40.11439614836348,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap15"
+        },
+        "20": {
+          "psnr": 29.088674545288086,
+          "lpips": 0.18377362191677094,
+          "dino_sim": 0.8648057579994202,
+          "retrieval_rank": 0.02,
+          "retrieval_top1": 0.99,
+          "retrieval_top5": 0.998,
+          "fid": 38.90686440775232,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap20"
+        }
+      },
+      "ideal_qam16_bestlpips": {
+        "-5": {
+          "psnr": 19.80743408203125,
+          "lpips": 0.6630571484565735,
+          "dino_sim": 0.19392776489257812,
+          "retrieval_rank": 136.932,
+          "retrieval_top1": 0.178,
+          "retrieval_top5": 0.368,
+          "fid": 220.9841878067327,
+          "delivered": 0.831,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap-5"
+        },
+        "0": {
+          "psnr": 23.675052642822266,
+          "lpips": 0.4456249475479126,
+          "dino_sim": 0.5203481316566467,
+          "retrieval_rank": 7.186,
+          "retrieval_top1": 0.714,
+          "retrieval_top5": 0.876,
+          "fid": 141.43769379010496,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap0"
+        },
+        "5": {
+          "psnr": 26.17404556274414,
+          "lpips": 0.30560556054115295,
+          "dino_sim": 0.731404185295105,
+          "retrieval_rank": 0.858,
+          "retrieval_top1": 0.938,
+          "retrieval_top5": 0.982,
+          "fid": 75.29638564706505,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap5"
+        },
+        "10": {
+          "psnr": 28.074459075927734,
+          "lpips": 0.22143661975860596,
+          "dino_sim": 0.8278215527534485,
+          "retrieval_rank": 0.048,
+          "retrieval_top1": 0.985,
+          "retrieval_top5": 0.997,
+          "fid": 47.37768014002012,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap10"
+        },
+        "15": {
+          "psnr": 29.00286102294922,
+          "lpips": 0.18665343523025513,
+          "dino_sim": 0.8627924919128418,
+          "retrieval_rank": 0.022,
+          "retrieval_top1": 0.99,
+          "retrieval_top5": 0.998,
+          "fid": 40.11439614836348,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap15"
+        },
+        "20": {
+          "psnr": 29.088674545288086,
+          "lpips": 0.18377362191677094,
+          "dino_sim": 0.8648057579994202,
+          "retrieval_rank": 0.02,
+          "retrieval_top1": 0.99,
+          "retrieval_top5": 0.998,
+          "fid": 38.90686440775232,
+          "delivered": 1.0,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_cap20"
+        }
+      }
+    },
+    "rayleigh": {
+      "ldpc_qam16_bestpsnr": {
+        "-5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "0": {
+          "psnr": 11.351675987243652,
+          "lpips": 0.9198178648948669,
+          "dino_sim": -0.0010892271529883146,
+          "retrieval_rank": 495.114,
+          "retrieval_top1": 0.009,
+          "retrieval_top5": 0.013,
+          "fid": 338.9552713083046,
+          "delivered": 0.008,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "5": {
+          "psnr": 14.112849235534668,
+          "lpips": 0.8045265078544617,
+          "dino_sim": 0.13692419230937958,
+          "retrieval_rank": 402.542,
+          "retrieval_top1": 0.183,
+          "retrieval_top5": 0.196,
+          "fid": 228.4798886890301,
+          "delivered": 0.193,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "10": {
+          "psnr": 20.38167381286621,
+          "lpips": 0.5463271737098694,
+          "dino_sim": 0.4462369382381439,
+          "retrieval_rank": 194.673,
+          "retrieval_top1": 0.572,
+          "retrieval_top5": 0.596,
+          "fid": 122.17028635937453,
+          "delivered": 0.605,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "15": {
+          "psnr": 24.01439094543457,
+          "lpips": 0.39367470145225525,
+          "dino_sim": 0.6247389316558838,
+          "retrieval_rank": 79.375,
+          "retrieval_top1": 0.799,
+          "retrieval_top5": 0.836,
+          "fid": 86.68565485052665,
+          "delivered": 0.853,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "20": {
+          "psnr": 25.9645938873291,
+          "lpips": 0.3081587255001068,
+          "dino_sim": 0.7233371734619141,
+          "retrieval_rank": 62.258,
+          "retrieval_top1": 0.869,
+          "retrieval_top5": 0.881,
+          "fid": 62.32496680615657,
+          "delivered": 0.885,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r3-4"
+        }
+      },
+      "ldpc_qam16_bestlpips": {
+        "-5": {
+          "psnr": 11.2396240234375,
+          "lpips": 0.9249334931373596,
+          "dino_sim": -0.007229362148791552,
+          "retrieval_rank": 499.5,
+          "retrieval_top1": 0.001,
+          "retrieval_top5": 0.005,
+          "fid": 351.82044849892407,
+          "delivered": 0.0,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "0": {
+          "psnr": 11.351675987243652,
+          "lpips": 0.9198178648948669,
+          "dino_sim": -0.0010892271529883146,
+          "retrieval_rank": 495.114,
+          "retrieval_top1": 0.009,
+          "retrieval_top5": 0.013,
+          "fid": 338.9552713083046,
+          "delivered": 0.008,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "5": {
+          "psnr": 14.112849235534668,
+          "lpips": 0.8045265078544617,
+          "dino_sim": 0.13692419230937958,
+          "retrieval_rank": 402.542,
+          "retrieval_top1": 0.183,
+          "retrieval_top5": 0.196,
+          "fid": 228.4798886890301,
+          "delivered": 0.193,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "10": {
+          "psnr": 20.38167381286621,
+          "lpips": 0.5463271737098694,
+          "dino_sim": 0.4462369382381439,
+          "retrieval_rank": 194.673,
+          "retrieval_top1": 0.572,
+          "retrieval_top5": 0.596,
+          "fid": 122.17028635937453,
+          "delivered": 0.605,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "15": {
+          "psnr": 24.01439094543457,
+          "lpips": 0.39367470145225525,
+          "dino_sim": 0.6247389316558838,
+          "retrieval_rank": 79.375,
+          "retrieval_top1": 0.799,
+          "retrieval_top5": 0.836,
+          "fid": 86.68565485052665,
+          "delivered": 0.853,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "20": {
+          "psnr": 25.9645938873291,
+          "lpips": 0.3081587255001068,
+          "dino_sim": 0.7233371734619141,
+          "retrieval_rank": 62.258,
+          "retrieval_top1": 0.869,
+          "retrieval_top5": 0.881,
+          "fid": 62.32496680615657,
+          "delivered": 0.885,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r3-4"
+        }
+      },
+      "ldpc_all_bestpsnr": {
+        "-5": {
+          "psnr": 12.504931449890137,
+          "lpips": 0.8856945633888245,
+          "dino_sim": 0.02434852160513401,
+          "retrieval_rank": 446.135,
+          "retrieval_top1": 0.029,
+          "retrieval_top5": 0.065,
+          "fid": 289.40882194552876,
+          "delivered": 0.123,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-5"
+        },
+        "0": {
+          "psnr": 16.322961807250977,
+          "lpips": 0.7594872117042542,
+          "dino_sim": 0.14560821652412415,
+          "retrieval_rank": 277.191,
+          "retrieval_top1": 0.182,
+          "retrieval_top5": 0.29,
+          "fid": 218.56401188781214,
+          "delivered": 0.477,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-4"
+        },
+        "5": {
+          "psnr": 19.83281707763672,
+          "lpips": 0.6216681003570557,
+          "dino_sim": 0.29325684905052185,
+          "retrieval_rank": 138.956,
+          "retrieval_top1": 0.377,
+          "retrieval_top5": 0.556,
+          "fid": 176.8175948727885,
+          "delivered": 0.759,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-3"
+        },
+        "10": {
+          "psnr": 22.193889617919922,
+          "lpips": 0.4840913712978363,
+          "dino_sim": 0.5016278624534607,
+          "retrieval_rank": 98.974,
+          "retrieval_top1": 0.681,
+          "retrieval_top5": 0.77,
+          "fid": 118.47861955269354,
+          "delivered": 0.813,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r2-3"
+        },
+        "15": {
+          "psnr": 24.01439094543457,
+          "lpips": 0.39367470145225525,
+          "dino_sim": 0.6247389316558838,
+          "retrieval_rank": 79.375,
+          "retrieval_top1": 0.799,
+          "retrieval_top5": 0.836,
+          "fid": 86.68565485052665,
+          "delivered": 0.853,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "20": {
+          "psnr": 25.9645938873291,
+          "lpips": 0.3081587255001068,
+          "dino_sim": 0.7233371734619141,
+          "retrieval_rank": 62.258,
+          "retrieval_top1": 0.869,
+          "retrieval_top5": 0.881,
+          "fid": 62.32496680615657,
+          "delivered": 0.885,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r3-4"
+        }
+      },
+      "ldpc_all_bestlpips": {
+        "-5": {
+          "psnr": 12.504931449890137,
+          "lpips": 0.8856945633888245,
+          "dino_sim": 0.02434852160513401,
+          "retrieval_rank": 446.135,
+          "retrieval_top1": 0.029,
+          "retrieval_top5": 0.065,
+          "fid": 289.40882194552876,
+          "delivered": 0.123,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-5"
+        },
+        "0": {
+          "psnr": 16.322961807250977,
+          "lpips": 0.7594872117042542,
+          "dino_sim": 0.14560821652412415,
+          "retrieval_rank": 277.191,
+          "retrieval_top1": 0.182,
+          "retrieval_top5": 0.29,
+          "fid": 218.56401188781214,
+          "delivered": 0.477,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-4"
+        },
+        "5": {
+          "psnr": 19.39797592163086,
+          "lpips": 0.6102347373962402,
+          "dino_sim": 0.3399798572063446,
+          "retrieval_rank": 178.716,
+          "retrieval_top1": 0.47,
+          "retrieval_top5": 0.566,
+          "fid": 154.24703131067906,
+          "delivered": 0.647,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r1-2"
+        },
+        "10": {
+          "psnr": 22.092119216918945,
+          "lpips": 0.48301294445991516,
+          "dino_sim": 0.510636031627655,
+          "retrieval_rank": 115.817,
+          "retrieval_top1": 0.676,
+          "retrieval_top5": 0.749,
+          "fid": 112.88139815379537,
+          "delivered": 0.776,
+          "n_images": 1000,
+          "scheme": "ldpc_qam4_r3-4"
+        },
+        "15": {
+          "psnr": 24.01439094543457,
+          "lpips": 0.39367470145225525,
+          "dino_sim": 0.6247389316558838,
+          "retrieval_rank": 79.375,
+          "retrieval_top1": 0.799,
+          "retrieval_top5": 0.836,
+          "fid": 86.68565485052665,
+          "delivered": 0.853,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r1-2"
+        },
+        "20": {
+          "psnr": 25.9645938873291,
+          "lpips": 0.3081587255001068,
+          "dino_sim": 0.7233371734619141,
+          "retrieval_rank": 62.258,
+          "retrieval_top1": 0.869,
+          "retrieval_top5": 0.881,
+          "fid": 62.32496680615657,
+          "delivered": 0.885,
+          "n_images": 1000,
+          "scheme": "ldpc_qam16_r3-4"
+        }
+      },
+      "ideal_qam16_bestpsnr": {
+        "-5": {
+          "psnr": 14.4420747756958,
+          "lpips": 0.8259474039077759,
+          "dino_sim": 0.06965034455060959,
+          "retrieval_rank": 365.382,
+          "retrieval_top1": 0.076,
+          "retrieval_top5": 0.146,
+          "fid": 248.73723278863994,
+          "delivered": 0.308,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.10"
+        },
+        "0": {
+          "psnr": 17.60226058959961,
+          "lpips": 0.7301549315452576,
+          "dino_sim": 0.14205360412597656,
+          "retrieval_rank": 229.494,
+          "retrieval_top1": 0.141,
+          "retrieval_top5": 0.283,
+          "fid": 222.8123283372817,
+          "delivered": 0.616,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.10"
+        },
+        "5": {
+          "psnr": 20.670351028442383,
+          "lpips": 0.5766682028770447,
+          "dino_sim": 0.356558233499527,
+          "retrieval_rank": 115.611,
+          "retrieval_top1": 0.486,
+          "retrieval_top5": 0.641,
+          "fid": 161.21198857782042,
+          "delivered": 0.8,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.20"
+        },
+        "10": {
+          "psnr": 22.765583038330078,
+          "lpips": 0.4529927968978882,
+          "dino_sim": 0.5479673743247986,
+          "retrieval_rank": 96.202,
+          "retrieval_top1": 0.722,
+          "retrieval_top5": 0.79,
+          "fid": 105.31286306955712,
+          "delivered": 0.815,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.40"
+        },
+        "15": {
+          "psnr": 24.76626968383789,
+          "lpips": 0.35925915837287903,
+          "dino_sim": 0.6664847135543823,
+          "retrieval_rank": 74.791,
+          "retrieval_top1": 0.83,
+          "retrieval_top5": 0.851,
+          "fid": 75.38105392855664,
+          "delivered": 0.86,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.60"
+        },
+        "20": {
+          "psnr": 26.381214141845703,
+          "lpips": 0.29036661982536316,
+          "dino_sim": 0.7471800446510315,
+          "retrieval_rank": 37.554,
+          "retrieval_top1": 0.905,
+          "retrieval_top5": 0.921,
+          "fid": 59.73283429322339,
+          "delivered": 0.927,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.70"
+        }
+      },
+      "ideal_qam16_bestlpips": {
+        "-5": {
+          "psnr": 14.4420747756958,
+          "lpips": 0.8259474039077759,
+          "dino_sim": 0.06965034455060959,
+          "retrieval_rank": 365.382,
+          "retrieval_top1": 0.076,
+          "retrieval_top5": 0.146,
+          "fid": 248.73723278863994,
+          "delivered": 0.308,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.10"
+        },
+        "0": {
+          "psnr": 16.90627670288086,
+          "lpips": 0.7161265015602112,
+          "dino_sim": 0.21913689374923706,
+          "retrieval_rank": 268.787,
+          "retrieval_top1": 0.298,
+          "retrieval_top5": 0.393,
+          "fid": 190.42931770513098,
+          "delivered": 0.479,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.20"
+        },
+        "5": {
+          "psnr": 20.051536560058594,
+          "lpips": 0.575221061706543,
+          "dino_sim": 0.38758012652397156,
+          "retrieval_rank": 168.779,
+          "retrieval_top1": 0.532,
+          "retrieval_top5": 0.616,
+          "fid": 140.77049088233815,
+          "delivered": 0.667,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.30"
+        },
+        "10": {
+          "psnr": 22.765583038330078,
+          "lpips": 0.4529927968978882,
+          "dino_sim": 0.5479673743247986,
+          "retrieval_rank": 96.202,
+          "retrieval_top1": 0.722,
+          "retrieval_top5": 0.79,
+          "fid": 105.31286306955712,
+          "delivered": 0.815,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.40"
+        },
+        "15": {
+          "psnr": 24.76626968383789,
+          "lpips": 0.35925915837287903,
+          "dino_sim": 0.6664847135543823,
+          "retrieval_rank": 74.791,
+          "retrieval_top1": 0.83,
+          "retrieval_top5": 0.851,
+          "fid": 75.38105392855664,
+          "delivered": 0.86,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.60"
+        },
+        "20": {
+          "psnr": 26.381214141845703,
+          "lpips": 0.29036661982536316,
+          "dino_sim": 0.7471800446510315,
+          "retrieval_rank": 37.554,
+          "retrieval_top1": 0.905,
+          "retrieval_top5": 0.921,
+          "fid": 59.73283429322339,
+          "delivered": 0.927,
+          "n_images": 1000,
+          "scheme": "ideal_qam16_r0.70"
+        }
+      }
+    }
+  }
+}
