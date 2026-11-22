@@ -44,6 +44,9 @@ K = 4096  # complex channel uses per image
 N_CODE = 2048
 MODS = (4, 16, 64)
 RATES = {"1-2": 1 / 2, "2-3": 2 / 3, "3-4": 3 / 4, "5-6": 5 / 6}
+# QPSK also gets the low rates a real system uses near and below 0 dB (5G NR goes down to about
+# 0.12 with QPSK); without them every LDPC scheme fails below about 2 dB and the baseline is unfair.
+LOW_RATES = {"1-8": 1 / 8, "1-5": 1 / 5, "1-4": 1 / 4, "1-3": 1 / 3, "2-5": 2 / 5}
 IDEAL_RATES = [round(0.1 * i, 2) for i in range(1, 11)]  # plus the exact AWGN capacity budgets
 SNRS = (-5, 0, 5, 10, 15, 20)
 OUT = ROOT / "results/gen/separation"
@@ -57,7 +60,7 @@ def ldpc_schemes() -> dict:
     for M in MODS:
         m = int(math.log2(M))
         blocks = K * m // N_CODE
-        for name, r in RATES.items():
+        for name, r in ({**LOW_RATES, **RATES} if M == 4 else RATES).items():
             k = int(round(N_CODE * r))
             out[f"ldpc_qam{M}_r{name}"] = {"M": M, "rate": k / N_CODE, "k": k, "blocks": blocks,
                                           "bytes": blocks * k // 8}
