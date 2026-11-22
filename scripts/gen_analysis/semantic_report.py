@@ -168,7 +168,7 @@ def prdc(real, fake, k=5):
 dist = {}
 for s in snrs:
     for key, run in ((dk, drun), (ck, crun)):
-        dd = np.load(ddir / f"{run}__{s}.npz")
+        dd = np.load(ddir / f"{Path(run).name}__{s}.npz")
         dist.setdefault(s, {})[key] = {"dinov2": prdc(odump["emb"], dd["emb"]),
                                        "clip": prdc(orig["clip_img"], load(f"{key}__{s}")["clip_img"])}
 
