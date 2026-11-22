@@ -95,6 +95,8 @@ def main() -> None:
     p.add_argument("--snr-range", nargs=2, type=float, default=None, metavar=("LO", "HI"),
                    help="training SNR range (dB) of the told / blind arms")
     p.add_argument("--init-from", default=None, help="fine-tune: start from this run folder's weights")
+    p.add_argument("--eval-checkpoint", choices=["best", "final"], default=None,
+                   help="weights to evaluate: best validation loss (default) or the last step")
     p.add_argument("--train-parts", choices=["all", "transmitter", "receiver"], default=None)
     p.add_argument("--tag", default=None, help="appended to the run name")
     p.add_argument("--eval-snrs", nargs="+", type=float, default=None)
@@ -139,6 +141,7 @@ def main() -> None:
                  "max_hours": args.max_hours, "eval_images": args.eval_images,
                  "out_dir": args.out_dir, "data_root": args.data_root, "wandb_mode": args.wandb_mode,
                  "anneal_period": args.anneal_period, "init_from": args.init_from,
+                 "eval_checkpoint": args.eval_checkpoint,
                  "train_parts": args.train_parts, "tag": args.tag, "eval_snrs": args.eval_snrs,
                  "sample_steps": args.sample_steps, "encoder_snr": args.encoder_snr or None,
                  "channel": args.channel, "c_sem": args.c_sem, "c_det": args.c_det,
