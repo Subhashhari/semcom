@@ -1,0 +1,105 @@
+{
+  "run_name": "dit-S-v_cbr48_qam16_blind-5to5_s1",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "dit",
+  "arm": "blind-5to5",
+  "snr_mode": "blank",
+  "seed": 1,
+  "checkpoint": "best",
+  "k": 1024,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "Tesla T4",
+  "digital": true,
+  "modulation_order": 16,
+  "symbols": {
+    "qam_usage": 0.9873921762401142,
+    "qam_kurtosis": 1.424007602683422,
+    "qam_power": 0.903281182050705,
+    "on_constellation": true,
+    "modulation_order": 16,
+    "power_ref": "actual",
+    "es_ref_trained": 0.9188731908798218
+  },
+  "snrs": [
+    -10.0,
+    -7.5,
+    -2.5,
+    2.5,
+    7.5,
+    10.0
+  ],
+  "steps": [
+    10
+  ],
+  "cfg_scale": 1.0,
+  "start": 1.0,
+  "results": {
+    "-10_10": {
+      "psnr": 12.557269096374512,
+      "lpips": 0.5434892773628235,
+      "dino_sim": 0.03575296700000763,
+      "retrieval_rank": 368.4530029296875,
+      "retrieval_top1": 0.004000000189989805,
+      "retrieval_top5": 0.01600000075995922,
+      "fid": 239.1258544921875,
+      "seconds_per_image": 0.044454341411590576,
+      "n_images": 1000
+    },
+    "-7.5_10": {
+      "psnr": 13.894050598144531,
+      "lpips": 0.4725014865398407,
+      "dino_sim": 0.0615818090736866,
+      "retrieval_rank": 268.5360107421875,
+      "retrieval_top1": 0.012000000104308128,
+      "retrieval_top5": 0.04399999976158142,
+      "fid": 209.6894989013672,
+      "seconds_per_image": 0.044332092523574826,
+      "n_images": 1000
+    },
+    "-2.5_10": {
+      "psnr": 16.30190658569336,
+      "lpips": 0.33963751792907715,
+      "dino_sim": 0.13142015039920807,
+      "retrieval_rank": 130.92599487304688,
+      "retrieval_top1": 0.06400000303983688,
+      "retrieval_top5": 0.17000000178813934,
+      "fid": 159.07275390625,
+      "seconds_per_image": 0.044294824600219725,
+      "n_images": 1000
+    },
+    "2.5_10": {
+      "psnr": 18.02480125427246,
+      "lpips": 0.255409836769104,
+      "dino_sim": 0.21467694640159607,
+      "retrieval_rank": 58.88399887084961,
+      "retrieval_top1": 0.16500000655651093,
+      "retrieval_top5": 0.38499999046325684,
+      "fid": 129.51220703125,
+      "seconds_per_image": 0.04425887751579285,
+      "n_images": 1000
+    },
+    "7.5_10": {
+      "psnr": 18.864757537841797,
+      "lpips": 0.22345605492591858,
+      "dino_sim": 0.27108636498451233,
+      "retrieval_rank": 29.764999389648438,
+      "retrieval_top1": 0.25600001215934753,
+      "retrieval_top5": 0.5,
+      "fid": 113.97463989257812,
+      "seconds_per_image": 0.044228960990905765,
+      "n_images": 1000
+    },
+    "10_10": {
+      "psnr": 19.07364845275879,
+      "lpips": 0.21700721979141235,
+      "dino_sim": 0.28211069107055664,
+      "retrieval_rank": 28.80299949645996,
+      "retrieval_top1": 0.28200000524520874,
+      "retrieval_top5": 0.5460000038146973,
+      "fid": 109.8685302734375,
+      "seconds_per_image": 0.044282710552215575,
+      "n_images": 1000
+    }
+  }
+}

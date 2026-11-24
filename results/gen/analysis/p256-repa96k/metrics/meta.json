@@ -1,0 +1,12 @@
+{
+ "dump": "results/gen/dump/p256-repa96k-full",
+ "systems": {
+  "repa": "dit-S-v_cbr48_qam16_blind-5to5_repa0.5_s0"
+ },
+ "snrs": [
+  -5.0,
+  0.0,
+  5.0
+ ],
+ "n": 1000
+}

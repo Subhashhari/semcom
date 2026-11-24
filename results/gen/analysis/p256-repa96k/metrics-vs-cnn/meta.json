@@ -1,0 +1,13 @@
+{
+ "dump": "results/gen/dump/p256-conv-full",
+ "systems": {
+  "dit": "dit-S-v_cbr48_qam16_blind-5to5_s0",
+  "cnn": "cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0"
+ },
+ "snrs": [
+  -5.0,
+  0.0,
+  5.0
+ ],
+ "n": 1000
+}

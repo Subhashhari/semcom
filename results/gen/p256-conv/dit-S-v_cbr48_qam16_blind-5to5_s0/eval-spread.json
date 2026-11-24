@@ -1,0 +1,70 @@
+{
+  "run_name": "dit-S-v_cbr48_qam16_blind-5to5_s0",
+  "subset": "spread",
+  "n_images": 1000,
+  "model": "dit",
+  "arm": "blind-5to5",
+  "snr_mode": "blank",
+  "seed": 0,
+  "checkpoint": "best",
+  "k": 4096,
+  "bandwidth_ratio": 0.020833333333333332,
+  "device": "NVIDIA GeForce RTX 5060",
+  "digital": true,
+  "modulation_order": 16,
+  "symbols": {
+    "qam_usage": 0.991957174147147,
+    "qam_kurtosis": 1.32063679074722,
+    "qam_power": 1.0541266322135925,
+    "on_constellation": true,
+    "modulation_order": 16,
+    "power_ref": "actual",
+    "es_ref_trained": 1.0565673112869263
+  },
+  "snrs": [
+    -5.0,
+    0.0,
+    5.0
+  ],
+  "steps": [
+    10
+  ],
+  "cfg_scale": 1.0,
+  "start": 1.0,
+  "rx": "true",
+  "results": {
+    "-5_10": {
+      "psnr": 17.046875,
+      "lpips": 0.37081101536750793,
+      "dino_sim": 0.30448442697525024,
+      "retrieval_rank": 30.152999877929688,
+      "retrieval_top1": 0.2720000147819519,
+      "retrieval_top5": 0.5350000262260437,
+      "fid": 120.44054412841797,
+      "seconds_per_image": 0.07102577376365661,
+      "n_images": 1000
+    },
+    "0_10": {
+      "psnr": 19.72134017944336,
+      "lpips": 0.24899457395076752,
+      "dino_sim": 0.5609992742538452,
+      "retrieval_rank": 2.1419999599456787,
+      "retrieval_top1": 0.8090000152587891,
+      "retrieval_top5": 0.9309999942779541,
+      "fid": 70.20840454101562,
+      "seconds_per_image": 0.07267186856269836,
+      "n_images": 1000
+    },
+    "5_10": {
+      "psnr": 21.020370483398438,
+      "lpips": 0.1963132917881012,
+      "dino_sim": 0.7031495571136475,
+      "retrieval_rank": 0.2919999957084656,
+      "retrieval_top1": 0.9539999961853027,
+      "retrieval_top5": 0.9919999837875366,
+      "fid": 50.51270294189453,
+      "seconds_per_image": 0.07269315791130065,
+      "n_images": 1000
+    }
+  }
+}

@@ -116,7 +116,9 @@ STAGES.update({
     # Paired with dit256 on this GPU (19 Nov): its seed 1 (the 256 px seed spread, for the seed
     # rule and for judging any 256 px variant) and REPA as at 128 px (g-v3: weight 0.5, depth 4).
     "dit256-s1": [DIT256 + ["--seeds", "1"] + GEN_STEPS + t for t in TESTS],
-    "dit256-repa": [DIT256 + ["--repa-weight", "0.5", "--repa-depth", "4"] + GEN_STEPS + t for t in TESTS],
+    # Capped at 140k on 24 Nov, the plain DiT's budget (argparse keeps the last --steps).
+    "dit256-repa": [DIT256 + ["--repa-weight", "0.5", "--repa-depth", "4"] + GEN_STEPS + ["--steps", "140000"] + t
+                    for t in TESTS],
     "cnn256": [CNN256 + ["--steps", "40000"] + TESTS[1]],
     "cnn256-ft": [CNN256_FT + t for t in TESTS],
     # Reconstructions for the analysis suite (scripts/gen_analysis/specs/p256.json): the same 1,000
