@@ -75,6 +75,7 @@ def main() -> None:
                    help="train to convergence: stop after this many validations without a val-loss "
                         "gain above --min-delta (--steps is then a cap)")
     p.add_argument("--min-delta", type=float, default=None, help="relative val-loss gain that counts (0.002)")
+    p.add_argument("--lr", type=float, default=None, help="peak learning rate (default: the config's, 1e-4)")
     p.add_argument("--lr-schedule", choices=["constant", "cosine"], default=None,
                    help="after warmup: constant (default) or a cosine decay to 0 at --steps")
     p.add_argument("--reg-weight", type=float, default=None,
@@ -148,7 +149,7 @@ def main() -> None:
                  "train_fraction": args.train_fraction, "extra_train": args.extra_train,
                  "extra_per_class": args.extra_per_class, "sanity_steps": args.sanity_steps,
                  "lr_schedule": args.lr_schedule, "repa_depth": args.repa_depth,
-                 "patience": args.patience, "min_delta": args.min_delta}
+                 "patience": args.patience, "min_delta": args.min_delta, "lr": args.lr}
     dit_only = {k: v for k, v in (("reg_weight", args.reg_weight), ("repa_weight", args.repa_weight)) if v}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])

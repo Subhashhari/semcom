@@ -10,7 +10,199 @@ Every number below was recomputed on 16 Nov 2026 from the committed per-image re
 (`eval_images-*.npz`) unless marked otherwise. Literature statements come from paper text fetched
 that day; section 3 says which ones could not be confirmed verbatim.
 
-## Status on 20 Nov (read first)
+## Plan from 26 Nov to the experiment freeze on 11 Dec (read first)
+
+Written 26 Nov, after the 24 Nov progress meeting. It replaces section 6 for everything after
+26 Nov; sections 1 to 6 below are kept as the record. The literature behind each decision is in
+`reports/DiT JSCC path to paper.md` and its notes (`research_notes/DiT JSCC path to paper/`, both
+local only). **Experiments end 11 Dec**; anything not finished by then is cut, not extended.
+
+### Where the results stand
+
+| Result | Level | What stops it being paper-grade |
+|---|---|---|
+| **Study A: the receiver needs no noise-level knowledge**, given gain tracking (blind vs told vs estimated SNR vs gain error, AWGN and block Rayleigh, 0 to 20 dB) | Complete, clear, novel (re-checked 26 Nov: CBJSCC/SIJSCC are analog, AWGN only, PSNR only, and feed the true SNR; nobody tests an estimated SNR or a gain error) | Run on the plain DiT, not the REPA receiver the paper presents; one seed |
+| **REPA receiver vs converged CNN** (spread set, 0 dB: DINOv2 0.635 vs 0.604, top-1 86.0 vs 82.6%, FID 53.7 vs 59.3, CLIP-IQA 0.82 vs 0.43, PSNR 19.4 vs 21.3 dB) | Wins or ties every meaning score, realism by far; loses PSNR by 1.6 to 2.1 dB. The lead is largest at -5 dB and near a tie at +5 dB | Post hoc (REPA was the rescue after B failed); the CNN's LPIPS stage was capped at 36k while still improving (E-B3); DINOv2 metrics partly circular; LPIPS-VGG and DISTS favour the CNN; Imagenette only (10 classes); no out-of-distribution test; no transformer JSCC baseline |
+| **vs separation** (AVIF + LDPC + QAM, genie per SNR) | Graceful degradation; under fading ahead by 7 to 34 pts top-1 at every SNR | Classical is +1 to +4 dB PSNR from 5 dB up |
+| **Absolute quality** | +5 dB: DINOv2 0.728, PSNR 20.7 dB | Far from the 256 px SD-VAE ceiling (clean round trip DINOv2 0.96, PSNR 25.9 dB, 18 Nov): the latent space is not the limit |
+
+**Headline (user, 26 Nov): the perceptual result.** A constellation-constrained (16-QAM) diffusion
+receiver beats a converged learned JSCC on most perceptual and semantic metrics. No paper read
+combines 16-QAM symbols with a diffusion receiver that generates the image (all diffusion JSCC
+papers send analog symbols; SemQAM is QAM-native but GAN/VQ). The SNR study becomes the second,
+supporting result ("and it needs no SNR"). The architecture is a scaled-down DiT-JSCC, so the
+novelty is the constellation constraint, the blind operation and the evidence, not the network.
+
+What this headline needs that the SNR headline did not:
+
+1. **The strongest baseline we can afford.** The headline is only as strong as the weakest
+   objection to the CNN:
+   - its LPIPS stage was capped (E-B3);
+   - it has no adversarial loss: GAN-JSCC is the standard perceptual JSCC baseline (CDM-JSCC
+     uses it), so E-B4 adds one;
+   - there is no transformer JSCC (E-B1).
+2. **The cost of the constellation at 256 px** (E-A7): the same REPA receiver with analog
+   symbols. At 128 px 16-QAM cost 0.3 to 0.8 dB.
+3. **A pre-registered metric list** (rule below), including the metrics that favour the CNN:
+   - today: LPIPS-VGG, which was measured on the plain DiT only, and DISTS at 0 / +5 dB;
+   - plus out-of-distribution tests (E-A5).
+4. **Larger margins at 0 and +5 dB.** The lead is clear at -5 dB but thin at +5 dB, so the
+   performance levers (E-P) matter more than under the SNR headline.
+
+The analyses still add claims that DiT-JSCC (arXiv 2601.03112) and the other diffusion JSCC
+papers do not make. They train one model per SNR or feed it the SNR, and test on about 100
+in-distribution images. None reports a PSNR table, a multi-draw or posterior analysis, a
+quantified hallucination rate, or latency.
+
+### Target claims for the paper
+
+| # | Claim | Evidence needed by 11 Dec |
+|---|---|---|
+| C1 (headline) | A constellation-constrained (16-QAM) diffusion receiver beats a converged learned JSCC on most perceptual and semantic metrics (realism, DreamSim, LPIPS, CLIP, captions, classifier), costs little against the same receiver with analog symbols, and degrades gracefully where digital separation falls off a cliff | Have it in-distribution against the CNN. Add E-B3, E-B4, E-B1 (baselines), E-A7 (constellation cost), E-A5 (Kodak/CLIC), the pre-registered metric list |
+| C2 | It needs no SNR at either end; what it needs is gain tracking, and being told the SNR buys robustness to gain error, not quality | Have it (plain DiT). REPA bridge E-A1 optional |
+| C3 | Its PSNR loss is the price of realism: it behaves like a posterior sampler, and the receiver alone can move along the perception-distortion curve from one transmitted signal | New: E-A2 (multi-draw test) |
+| C4 | Its failures are confident (sharp but wrong), they can be quantified, and a receiver-side consistency check flags them where draw disagreement does not | New: E-A3 (error rates, re-encoding residual detector) |
+| C5 (optional) | Mechanism: the semantic stream carries meaning and the detail stream carries fidelity; posterior spread tracks the channel SNR without being told it | E-A4 |
+
+### The four ideas from the meeting, with decisions
+
+1. **512 px: not doing it.**
+   - The 128 to 256 px jump came from the SD-VAE ceiling rising from DINOv2 0.81 to 0.96 and
+     PSNR 23.6 to 25.9 dB (18 Nov). At 256 px the ceiling is no longer binding: the receiver
+     is 5 dB PSNR and 0.23 DINOv2 below it even at +5 dB.
+   - At 512 px the DiT has 1,024 tokens, about 5x the compute per image, and batch about 16 on
+     the 5060. A converged run would be about 60 h or more, and the converged CNN baseline at
+     512 px about 4 x 69 h. Neither fits before 11 Dec.
+   - Imagenette's 320 px release would also have to be replaced by the full-size one.
+   - The question behind it, "is the bottleneck the latent space?", is answered more cheaply by
+     E-P1 (ceiling and decoder swap).
+2. **Newer diffusion pipelines: yes, the cheap ones.**
+   - **Large pretrained generators:** these are what put DiffJSCC, OSD-JSCC and JSCGC ahead
+     (SD 2.1, SD-Turbo, Z-Image). They do not fit an 8 GB card or a 2-week window, and DiT-XL/2
+     with a full fine-tune is borderline even on a T4. So they go in the limitations, not the plan.
+   - **Inference-time levers (E-P1):** multi-draw averaging, deterministic vs stochastic sampling,
+     steps, CFG (the model was trained with 10% condition dropout), and the ft-MSE decoder.
+   - **Training levers (E-P3 screen):** flow matching with logit-normal timesteps (SiT-S beats
+     DiT-S by 57.6 vs 68.4 FID at 400k, arXiv 2401.08740), iREPA (3x3 conv projector plus
+     spatial normalisation, arXiv 2512.10794), HASTE (REPA off late, arXiv 2505.16792),
+     RoPE + qk-norm, and EDM's non-leaking augmentation for small data.
+   - **Fidelity start (E-P4):** a PMRF/ResShift-style start of the reverse process from an
+     MSE estimate (arXiv 2410.00418, 2307.12348).
+   - **Rejected on evidence:** Muon, the x0 target, min-SNR weighting, REPA-E (it lowers SD-VAE
+     reconstruction PSNR), and new autoencoders (they would mean retraining every baseline).
+3. **More training at a lower LR:** running since 26 Nov 09:16 UTC as E-P2. The evidence is weak
+   for small models: a late LR drop helped DiT-XL (FID 1.98 to 1.82), the authors say it does not
+   transfer to small models, and cosine decay did not help at 128 px. The run is cheap (about
+   4 h), so it settles the question. Caveat: EMA 0.9999 averages about 10k steps, long for a
+   30k-step continuation.
+4. **More data: yes, the main performance bet (E-P5).**
+   - ImageNet-100 pretraining then Imagenette fine-tuning was the largest 128 px lever (top-1
+     +5 / +14 pts, FID -12 / -21) and is the one big lever not yet tried at 256 px.
+   - The literature agrees: memorisation and over-conditioning recede with dataset size, and
+     the time before memorisation grows about linearly with it.
+   - Constraint: DINOv2 features dominate the cache (about 39 GB per 100k images at 256 px), so
+     this must run on the 5060 (915 GB free), not Kaggle (19.5 GB working disk).
+   - Fairness rule: if the DiT keeps it, the CNN gets the same data and schedule rule (E-B2).
+
+### Experiments
+
+Performance (P). Each is compared, paired, against the right reference: the REPA run for
+inference-time levers, and a REPA run at the same step budget for training levers. A lever is
+kept only if it is better on DINOv2, CLIP and top-1 (or LPIPS/DISTS), with intervals clear of 0
+on both halves of the images, and no worse on the others.
+
+| ID | What | Machine, cost | Code | Decides |
+|---|---|---|---|---|
+| E-P1 | **No-training sweep on the REPA model:** (a) ceiling check (noise-free, +20 dB); (b) DDIM steps 10 / 20 / 50 and eta 0 / 0.5 / 1; (c) CFG scale 1.0 / 1.5 / 2.0; (d) ft-MSE VAE decoder swap (decoder only, same latents; +0.7 dB on COCO per its model card); (e) mean of K = 2 / 4 / 8 draws (feeds E-A2) | 5060 after E-P2, about 6 h | Decoder swap flag; eta flag if missing | Default sampler for every later evaluation |
+| E-P2 | **LR anneal:** REPA weights, 30k steps, cosine from 5e-5 (`dit256-repa-anneal`) | 5060, running, about 4 h + tests | Done (`--lr`) | Keep the annealed weights if better |
+| E-P3 | **Recipe screen, from scratch, 60k steps each, REPA on:** baseline; logit-normal timesteps with flow matching; iREPA projector; HASTE (REPA off from 40k); RoPE + qk-norm; EDM augmentation | Kaggle week of 28 Nov, about 9 h each (one session), 6 runs = about 54 h | Timestep sampler, interpolant, projector, RoPE/qk-norm, augmentation: about 1 day | Gate L, 3 Dec: which levers enter the final recipe |
+| E-P4 | **Start from an MSE estimate:** fine-tune the REPA model with the existing regression head (`--reg-weight`); sample from t* using the noised head output; t* sweep as a fidelity knob | 5060 or Kaggle, about 5 h + sweep | Start-step option in the sampler | Fidelity lever and a second PD knob for C3. 128 px SDEdit from the CNN failed (g-s3), but that was VAE-bound; low prior |
+| E-P5 | **More data:** ImageNet-100 (500 per class, about 59k, test-leak filter `--extra-train`) pretraining with REPA, about 100k steps, then Imagenette fine-tuning to convergence | 5060, about 20 h + cache prep (download and cache about 4 h) | Download script on the box; the rest exists | Gate D, 1 Dec |
+| E-P6 | **Final receiver:** the kept levers (gate L) on the kept data (gate D), trained to convergence, then E-P2's anneal if it helped | 5060, 4 to 7 Dec, about 25 h | none | The model the paper reports |
+
+Analyses (A) for claims. Run first on the current REPA model (24 Nov), so every figure exists
+even if no lever pays off. The scripts are then re-run on the final receiver (E-P6), at a fraction
+of the cost.
+
+| ID | What | Cost | Claim |
+|---|---|---|---|
+| E-A1 | **Study A bridge on the REPA receiver:** told REPA (-5 to 5 dB, AWGN) to convergence; then blind vs told, estimated SNR, and gain error -2 to +2 dB, paired with the existing blind REPA model | Kaggle, one account, 2 sessions (about 19 h) + evals | C1 on the receiver the paper shows |
+| E-A2 | **Posterior-sampler test:** N = 1 to 16 draws per image at -5 / 0 / +5 dB; fit MSE(N) = a + b/N (a posterior sampler has b = a, a 1-draw vs N-draw gap of 10 log10(2N/(N+1)) dB, and a spread-to-error ratio of 1; Blau & Michaeli 2019, Yan et al. 2021); the mean of draws vs the CNN on PSNR; the perception-distortion curve from one signal (blend of mean and draw, eta, steps), PSNR vs KID/DISTS | 5060 or T4, about 8 h | C3 |
+| E-A3 | **Failure analysis and detection:** classifier flips, DETR object additions and drops, and caption contradictions per SNR, for DiT, CNN and separation, split into sharp-wrong (high CLIP-IQA) and blurry-wrong; detectors: draw disagreement in semantic space (label entropy), re-encoding residual per stream (re-transmit the reconstruction, compare with the received symbols under the estimated noise variance), best-of-N by residual; AUROC, risk-coverage curves and a split-conformal accept rule | About 6 h GPU + code (about half a day) | C4 |
+| E-A4 | **Mechanism:** inference-time erasure of 0 to 100% of the semantic or detail symbols (metric-family slopes); posterior spread vs SNR in pixel, LPIPS and label-entropy terms; does spread track the SNR the receiver is never told; optional power shift between streams | About 4 h | C5 |
+| E-A5 | **Out of distribution and robustness:** Kodak (24 images, centre crop to 256 px) and CLIC2020 / DIV2K-val 256 px crops, per-image metrics only (no FID on Kodak); SNR outside training (-10 to +10 dB, existing curve); channel mismatch without retraining (phase offset and phase noise, Bernoulli-Gaussian impulsive noise, Rician K) for DiT, CNN and separation | About 6 h + data loader | C2 |
+| E-A6 | **Compute vs quality and metric protocol:** steps 1 / 2 / 5 / 10 / 20 / 50 and draws vs wall-clock on the 5060 (CNN and LDPC decode as references); KID and CMMD with bootstrap intervals and FID on all 3,425 test images; Kendall tau between metrics on per-image differences | About 3 h | Table and figure support |
+
+Baselines (B).
+
+| ID | What | Cost | Why |
+|---|---|---|---|
+| E-B1 | **SwinJSCC** retrained in our setting (16-QAM soft-to-hard quantiser, blind, -5 to 5 dB, 256 px, same 4,096 symbols), MSE then + LPIPS | Kaggle, about 2 sessions + about 1 day of code | The learned JSCC baseline the 2026 papers use (DiT-JSCC, OSD-JSCC) |
+| E-B2 | **Data-matched CNN,** only if gate D keeps the extra data: CNN with the same pretraining and fine-tuning under the CNN's convergence rule | 5060 after E-P6, up to about 70 h | Fairness of C2 |
+| E-B4 | **Adversarial CNN (GAN-JSCC style):** the converged CNN fine-tuned with LPIPS + a patch discriminator (non-saturating or hinge loss, small weight), same symbols, blind, -5 to 5 dB | About half a day of code + 10 to 15 h (5060 or T4 with gradient accumulation) | The perceptual baseline a reviewer expects for C1: generative receiver vs perceptually trained regression |
+| E-A7 | **Cost of the constellation:** the REPA receiver with analog symbols (no quantiser), otherwise identical, to convergence; paired with the 16-QAM REPA model on the full metric list | Kaggle, one account, 2 sessions (about 19 h) | C1 ("costs little against analog") |
+| E-B3 | **Finish the CNN's LPIPS stage:** continue `cnn256-conv-ft` from its 36k checkpoint to the patience rule (it was capped on 22 Nov while its validation loss still fell about 0.15% per validation) | 5060, 28 to 29 Nov, about 10 to 20 h | A reviewer's first attack on C2 is "the baseline was stopped early" |
+
+### Compute and schedule
+
+- **Budget.** The RTX 5060 runs all day: about 360 h to 11 Dec, one run at a time, REPA at 2.1 to
+  2.6 it/s and about 7.5 GB, with host RAM pressure (4 crashes in the REPA run; reboot before long
+  runs). Kaggle: 4 accounts x 30 h, resets Sat 28 Nov and Sat 5 Dec 00:00 UTC (about 240 h). The
+  quota left this week is unknown (venkatrrr about 8 h?). The SNR-aware transmitter's second
+  session is queued for 28 Nov 00:05 UTC.
+- **Kaggle allocation, week of 28 Nov (120 h):**
+
+  | Account | Jobs |
+  |---|---|
+  | own | E-A7 analog REPA, 2 sessions |
+  | subhashhhh | E-B1 SwinJSCC, 2 sessions |
+  | venkat96r | E-P3: baseline, logit-normal with flow matching, iREPA |
+  | venkatrrr | E-P3: HASTE, RoPE + qk-norm, augmentation |
+
+  E-A1 (told REPA) moves to the week of 5 Dec, if quota is left.
+  E-B4 (adversarial CNN) runs on the 5060 after E-B3.
+
+- **Kaggle allocation, week of 5 Dec (120 h):** the analyses E-A2 to E-A6 on the final receiver
+  and the baselines (inference only: they fit a T4); a second seed of the final receiver if a
+  claim hinges on a close margin.
+
+| Dates | RTX 5060 | Kaggle | Development PC |
+|---|---|---|---|
+| 26 Nov (Thu) | E-P2 anneal (running), then E-P1 sweep | Remaining quota: E-A3/E-A5 on the REPA model | Code: E-P3 options, Kodak/CLIC loader, re-encoding detector |
+| 27 Nov (Fri) | E-P1 finishes; ImageNet-100 download and cache; E-P5 pretraining starts | (quota) | SwinJSCC port; E-A2 script |
+| 28 to 30 Nov | E-P5 pretraining and fine-tuning, then E-B3, then E-B4 | Week reset: E-A1, E-B1, E-P3 (table above) | Run E-A2 to E-A4 on the REPA model as GPU time frees |
+| 1 Dec (Tue) | **Gate D** (data); E-P4 | E-P3 finishing | |
+| 3 Dec (Thu) | **Gate L** (recipe); E-P6 starts | E-A1 evals, E-B1 tests | |
+| 4 to 7 Dec | E-P6 to convergence (+ anneal) | Week reset Sat 5 Dec: CNN/SwinJSCC on Kodak/CLIC, A-series reruns | |
+| 7 to 10 Dec | E-B2 if needed, else analyses on the final receiver | A-series on the final receiver | Figures and tables |
+| 11 Dec (Fri) | **Freeze** | Freeze | Results frozen for the draft |
+
+- **Fallback.** If E-P6 is not converged by 8 Dec, the paper reports the 24 Nov REPA receiver
+  (or E-P2's annealed one), and every analysis already exists for it. Performance levers are a
+  bonus; the claims C1 to C4 do not depend on them.
+
+### Rules for this phase
+
+- Every compared run is scored on the spread set (1,000 images), with the default sampler fixed
+  by E-P1, plus the OOD sets once E-A5's loader exists.
+- Screens at 60k steps compare only against the 60k baseline, never against converged runs.
+- One seed per configuration (user, 22 Nov). A lever whose gain is within the 128 px seed spread
+  (means agreed within about 0.01 dB PSNR and 0.01 DINOv2) is not kept.
+- Report every metric family, win or lose. DINOv2 results for REPA models are flagged as partly
+  circular; non-DINOv2 meaning scores carry the claim.
+- **Pre-registered metric list for C1 (fixed 26 Nov, before any new result).**
+  - Perceptual (full reference): LPIPS-Alex, LPIPS-VGG, DISTS, DreamSim.
+  - Realism (no reference): CLIP-IQA, BRISQUE; set level: FID, KID, CMMD with bootstrap
+    intervals.
+  - Meaning: CLIP similarity, caption similarity, ConvNeXt agreement, DETR F1, CLIP zero-shot;
+    DINOv2 is flagged as circular for REPA.
+  - Pixel: PSNR, MS-SSIM.
+  - **"Better on most perceptual metrics"** is claimed only if ours wins (paired, both halves) a
+    majority of the perceptual plus realism metrics at each of -5, 0 and +5 dB, against every
+    baseline in E-B. Losses are stated in the same table.
+- Commit configs, scripts and result summaries (no tokens, no `ppts/`, no `research_notes/`).
+
+## Status on 20 Nov (superseded by the plan of 26 Nov above)
 
 Sections 1 to 5 are the review of 16 Nov and still describe the 128 px prototype. Since then:
 
@@ -727,3 +919,7 @@ RTX 5060: buffer and reruns.
 | 23 Nov | B (exploratory) | `uncertainty.py` (5060) | **Negative on both counts.** (1) **LPIPS-VGG** (the CNN's fine-tuning loss) favours the CNN at every SNR: DiT minus CNN +0.013 / +0.024 / +0.023 (worse), the DiT better on only 34 / 17 / 16% of images. So the DiT's LPIPS lead holds only on the AlexNet variant, which neither system trained on; with DISTS also favouring the CNN, perceptual similarity is mixed (DiT: LPIPS-Alex, DreamSim; CNN: LPIPS-VGG, DISTS), not a DiT win. (2) **Self-flagging:** the pre-specified main test, CLIP-space draw disagreement against DINOv2 errors, has no signal (AUROC 0.38 / 0.40 / 0.48 for class flips at -5 / 0 / +5 dB, below 0.5); flagging the most uncertain images does not lower the error rate, and picking the medoid draw does not help. Disagreement measured with the same network is predictive (DINOv2 draws: AUROC 0.71 / 0.79 / 0.83; draws voting on the k-NN class: 0.87 / 0.88 / 0.82), but that is partly mechanical (if the draws' classes disagree, some draw is wrong) and needs the classifier at the receiver. Robust DiT advantages that remain: realism (sharpness 1.0 vs 0.18 of the originals, CLIP-IQA, BRISQUE), held-out human-aligned DreamSim (small at 0 / +5 dB, large at -5 dB), and semantics at -5 dB. Report `results/gen/analysis/p256-semantic/uncertainty.md` |
 | 23 Nov | B (rescue, interim) | `dit256-repa` 96k `best.pt` (5060) | **Interim: REPA turns test B's 0 dB semantic loss into a tie and wins every non-DINOv2 semantic metric.** Copy of `best.pt` at 96k (`results/gen/p256-repa96k`), spread set, 10 steps; converged CNN and plain DiT (140k) as in the re-check. Test set, -5 / 0 / +5 dB: DINOv2 0.403 / 0.610 / 0.714 (plain DiT 0.305 / 0.561 / 0.703, CNN 0.297 / 0.604 / 0.720); top-1 43.9 / 82.6 / 94.1 % (DiT 27.2 / 80.9 / 95.4, CNN 25.4 / 82.6 / 94.1); FID 96.8 / 60.5 / 45.7 (DiT 120.4 / 70.2 / 50.5, CNN 129.2 / 59.3 / 42.9); PSNR 16.89 / 19.34 / 20.70 (-0.16 / -0.39 / -0.32 dB against the plain DiT, about 2 dB below the CNN); LPIPS 0.364 / 0.259 / 0.209 (plain DiT better at 0 / +5 dB). Paired REPA minus CNN under the 22 Nov exploratory protocol (`results/gen/analysis/p256-repa96k/report`; the merged metrics folder files REPA under the `dit` key): DINOv2 cosine moves from CNN advantage to a tie (0 dB +0.006 [-0.004, +0.016]; +5 dB -0.006 [-0.014, +0.002]); new confirmed REPA advantages on non-DINOv2 semantics: CLIP L/14 cosine (+0.029 / +0.010 at 0 / +5 dB), ImageNet-1k top-5 overlap and JS divergence (ConvNeXt-L), caption similarity; kept: LPIPS-Alex, DreamSim, probability of the original class, CLIP-IQA, BRISQUE. The CNN keeps PSNR (gap widens to 1.95 / 2.09 dB), DISTS, CLIP score against the original's caption, and CLIP zero-shot at +5 dB (-0.059 [-0.091, -0.028]); ties: retrieval, ImageNet top-1, detection F1. The FID and non-DINOv2 gains mean REPA's effect is not only alignment to the judge. Not final: 96k of a 150k run, still improving. Training crashed twice with CUDA "unknown error" (17:06 and 17:50 UTC, WSL2; no driver reset in the Windows log; Chrome at the box console was rendering on the same GPU); now in a relaunch loop (`~/repa_semantic2.sh`). |
 | 24 Nov | B (rescue, final) | `dit256-repa` (5060) | **Final: REPA wins or ties every meaning metric against the converged CNN, and now also FID.** Converged by the patience rule at 122k (val loss still creeping down by < 0.2% per 10 validations; best = last). 4 CUDA crashes from host RAM pressure, relaunch loop. Test set (spread, 10 steps), REPA / CNN at -5 / 0 / +5 dB: DINOv2 0.431/0.297, 0.635/0.604, 0.728/0.720; retrieval top-1 48.4/25.4, 86.0/82.6, 95.9/94.1%; FID 88.5/129.2, 53.7/59.3, 43.8/42.9; PSNR 16.89/18.46, 19.38/21.29, 20.70/22.79 dB (-1.6 to -2.1 dB, ~0.35 dB below the plain DiT). Paired report (`results/gen/analysis/p256-repa-final/report`, both-halves rule): REPA advantage confirmed on CLIP-IQA, BRISQUE, DreamSim, LPIPS-Alex, CLIP cosine, ImageNet top-5 / JS / p(orig class), caption similarity; CNN advantage on PSNR, DISTS and the CLIP score against the original's caption; DINOv2, CLIP zero-shot, top-1 agreement, detections tie at 0/+5 and favour REPA at -5. Distribution: REPA has higher precision and recall (DINOv2 and CLIP features) at every SNR. Per-image meaning score (z-mean of CLIP, caption, DreamSim, ImageNet JS; not DINOv2): REPA better on 89 / 73 / 66% of images. Worst classes for REPA: gas pump, chain saw, cassette player (confident substitutions); best: tench, parachute, springer. Not redone with REPA: LPIPS-VGG, self-flagging. Deck: `SemCom_Progress_v12_final.pptx` (REPA the only generative receiver; examples by `pick_examples.py`) |
+| 26 Nov | plan | (decision) | **Plan from 26 Nov to the 11 Dec freeze written** (top of this document), after the progress meeting and a literature review (`reports/DiT JSCC path to paper.md`, local). Decisions: no 512 px (the 256 px SD-VAE ceiling, DINOv2 0.96 / 25.9 dB, is far above the receiver's 0.728 / 20.7 dB at +5 dB, and neither a 512 px DiT nor a 512 px CNN baseline converges before 11 Dec); more data (ImageNet-100 pretraining, E-P5) is the main performance bet; recipe levers screened at 60k steps on Kaggle (E-P3); analyses for claims C3 to C5 run first on the 24 Nov REPA model. The 5060's code was synced to the repository (backup `~/semcom_code_backup_20261126.tgz` on the box); `run_gen.py` gained `--lr` |
+| 26 Nov | E-P2 | `dit256-repa-anneal` (5060) | Started 09:16 UTC: the converged REPA weights, 30k steps, peak LR 5e-5, cosine to 0, then the three test sets. 2.1 it/s, about 4 h of training |
+| 26 Nov | E-P2 | `dit256-repa-anneal` (5060) | **Stopped at step 4,800 (about 10:00 UTC), no error in the log** (tmux server gone, box not rebooted). Checkpoint at about 4k steps kept; resume with `python scripts/gen_5060.py dit256-repa-anneal`. **User: the 5060 stays paused until they give the go-ahead.** |
+| 26 Nov | E-A7, E-P3 | `e-a7-analog` (own), `e-p3-base` (venkatrrr), `e-p3-repa1` (subhashhhh), at 6a7098b | Pushed to use this week's remaining quota (own 10.2 h, venkatrrr 7.4 h, subhashhhh 6.2 h; venkat96r 0): the analog REPA receiver to convergence (session 1, `--max-hours 8.5`, `results/gen/p256-analog`); the 60k-step 16-QAM REPA screen baseline and its REPA-weight-1.0 variant (`--tag s60k`, `results/gen/p256-screen`, max-hours 5.8 and 4.8). Second sessions `-2` queued in `.kaggle_jobs/queue.json` for 28 Nov 00:05 UTC on the same accounts |

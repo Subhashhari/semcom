@@ -99,6 +99,7 @@ CNN256_FT = CNN256 + ["--init-from", "results/gen/p256-perc/cnn_cbr48_qam16_blin
 # the DiT's rule (constant LR, patience 10). The pixel stage continues the 40k-step run from its
 # checkpoint (optimiser state and validation history kept), then the LPIPS stage to convergence.
 CONV256 = "results/gen/p256-conv"
+CONVLONG = "results/gen/p256-conv-long"  # E-B3: the CNN's LPIPS stage continued past its 36k cap
 CNN256_SRC = "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"
 # Capped at 140k steps on 21 Nov, the converged DiT's step count: at 132k the validation loss was
 # still falling by about 0.05% per validation, so patience alone would have run on for hours.
@@ -119,6 +120,27 @@ STAGES.update({
     # Capped at 140k on 24 Nov, the plain DiT's budget (argparse keeps the last --steps).
     "dit256-repa": [DIT256 + ["--repa-weight", "0.5", "--repa-depth", "4"] + GEN_STEPS + ["--steps", "140000"] + t
                     for t in TESTS],
+    # Plan of 26 Nov, lever L1: the converged REPA run's weights, then a decay phase (warmup-stable-
+    # decay): peak 5e-5, half a cosine to 0 over 30k steps. Does annealing the LR add quality the
+    # constant-LR run (plus EMA) left behind? Patience is off: the cosine schedule fixes the length.
+    "dit256-repa-anneal": [P256 + ["--models", "dit", "--arms", "blind", "--qam", "16", "--out-dir", CONV256,
+                                  "--repa-weight", "0.5", "--repa-depth", "4", "--init-from",
+                                  f"{CONV256}/dit-S-v_cbr48_qam16_blind-5to5_repa0.5_s0", "--lr", "5e-5",
+                                  "--lr-schedule", "cosine", "--steps", "30000", "--tag", "anneal",
+                                  "--sanity-steps", "0"] + GEN_STEPS + t for t in TESTS],
+    # E-P1 (plan of 26 Nov), the no-training part: the converged REPA receiver re-scored on the spread
+    # set with guidance 1.5 / 2.0 (trained with 10% condition dropout) and 20 / 50 sampling steps.
+    # The run is finished, so run_gen.py only evaluates (results under new --eval-suffix names).
+    "repa-sweep": [DIT256 + ["--repa-weight", "0.5", "--repa-depth", "4"] + GEN_STEPS + ["--steps", "140000"]
+                   + ["--eval-subset", "spread", "--eval-snrs", "-5", "0", "5", "--evaluate"] + extra
+                   for extra in (["--eval-cfg-scale", "1.5", "--eval-suffix", "spread-cfg1p5"],
+                                 ["--eval-cfg-scale", "2.0", "--eval-suffix", "spread-cfg2"],
+                                 ["--sample-steps", "20", "--eval-suffix", "spread-s20"],
+                                 ["--sample-steps", "50", "--eval-suffix", "spread-s50"])],
+    # E-B3: the converged CNN's LPIPS stage, capped at 36k on 22 Nov, continued from its checkpoint to
+    # the patience rule (cap 150k) in a separate folder, so the 36k result stays as it was.
+    "cnn256-conv-ft-long": [["continue", f"{CONV256}/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0", CONVLONG],
+                            *[CNN256_CONV_FT + ["--out-dir", CONVLONG, "--steps", "150000"] + t for t in TESTS]],
     "cnn256": [CNN256 + ["--steps", "40000"] + TESTS[1]],
     "cnn256-ft": [CNN256_FT + t for t in TESTS],
     # Reconstructions for the analysis suite (scripts/gen_analysis/specs/p256.json): the same 1,000
