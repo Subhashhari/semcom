@@ -27,6 +27,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import torch.utils.checkpoint
 
 
 def modulate(x: torch.Tensor, shift: torch.Tensor, scale: torch.Tensor) -> torch.Tensor:
@@ -135,8 +136,10 @@ class ConditionalDiT(nn.Module):
         cond_blocks_det: int = 3,
         snr_slot: bool = False,
         cond_side: int | None = None,
+        grad_checkpoint: bool = False,
     ):
         super().__init__()
+        self.grad_checkpoint = grad_checkpoint  # activation checkpointing of the blocks while training
         self.patch, self.c_lat = patch, latent_channels
         self.side = latent_size // patch
         self.n_sem, self.n_det = cond_blocks_sem, cond_blocks_det
@@ -223,9 +226,13 @@ class ConditionalDiT(nn.Module):
             sem = torch.where(m, self.null_sem.to(sem.dtype), sem)
             det = torch.where(m, self.null_det.to(det.dtype), det)
         h = None
+        ckpt = self.grad_checkpoint and self.training and torch.is_grad_enabled()
         for i, blk in enumerate(self.blocks):
             cond = sem if i < self.n_sem else det if i < self.n_sem + self.n_det else None
-            x = blk(x, c, cond)
+            if ckpt:  # recompute the block's activations in the backward pass (memory for time)
+                x = torch.utils.checkpoint.checkpoint(blk, x, c, cond, use_reentrant=False)
+            else:
+                x = blk(x, c, cond)
             if hidden_at is not None and i + 1 == hidden_at:
                 h = x
         sh, sc = self.final_ada(c).chunk(2, dim=1)

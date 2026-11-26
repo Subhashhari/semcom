@@ -109,6 +109,20 @@ CNN256_CONV = CNN256_BASE + ["--out-dir", CONV256, "--grad-accum", "2", "--steps
 CNN256_CONV_FT = CNN256_BASE + ["--out-dir", CONV256, "--init-from", f"{CONV256}/cnn_cbr48_qam16_blind-5to5_s0",
                                 "--cnn-lpips-weight", "0.1", "--tag", "ft", "--grad-accum", "8",
                                 "--steps", "36000", "--patience", "10"]
+REPA = ["--repa-weight", "0.5", "--repa-depth", "4"]
+DATA_OUT = "results/gen/p256-data"
+DATA256 = DIT256 + REPA + GEN_STEPS + ["--out-dir", DATA_OUT, "--extra-train", "data/imagenet100_500",
+                                       "--extra-per-class", "500"]
+
+
+def FT256(size: str) -> list[str]:
+    """Fine-tune the extra-data model of this DiT size on Imagenette alone, to convergence."""
+    src = f"{DATA_OUT}/dit-{size}-v_cbr48_qam16_blind-5to5_repa0.5_ximagenet100500-500_s0"
+    extra = ["--dit-size", "B", "--grad-checkpoint"] if size == "B" else []
+    return DIT256 + REPA + GEN_STEPS + extra + ["--out-dir", DATA_OUT, "--init-from", src, "--tag", "ft",
+                                               "--steps", "60000"]
+
+
 RUNS256 = ["results/gen/p256-conv/dit-S-v_cbr48_qam16_blind-5to5_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0",
            "results/gen/p256-perc/cnn_cbr48_qam16_blind-5to5_s0"]
@@ -141,6 +155,16 @@ STAGES.update({
     # the patience rule (cap 150k) in a separate folder, so the 36k result stays as it was.
     "cnn256-conv-ft-long": [["continue", f"{CONV256}/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0", CONVLONG],
                             *[CNN256_CONV_FT + ["--out-dir", CONVLONG, "--steps", "150000"] + t for t in TESTS]],
+    # E-A2: the multi-draw posterior-sampler test on the converged REPA receiver (about 1-2 h).
+    "posterior-repa": [["scripts/gen_analysis/posterior.py", f"{CONV256}/dit-S-v_cbr48_qam16_blind-5to5_repa0.5_s0",
+                        "results/gen/analysis/posterior_repa.npz", "--n", "1000", "--k", "8", "--etas", "0,1"]],
+    # E-P5 / E-P7: pretraining on ImageNet-100 (49.5k images after the Imagenette-name filter, from
+    # scripts/gen_analysis/imagenet100_subset.py) plus Imagenette, then fine-tuning on Imagenette
+    # (the 128 px recipe W1-F1: 100k + 20k steps there). DiT-B needs activation checkpointing on 8 GB.
+    "dit256-x100": [DATA256 + ["--steps", "100000"] + TESTS[1]],
+    "dit256-x100-ft": [FT256("S") + t for t in TESTS],
+    "dit256b-x100": [DATA256 + ["--dit-size", "B", "--grad-checkpoint", "--steps", "80000"] + TESTS[1]],
+    "dit256b-x100-ft": [FT256("B") + t for t in TESTS],
     "cnn256": [CNN256 + ["--steps", "40000"] + TESTS[1]],
     "cnn256-ft": [CNN256_FT + t for t in TESTS],
     # Reconstructions for the analysis suite (scripts/gen_analysis/specs/p256.json): the same 1,000

@@ -1103,3 +1103,26 @@ def test_fading_option_is_checked_and_old_configs_load_as_block(tmp_path):
     text = (tmp_path / "c.yaml").read_text().replace("fading: block\n", "")
     (tmp_path / "old.yaml").write_text(text)
     assert GenConfig.from_yaml(tmp_path / "old.yaml").fading == "block"
+
+
+def test_grad_checkpoint_changes_nothing_but_memory():
+    """Activation checkpointing (E-P7, DiT-B on 8 GB) must give the same outputs, REPA tokens and
+    gradients as the plain forward pass."""
+    torch.manual_seed(0)
+    kw = dict(latent_size=8, c_sem=4, c_det=6, depth=4, hidden=32, heads=4, cond_blocks_sem=1, cond_blocks_det=1)
+    plain, ckpt = ConditionalDiT(**kw), ConditionalDiT(**kw, grad_checkpoint=True)
+    for p in plain.parameters():
+        p.data.add_(0.01)  # leave the zero init so every block carries gradient
+    ckpt.load_state_dict(plain.state_dict())
+    x, t = torch.randn(3, 4, 8, 8), torch.randint(0, 1000, (3,))
+    ys, yd = torch.randn(3, 4, 4, 4), torch.randn(3, 6, 4, 4)
+    res = []
+    for m in (plain, ckpt):
+        m.train()
+        out, h = m(x, t, ys, yd, hidden_at=2)
+        (out.square().mean() + h.mean()).backward()
+        res.append((out, h))
+    assert torch.equal(res[0][0], res[1][0]) and torch.equal(res[0][1], res[1][1])
+    for a, b in zip(plain.parameters(), ckpt.parameters()):
+        if a.grad is not None:
+            assert torch.allclose(a.grad, b.grad, atol=1e-7)

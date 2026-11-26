@@ -113,6 +113,9 @@ class GenConfig:
     # --- DiT receiver
     dit_size: str = "S"
     patch_size: int = 2
+    #: Activation checkpointing of the DiT blocks while training: same results, less memory, about
+    #: a third slower. For DiT-B at 256 px on an 8 GB card (E-P7, plan of 26 Nov).
+    grad_checkpoint: bool = False
     cond_blocks_sem: int = 3  # blocks that take the semantic symbols (coarse)
     cond_blocks_det: int = 3  # the following blocks take the detail symbols (fine)
     cfg_dropout: float = 0.1  # drop all received symbols with this probability (for CFG)

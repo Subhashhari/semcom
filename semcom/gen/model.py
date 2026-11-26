@@ -280,7 +280,7 @@ class GenJSCC(EnergyReference, nn.Module):
             latent_size=cfg.image_size // 8, c_sem=cfg.c_sem, c_det=cfg.c_det,
             depth=depth, hidden=hidden, heads=heads, patch=cfg.patch_size,
             cond_blocks_sem=cfg.cond_blocks_sem, cond_blocks_det=cfg.cond_blocks_det,
-            snr_slot=cfg.snr_mode != "fixed",
+            snr_slot=cfg.snr_mode != "fixed", grad_checkpoint=cfg.grad_checkpoint,
         )
         self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction)
         self.quantiser = make_quantiser(cfg)

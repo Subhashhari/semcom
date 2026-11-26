@@ -63,6 +63,8 @@ def main() -> None:
     p.add_argument("--seeds", nargs="+", type=int, default=[0])
     p.add_argument("--steps", type=int, default=None, help="training steps per run")
     p.add_argument("--dit-size", choices=["S", "B", "L"], default=None)
+    p.add_argument("--grad-checkpoint", action="store_true",
+                   help="DiT: activation checkpointing (less memory, slower; same results)")
     p.add_argument("--prediction", choices=["eps", "v"], default=None, help="DiT target: noise or velocity")
     p.add_argument("--batch-size", type=int, default=None)
     p.add_argument("--grad-accum", type=int, default=None,
@@ -149,7 +151,8 @@ def main() -> None:
                  "train_fraction": args.train_fraction, "extra_train": args.extra_train,
                  "extra_per_class": args.extra_per_class, "sanity_steps": args.sanity_steps,
                  "lr_schedule": args.lr_schedule, "repa_depth": args.repa_depth,
-                 "patience": args.patience, "min_delta": args.min_delta, "lr": args.lr}
+                 "patience": args.patience, "min_delta": args.min_delta, "lr": args.lr,
+                 "grad_checkpoint": args.grad_checkpoint or None}
     dit_only = {k: v for k, v in (("reg_weight", args.reg_weight), ("repa_weight", args.repa_weight)) if v}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
