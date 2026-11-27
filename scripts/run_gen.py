@@ -45,8 +45,8 @@ def arm_config(base: GenConfig, model: str, arm: str, seed: int, refine_from: st
     """`dit_only`: options that apply to DiT runs only (the auxiliary losses); other models of a
     mixed plan get them switched off. `refine_from` reaches refiner runs only."""
     kw = dict(model=model, seed=seed, refine_from=refine_from if model == "refiner" else "")
-    for k, v in (dit_only or {}).items():
-        kw[k] = v if model == "dit" else 0.0
+    for k, v in (dit_only or {}).items():  # off = the field's default (0.0, "mlp", False, ...)
+        kw[k] = v if model == "dit" else GenConfig.__dataclass_fields__[k].default
     if arm.startswith("spec"):
         return base.replace(snr_mode="fixed", snr_train_fixed=float(arm[4:]), **kw)
     if arm in ("told", "blind"):
@@ -85,6 +85,14 @@ def main() -> None:
     p.add_argument("--repa-weight", type=float, default=None,
                    help="DiT: weight of the REPA loss (DiT tokens -> DINOv2 patch features), W1-R1")
     p.add_argument("--repa-depth", type=int, default=None, help="DiT: REPA aligns the tokens after this many blocks")
+    # E-P3 recipe levers (month plan, 26 Nov); see semcom.gen.config.
+    p.add_argument("--irepa", action="store_true",
+                   help="DiT + REPA: iREPA (conv projector, spatially normalised DINOv2 target)")
+    p.add_argument("--repa-stop", type=int, default=None, help="DiT + REPA: HASTE, REPA off from this step")
+    p.add_argument("--qk-norm", action="store_true", help="DiT: RMS-normalise queries and keys per head")
+    p.add_argument("--rope", action="store_true", help="DiT: 2-D rotary position embedding on queries and keys")
+    p.add_argument("--t-sampling", choices=["uniform", "logit_normal"], default=None,
+                   help="DiT: training timestep density (logit-normal: SD3's, mean 0, std 1)")
     p.add_argument("--refine-from", default=None,
                    help="refiner: the CNN run folder to freeze and refine (its settings must match the plan's)")
     p.add_argument("--sanity-steps", type=int, default=None,
@@ -153,7 +161,10 @@ def main() -> None:
                  "lr_schedule": args.lr_schedule, "repa_depth": args.repa_depth,
                  "patience": args.patience, "min_delta": args.min_delta, "lr": args.lr,
                  "grad_checkpoint": args.grad_checkpoint or None}
-    dit_only = {k: v for k, v in (("reg_weight", args.reg_weight), ("repa_weight", args.repa_weight)) if v}
+    dit_only = {k: v for k, v in (("reg_weight", args.reg_weight), ("repa_weight", args.repa_weight),
+                                  ("repa_proj", "irepa" if args.irepa else None), ("repa_stop", args.repa_stop),
+                                  ("qk_norm", args.qk_norm), ("rope", args.rope),
+                                  ("t_sampling", args.t_sampling)) if v}
     if args.snr_range:
         overrides.update(snr_train_min=args.snr_range[0], snr_train_max=args.snr_range[1])
     if args.qam:

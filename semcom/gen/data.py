@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import mmap
 import os
 import shutil
 import tarfile
@@ -249,6 +250,56 @@ def prepare(cfg: GenConfig, device: torch.device | None = None, batch: int = 64)
     return out
 
 
+def random_access(a: np.ndarray) -> np.ndarray:
+    """Tell the kernel a memory-mapped cache array is read at random (no read-around on page
+    faults). A cache much larger than RAM is read from disk item by item, and with read-around
+    each item pulled in megabytes: on the 5060 (WSL disk read-ahead 8 MB) the 58 GB ImageNet-100
+    cache read 1.3 GB/s and trained at 1.3 it/s on 26 Nov. No effect where madvise is missing."""
+    m = getattr(a, "_mmap", None)
+    if m is not None and hasattr(mmap, "MADV_RANDOM"):
+        m.madvise(mmap.MADV_RANDOM)
+    return a
+
+
+class Rows:
+    """Rows of a C-ordered .npy file, each read with one pread of exactly its bytes.
+
+    For caches much larger than RAM (the 58 GB ImageNet-100 cache on the 5060): a memory map
+    either reads megabytes around each item (read-around) or, told the access is random, faults
+    the item in 4 KB pages one by one; on 26-27 Nov that held training at 1.3 and 1.65 it/s.
+    Open in the process that reads (each worker opens its own descriptor)."""
+
+    def __init__(self, path: Path):
+        a = np.load(path, mmap_mode="r")
+        if not a.flags.c_contiguous:
+            raise ValueError(f"{path}: Rows reads C-ordered arrays only")
+        self.shape, self.dtype, self.offset = a.shape, a.dtype, a.offset
+        self.row = int(np.prod(a.shape[1:])) * a.dtype.itemsize
+        self.fd = os.open(path, os.O_RDONLY)
+
+    def __len__(self) -> int:
+        return self.shape[0]
+
+    def __getitem__(self, i: int) -> np.ndarray:
+        i = int(i)
+        if not 0 <= i < self.shape[0]:
+            raise IndexError(i)
+        buf = os.pread(self.fd, self.row, self.offset + i * self.row)
+        if len(buf) != self.row:
+            raise OSError(f"short read of row {i}: {len(buf)} of {self.row} bytes")
+        return np.frombuffer(buf, self.dtype).reshape(self.shape[1:])
+
+
+def open_rows(path: Path):
+    """Row reader for a cached array: pread where the OS has it (Linux), else a memory map."""
+    if hasattr(os, "pread"):
+        try:
+            return Rows(path)
+        except ValueError:
+            pass
+    return random_access(np.load(path, mmap_mode="r"))
+
+
 class CachedSplit(Dataset):
     """One cached split. Items: dict(image [0,1] float, latent, dino, index).
 
@@ -264,7 +315,7 @@ class CachedSplit(Dataset):
     def _open(self):
         if self._arrays is None:
             names = ["images", "latents", "dino"] + (["latents_flip", "dino_flip"] if self.augment else [])
-            self._arrays = {k: np.load(self.dir / f"{self.split}_{k}.npy", mmap_mode="r") for k in names}
+            self._arrays = {k: open_rows(self.dir / f"{self.split}_{k}.npy") for k in names}
         return self._arrays
 
     def __len__(self) -> int:

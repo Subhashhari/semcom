@@ -4,7 +4,7 @@ The single place to find where the generative JSCC work stands, what is running,
 and why. It is meant to let anyone (or any later session) pick up the work without the
 conversation that produced it.
 
-- **Last rewritten 26 Nov 2026.** Experiments freeze on **11 Dec**; anything unfinished then is
+- **Last rewritten 26 Nov 2026; status updated 27 Nov.** Experiments freeze on **11 Dec**; anything unfinished then is
   cut, not extended.
 - Section 8 (Log) is the dated record of every result. Add a row there for every finished
   experiment, and update sections 1 and 5.2 when something changes.
@@ -13,13 +13,15 @@ conversation that produced it.
 - The literature behind the 26 Nov decisions is in `reports/DiT JSCC path to paper.md` and
   `research_notes/` (local only, not committed).
 
-## 1. Status at a glance (26 Nov)
+## 1. Status at a glance (27 Nov)
 
 **Where the work stands.** The current receiver is a blind 16-QAM DiT-S with REPA, converged on
 24 Nov. Against a converged CNN deep JSCC, at the same 4,096 symbols per 256 px image:
 - it beats or ties the CNN on every meaning score and is far more realistic;
 - it loses 1.6 to 2.1 dB PSNR;
-- the lead is large at -5 dB and thin at +5 dB.
+- **with guidance 1.5 (no retraining, 27 Nov)** its lead widens on every perceptual score and
+  FID at +5 dB turns from a narrow loss (43.8 vs 42.9) into a clear win (34.3), for 0.2 to 0.4 dB
+  more PSNR loss (3.1, E-P1).
 
 The SNR study (study A) is complete: the receiver needs no noise-level knowledge, given gain
 tracking. **The paper's headline (user, 26 Nov) is the perceptual result:** a
@@ -30,27 +32,35 @@ semantic metrics. The SNR study is the second, supporting result.
 
 | Where | What | Plan ID | Expected |
 |---|---|---|---|
-| RTX 5060, tmux `gen` (log `~/gen_5060_queue.log`) | LR anneal of the REPA receiver (30k steps, peak 5e-5, cosine), then its tests, then the sampler sweep (guidance 1.5 / 2.0, 20 / 50 steps) | E-P2, E-P1 | Training done about 15:45 UTC 26 Nov, sweep about 18:30 UTC |
-| RTX 5060, tmux `q2` (log `~/queue2.log`) | Waits for the first queue to reach the CNN stage, then: memory/speed probes (DiT-S, DiT-B, with and without checkpointing); then the stages in `~/queue2_stages.txt`: `posterior-repa`, `dit256-x100`, `dit256-x100-ft`, `cnn256-conv-ft-long` | E-A2, E-P5, E-B3 | E-P5 done about 28 Nov; DiT-B stages (E-P7) added after the probe |
-| Kaggle own | `e-a7-analog`: the REPA receiver with analog symbols, session 1; `-2` queued 28 Nov 00:05 UTC | E-A7 | About 29 Nov |
-| Kaggle venkatrrr | `e-p3-base`: 16-QAM REPA, 60k steps from scratch (screen baseline); `-2` queued | E-P3 | About 28 Nov |
-| Kaggle subhashhhh | `e-p3-repa1`: the same with REPA weight 1.0; `-2` queued | E-P3 | About 28 Nov |
-| Kaggle venkat96r | `a256-tx-2` (SNR-aware transmitter, second session) queued 28 Nov 00:05 UTC | study A | About 28 Nov |
+| RTX 5060, tmux `q2` (`~/queue3.sh`, log `~/queue2.log`) | `dit256-x100` (DiT-S + REPA on Imagenette + the ImageNet-100 subset, 100k steps), then `repa-cfg15-metrics` (the full metric list at guidance 1.5; failed once with a CUDA error, retried at batch 16), `dit256-x100-ft`, `dit256b-x100`, `dit256b-x100-ft`, `cnn256-conv-ft-long` (order in `~/queue2_stages.txt`) | E-P5, C1, E-P7, E-B3 | E-P5 pretraining about 13:00 UTC 27 Nov, fine-tuning about 22:00 UTC; DiT-B about 29 Nov |
+| RTX 5060, tmux `wd` (log `~/watchdog.log`) | Watchdog: relaunches `q2` if it dies, kills a stage whose log is silent for 90 min (the queue retries it from its checkpoint, up to 5 failures) | | |
+| Kaggle (all four accounts) | This week's quota is spent; it resets 28 Nov 00:00 UTC | | |
 
-The Kaggle queue runner (`scripts/kaggle_queue.py .kaggle_jobs/queue.json`) must be alive on the
-development PC for the `-2` sessions to push.
+**Queued on Kaggle for 28 Nov 00:05 UTC** (two sessions per account at once):
+
+| Account | Jobs | Plan ID |
+|---|---|---|
+| own | `e-a7-analog-2` (analog REPA, resumes at 63k); `e-p3-haste` (REPA off from 40k) | E-A7, E-P3 |
+| subhashhhh | `e-p3-repa1-2` (resumes at 34.7k); `e-p3-irepa` | E-P3 |
+| venkatrrr | `e-p3-base-2` (resumes at 37.4k); `e-p3-rope` (RoPE + qk-norm) | E-P3 |
+| venkat96r | `a256-tx-2` (study A); `e-p3-ln` (logit-normal timesteps) | study A, E-P3 |
+
+Each screen has a `-2` session that pushes only if the first stops on its time cap, and every
+E-P3/E-A7 job also scores the test set at guidance 1.5. The queue runner
+(`scripts/kaggle_queue.py .kaggle_jobs/queue.json --watch`) must be alive on the development PC:
+it pushes the queue and re-pushes a session that ends in error (up to 2 retries, 7.2).
 
 **Next decisions**
 
 | When | Decision | Input |
 |---|---|---|
-| 26-27 Nov | Default sampler (steps, guidance) for every later evaluation | E-P1 sweep |
-| 27 Nov | Add DiT-B (E-P7) to the 5060 queue, and its step cap | Memory/speed probe in `~/queue2.log` |
-| 28 Nov | **Gate D:** does the extra data help at 256 px? | E-P5 vs the REPA receiver |
-| About 1-2 Dec | **Gate L:** which recipe levers enter the final receiver | E-P3 screen |
-| About 1 Dec | **Gate M:** DiT-S or DiT-B | E-P7 vs E-P5 |
-| 2 Dec | Start the final receiver (E-P6) | Gates D, L, M |
-| 8 Dec | Fallback if E-P6 is not converged: report the 24 Nov receiver (or E-P2's) | |
+| 27 Nov (done) | Default sampler: **10 DDIM steps, eta 0, guidance 1.5** for the headline; every comparison is also scored at guidance 1.0 | E-P1 sweep (3.1, log) |
+| 27 Nov (done) | DiT-B (E-P7) queued after E-P5, 80k cap (probe: fits only with checkpointing, about 0.9 it/s) | Probe, log |
+| 27 Nov, evening | **Gate D:** does the extra data help at 256 px? | E-P5 (validation from about 30k, `val_compare.py`; test after fine-tuning) |
+| 28 Nov, evening | **Gate L:** which recipe levers enter the final receiver | E-P3 screen (60k, test set, paired) |
+| 29 Nov | **Gate M:** DiT-S or DiT-B; stop DiT-B early if its validation is not ahead of DiT-S's at equal steps by 30k | E-P7 vs E-P5 |
+| 29-30 Nov | Start the final receiver (E-P6), on the 5060 (with the extra data if gate D passes) and on Kaggle (Imagenette only, the data-matched comparison) | Gates D, L, M |
+| 8 Dec | Fallback if E-P6 is not converged: report the 24 Nov receiver | |
 
 ## 2. The system
 
@@ -100,6 +110,22 @@ bootstrap 95% interval that excludes 0 on both halves of the images. Report:
 | PSNR, dB (higher) | 16.89 / **18.46** | 19.38 / **21.29** | 20.70 / **22.79** | CNN, all three |
 
 Cells are ours / CNN, with the better value in bold.
+
+**The same receiver with guidance (27 Nov, E-P1; no retraining).** Same images and noise, 10
+DDIM steps; guidance 1.0 (above) / 1.25 / 1.5 / 1.75, and the CNN:
+
+| Score | -5 dB | 0 dB | +5 dB | CNN at +5 dB |
+|---|---|---|---|---|
+| FID | 88.5 / 77.3 / **70.9** / 69.1 | 53.7 / 46.1 / **43.0** / 42.9 | 43.8 / 36.7 / **34.3** / 34.8 | 42.9 |
+| LPIPS-Alex | 0.363 / 0.333 / **0.319** / 0.316 | 0.258 / 0.231 / **0.223** / 0.228 | 0.207 / 0.184 / **0.180** / 0.189 | 0.246 |
+| DINOv2 | 0.431 / 0.466 / **0.481** / 0.486 | 0.635 / 0.672 / **0.685** / 0.685 | 0.728 / 0.760 / **0.770** / 0.769 | 0.720 |
+| Retrieval top-1, % | 48.4 / 57.6 / **60.6** / 61.2 | 86.0 / 91.4 / **92.2** / 91.7 | 95.9 / 96.4 / **97.3** / 97.5 | 94.1 |
+| PSNR, dB | 16.89 / 16.93 / **16.74** / 16.46 | 19.38 / 19.36 / **19.06** / 18.69 | 20.70 / 20.66 / **20.34** / 19.96 | 22.79 |
+
+- Guidance 1.25 improves every score at no PSNR cost; 1.5 is the perceptual optimum (1.75 and
+  2.0 add nothing and cost PSNR). 20 and 50 steps are worse than 10 on every score; 5 steps gain
+  0.5 dB PSNR and lose on every perceptual score.
+- The full pre-registered list at guidance 1.5 (`repa-cfg15-metrics`) is queued on the 5060.
 
 **Against us, and to be reported:**
 - DISTS favours the CNN at 0 and +5 dB (0.206 vs 0.200 at 0 dB), and so does CLIP's score
@@ -234,13 +260,13 @@ for inference-time levers, and a REPA run at the same step budget for training l
 
 | ID | What | Machine, cost | Status |
 |---|---|---|---|
-| E-P1 | No-training sweep on the REPA receiver: (a) noise-free ceiling; (b) DDIM steps 10 / 20 / 50 and eta 0 / 0.5 / 1; (c) guidance 1.0 / 1.5 / 2.0 (trained with 10% condition dropout); (d) ft-MSE VAE decoder swap; (e) mean of K draws (with E-A2) | 5060, about 6 h | (b) steps and (c) guidance queued (`repa-sweep`); eta via E-A2; (a), (d) to code |
-| E-P2 | LR anneal: REPA weights, 30k steps, peak 5e-5, cosine to 0 (`dit256-repa-anneal`) | 5060, about 4 h + tests | Running (stopped silently at 4.8k on 26 Nov, resumed from 4k) |
-| E-P3 | Recipe screen, from scratch, 60k steps, REPA on, each against the 60k baseline: baseline; REPA weight 1.0; logit-normal timesteps with flow matching; iREPA projector; HASTE (REPA off from 40k); RoPE + qk-norm; EDM augmentation | Kaggle, about 9 h each | Baseline and REPA 1.0 running; the other five to code, then Kaggle from 28 Nov |
+| E-P1 | No-training sweep on the REPA receiver: (a) noise-free ceiling; (b) DDIM steps 10 / 20 / 50 and eta 0 / 0.5 / 1; (c) guidance 1.0 / 1.5 / 2.0 (trained with 10% condition dropout); (d) ft-MSE VAE decoder swap; (e) mean of K draws (with E-A2) | 5060, about 6 h | (b) and (c) done 27 Nov: **guidance 1.5, 10 steps** (3.1); eta via E-A2; (a), (d) optional |
+| E-P2 | LR anneal: REPA weights, 30k steps, peak 5e-5, cosine to 0 (`dit256-repa-anneal`) | 5060, about 4 h + tests | **Done 27 Nov: no gain** (every test score within 0.01 of the REPA receiver; validation loss rose slightly). Closed; E-P6 skips the anneal |
+| E-P3 | Recipe screen, from scratch, 60k steps, REPA on, each against the 60k baseline: baseline; REPA weight 1.0; logit-normal timesteps with flow matching; iREPA projector; HASTE (REPA off from 40k); RoPE + qk-norm; EDM augmentation | Kaggle, about 9 h each | Baseline and REPA 1.0 resume 28 Nov; iREPA, HASTE (stop at 40k), RoPE + qk-norm and logit-normal timesteps coded 27 Nov (flags `--irepa`, `--repa-stop`, `--rope --qk-norm`, `--t-sampling logit_normal`) and queued 28 Nov 00:05 UTC; flow matching and EDM augmentation dropped (sampler rewrite; augmentation would need re-encoding the cached latents) |
 | E-P4 | Start the reverse process from an MSE estimate (the existing regression head, `--reg-weight`; the sampler already takes `x_start` / `start`); sweep the start step as a fidelity knob | 5060 or Kaggle, about 5 h + sweep | Optional; low prior (128 px SDEdit from the CNN failed, g-s3) |
-| E-P5 | More data: ImageNet-100 subset (49,500 images, 99 classes, after the Imagenette-name filter; `data/imagenet100_500` on the 5060, from `scripts/gen_analysis/imagenet100_subset.py`) + Imagenette, DiT-S + REPA, 100k steps; then Imagenette fine-tuning to convergence (cap 60k) (`dit256-x100`, `dit256-x100-ft`) | 5060, about 19 h | Queued (`q2`) |
+| E-P5 | More data: ImageNet-100 subset (49,500 images, 99 classes, after the Imagenette-name filter; `data/imagenet100_500` on the 5060, from `scripts/gen_analysis/imagenet100_subset.py`) + Imagenette, DiT-S + REPA, 100k steps; then Imagenette fine-tuning to convergence (cap 60k) (`dit256-x100`, `dit256-x100-ft`) | 5060, about 19 h | Running since 26 Nov 22:00 UTC (data-loading fix restarts at 2k and 4k, 7.3) |
 | E-P6 | Final receiver: kept levers (gate L), data (gate D), size (gate M), to convergence, then E-P2's anneal if it helped | 5060, about 25 h (DiT-S) or 50 h (DiT-B) | 2 Dec |
-| E-P7 | DiT-B (width 768, about 130M) with the extra data and activation checkpointing, 80k cap; then fine-tuning (`dit256b-x100`, `dit256b-x100-ft`) | 5060, about 40 h (estimate) | Waits for the memory/speed probe |
+| E-P7 | DiT-B (width 768, about 130M) with the extra data and activation checkpointing, 80k cap; then fine-tuning (`dit256b-x100`, `dit256b-x100-ft`) | 5060, about 40 h (estimate) | Queued after E-P5 (probe 26 Nov: DiT-B does not fit 8 GB without checkpointing; with it 4.7 GB, 1.52 it/s synthetic, about 0.9 it/s expected). Early stop if not ahead of E-P5 on validation at 30k |
 
 **Analyses (A).** Each is run first on the 24 Nov REPA receiver, so every figure exists even if
 no lever pays off; re-run on E-P6.
@@ -248,7 +274,7 @@ no lever pays off; re-run on E-P6.
 | ID | What | Cost | Claim | Status |
 |---|---|---|---|---|
 | E-A1 | Study A bridge on REPA: told REPA (-5 to 5 dB, AWGN) to convergence; blind vs told, estimated SNR, gain error | Kaggle, 2 sessions | C2 | Optional, week of 5 Dec |
-| E-A2 | Posterior-sampler test (`scripts/gen_analysis/posterior.py`, `posterior-repa`): K = 8 draws at -5 / 0 / +5 dB, eta 0 and 1. A posterior sampler's k-draw mean gains 10 log10(2k / (k + 1)) dB over one draw, and spread / error = 1 (Blau & Michaeli 2019; Yan et al. 2021). Then: the mean vs the CNN on PSNR; the perception-distortion curve from one signal (mean/draw blend, eta, steps) | 5060, about 1-2 h | C3 | Queued (`q2`) |
+| E-A2 | Posterior-sampler test (`scripts/gen_analysis/posterior.py`, `posterior-repa`): K = 8 draws at -5 / 0 / +5 dB, eta 0 and 1. A posterior sampler's k-draw mean gains 10 log10(2k / (k + 1)) dB over one draw, and spread / error = 1 (Blau & Michaeli 2019; Yan et al. 2021). Then: the mean vs the CNN on PSNR; the perception-distortion curve from one signal (mean/draw blend, eta, steps) | 5060, about 1-2 h | C3 | Done 27 Nov: one draw 16.89 / 19.38 / 20.70 dB (eta 0); the mean of 8 gains +1.43 / +1.39 / +1.42 dB (ideal +2.50) and spread / MMSE = 0.50 (eta 0) or 0.36-0.41 (eta 1, whose single draws are 0.23-0.38 dB better): an under-dispersed sampler. Perception-distortion curve from one signal still to plot |
 | E-A3 | Failure analysis: classifier flips, DETR object additions and drops, and caption contradictions per SNR for DiT, CNN and separation, split into sharp-wrong vs blurry-wrong. Detectors: semantic-space draw disagreement, re-encoding residual per stream (re-transmit the reconstruction, compare with the received symbols), best-of-N. AUROC, risk-coverage curves, split-conformal accept rule | About 6 h GPU | C4 | To code |
 | E-A4 | Mechanism: inference-time erasure of 0 to 100% of the semantic or detail symbols; posterior spread vs SNR (pixel, LPIPS, label entropy) | About 4 h | C5 | To code |
 | E-A5 | Out of distribution and robustness: Kodak (24 images, centre crop to 256 px) and CLIC2020 / DIV2K-val crops, per-image metrics (no FID on Kodak); SNR outside training (existing -10 to +10 dB curve); phase offset/noise, impulsive noise, Rician K | About 6 h + loader | C1 | To code |
@@ -295,6 +321,16 @@ bonus; C1 to C4 do not depend on them.
   validation DINOv2, and REPA's validation loss is above the plain DiT's although its test results
   are better.
 - Screens at 60k steps compare only against the 60k baseline, never against converged runs.
+- **Validation may stop a run early, never rank close runs (27 Nov).** Every validation pass
+  scores the same 32 images with fixed seeds, so two runs on the same data pair at equal steps
+  (`scripts/gen_analysis/val_compare.py REF NEW`, logs or `kaggle:<job>`). Between consecutive
+  validations the paired DINOv2 gap moves by about 0.03 (REPA 1.0 vs 0.5, 2k to 34k), so:
+  - stop a run that is behind its reference on every DINOv2 and PSNR score, by more than 0.02
+    DINOv2 / 0.2 dB, over the last 3 validations (E-P7 against E-P5 at 30k is the main use: it
+    can save about 35 h);
+  - otherwise train to the planned budget and decide on the test set;
+  - validation loss does not order recipes with different auxiliary losses, and with
+    logit-normal training it is still taken at uniform timesteps (comparable across densities).
 - One seed per configuration (user, 22 Nov). A gain within the 128 px seed spread (about 0.01 dB
   PSNR, 0.01 DINOv2) is not a gain.
 - Report every metric family, win or lose. DINOv2 is flagged as partly circular for REPA models;
@@ -377,7 +413,27 @@ the same table.
 | DiT-S 256 px, 5060, plain | 3.1 to 3.4 it/s |
 | DiT-S 256 px, 5060, REPA | 2.1 to 2.6 it/s |
 | CNN 256 px, 5060 | 0.97 it/s pixel loss, 0.59 it/s with LPIPS (gradient accumulation) |
-| DiT-B 256 px, 5060 | Measured by the 26 Nov probe (`~/queue2.log`) |
+| DiT-B 256 px, 5060 | Does not fit 8 GB without checkpointing; with it 4.7 GB, 1.52 it/s synthetic (DiT-S: 5.8 GB, 3.99 it/s synthetic, 2.3 real), so about 0.9 it/s expected |
+| DiT-S + ImageNet-100 subset, 5060 | 1.3 it/s with memory-mapped reads, 1.65 with read-around off; pread from 27 Nov (7.3) |
+
+**Failure handling (27 Nov, user: every run must be rerun if it errors):**
+- 5060: `~/queue3.sh` (tmux `q2`) retries a failed stage after 2 min, up to 5 failures (failures
+  counted in `~/queue2_failures.txt`); `~/watchdog.sh` (tmux `wd`, log `~/watchdog.log`) relaunches
+  `q2` if it dies and kills a stage whose log is silent for 90 min. Every stage resumes from its
+  checkpoint. Never `pkill -f` a pattern that the ssh command line itself contains (it kills that
+  shell); anchor it (`pkill -f "^/home/hari/ml/bin/python scripts/run_gen.py"`).
+- Kaggle: `scripts/kaggle_queue.py --watch` follows each job for 13 h after its push and re-pushes
+  one that ends in error or is cancelled as `<name>-r1`, then `-r2` (same plans and inputs; queued
+  jobs that waited on it wait on the retry).
+
+**RTX 5060 slowdowns, 26-27 Nov, and their fixes:**
+- Speed halving after each validation (2.4, 1.2, 0.6 it/s): validation peaks at 7.47 GB on the
+  8 GB card and the Windows driver moved the overflow into system RAM. Fix:
+  `PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True` in both queue scripts and a restart.
+- The 58 GB ImageNet-100 cache read 1.3 GB/s from disk (WSL read-ahead 8 MB) and trained at
+  1.3 it/s; read-around off (`madvise`) gave 1.65 it/s; one `pread` per item
+  (`semcom.gen.data.Rows`) from 27 Nov. The WSL VM has 7.5 GB of RAM (half the PC's 15.2 GB) and
+  2 GB of swap; raising it in `.wslconfig` needs a WSL restart and the user's go-ahead.
 
 **Caches:**
 - 256 px Imagenette: 11.8 GB, rebuilt each Kaggle session in `/kaggle/working` (19.5 GB free).
@@ -466,3 +522,13 @@ the same table.
 | 26 Nov | E-P2 | `dit256-repa-anneal` (5060) | Started 09:16 UTC: the converged REPA weights, 30k steps, peak LR 5e-5, cosine to 0, then the three test sets. 2.1 it/s, about 4 h of training |
 | 26 Nov | E-P2 | `dit256-repa-anneal` (5060) | **Stopped at step 4,800 (about 10:00 UTC), no error in the log** (tmux server gone, box not rebooted). Checkpoint at about 4k steps kept; resume with `python scripts/gen_5060.py dit256-repa-anneal`. **User: the 5060 stays paused until they give the go-ahead.** |
 | 26 Nov | E-A7, E-P3 | `e-a7-analog` (own), `e-p3-base` (venkatrrr), `e-p3-repa1` (subhashhhh), at 6a7098b | Pushed to use this week's remaining quota (own 10.2 h, venkatrrr 7.4 h, subhashhhh 6.2 h; venkat96r 0): the analog REPA receiver to convergence (session 1, `--max-hours 8.5`, `results/gen/p256-analog`); the 60k-step 16-QAM REPA screen baseline and its REPA-weight-1.0 variant (`--tag s60k`, `results/gen/p256-screen`, max-hours 5.8 and 4.8). Second sessions `-2` queued in `.kaggle_jobs/queue.json` for 28 Nov 00:05 UTC on the same accounts |
+| 26 Nov | (infra) | `dit256-repa-anneal` (5060) | Training slowed in steps after validations (2.4, 1.2, 0.6 it/s): validation peaks at 7.47 GB and the Windows driver spilled GPU memory into system RAM. Fixed with `expandable_segments` and a restart from the 26k checkpoint (2.3 it/s after the 28k validation). A game on the Windows side made it worse earlier |
+| 26 Nov | E-P2 | `dit256-repa-anneal` (5060) | **No gain; closed.** Spread set, anneal vs REPA receiver at -5 / 0 / +5 dB: FID 89.3 / 53.9 / 43.9 vs 88.5 / 53.7 / 43.8; LPIPS 0.366 / 0.259 / 0.208 vs 0.363 / 0.258 / 0.207; DINOv2 0.430 / 0.636 / 0.728 vs 0.431 / 0.635 / 0.728; PSNR 16.85 / 19.38 / 20.71 vs 16.89 / 19.38 / 20.70. Validation loss rose from 0.2985 to 0.3007. The receiver was converged; E-P6 needs no anneal |
+| 26-27 Nov | E-P1 | `repa-sweep`, `repa-sweep2` (5060) | **Guidance 1.5, 10 steps is the default.** Full table in 3.1. Guidance 1.25 improves every score at equal PSNR; 1.5 is the perceptual optimum (FID 70.9 / 43.0 / 34.3 vs 88.5 / 53.7 / 43.8, CNN 129.2 / 59.3 / 42.9) for -0.15 to -0.36 dB; 1.75 and 2.0 add nothing. 20 and 50 steps are worse than 10 on every score; 5 steps gain 0.5 dB PSNR and lose every perceptual score |
+| 26 Nov | E-A2 | `posterior-repa` (5060) | **Under-dispersed sampler.** 1,000 images, 8 draws. Eta 0: one draw 16.89 / 19.38 / 20.70 dB, mean of 2 / 4 / 8 draws +0.74 / +1.18 / +1.42 dB (ideal +1.25 / +2.04 / +2.50), spread / MMSE 0.50. Eta 1: one draw 17.27 / 19.66 / 20.93 dB, mean of 8 +1.07 to +1.17 dB, spread / MMSE 0.36-0.41. Feeds C3: the receiver trades distortion for realism like a posterior sampler, but its draws vary half as much as an exact one's (`results/gen/analysis/posterior_repa.npz` on the 5060) |
+| 26 Nov | E-P7 | memory probe (5060) | DiT-S batch 64 REPA: 5.78 GB, 3.99 it/s (checkpointing: 2.54 GB, 3.30 it/s). DiT-B: driver error without checkpointing (does not fit), 4.71 GB and 1.52 it/s with it. DiT-B stages queued after E-P5 with the 80k cap |
+| 26 Nov | C1 | `repa-cfg15-metrics` (5060) | Dump at guidance 1.5 done; the metric pass failed 3 times with `CUDA driver error: device not ready` while host RAM was exhausted. Re-queued after `dit256-x100` at batch 16 |
+| 26-27 Nov | E-P5 | `dit256-x100` (5060) | Started 22:00 UTC at 1.3 it/s: the 58 GB cache read 1.3 GB/s from disk (8 MB read-around per item). `madvise(MADV_RANDOM)`: 60 MB/s, 1.65 it/s (restart at 2k). One `pread` per item (`Rows`, identical rows on the real cache, about 1.8 ms per item): restart at 4k |
+| 27 Nov | E-P3 | code | iREPA (conv projector, spatially normalised target, gamma 0.7, arXiv 2512.10794 Algorithm 1), HASTE (`--repa-stop`), RoPE + qk-norm, logit-normal timesteps; validation always at uniform timesteps. Unit tests for each lever, the defaults (old runs unchanged) and an end-to-end run with all of them. Four screens and their `-2` sessions queued for 28 Nov 00:05 UTC |
+| 27 Nov | E-P3 | `val_compare.py` on `e-p3-base` vs `e-p3-repa1` (session 1) | REPA weight 1.0 vs 0.5 at 30-34k: DINOv2 -0.017 / +0.012 / +0.010, PSNR -0.09 / -0.01 / -0.04 dB: within validation noise (the paired gap moves about 0.03 between validations). Decided on the test set after session 2 |
+| 27 Nov | (infra) | Kaggle | E-P3/E-A7 `-2` sessions also score the test set at guidance 1.5 (an evaluation-only plan, `--max-hours 0.05`). `kaggle_queue.py --watch` re-pushes sessions that error |

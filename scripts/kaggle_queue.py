@@ -18,8 +18,15 @@ token files:
 Each job's outcome is written back into the file ("state": pushed / skipped / failed, with "why"),
 so the queue can be stopped and started again. Progress goes to stdout.
 
+--watch (27 Nov) also follows every job for 13 h after its push (longer than a 12 h session) and
+keeps running while any is in flight. A job that ends in error or is cancelled (a crashed plan
+fails the session; a --max-hours stop completes normally) is pushed again as <name>-r1, then -r2,
+with the same plans and inputs (an errored session's output cannot be attached, so a first session
+restarts and a second session resumes from the first one's checkpoint), and queued jobs that
+waited on it wait on the retry instead. At most MAX_RETRIES per job.
+
 usage:
-    python scripts/kaggle_queue.py .kaggle_jobs/queue.json [--every 300]
+    python scripts/kaggle_queue.py .kaggle_jobs/queue.json [--every 300] [--watch]
 """
 from __future__ import annotations
 
@@ -37,6 +44,8 @@ import kaggle_jobs as kj  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 DONE = ("pushed", "skipped", "failed")
+MAX_RETRIES = 2
+WATCH_HOURS = 13  # a session lasts at most 12 h
 
 
 def now() -> str:
@@ -101,18 +110,66 @@ def step(queue: list[dict]) -> bool:
             continue
         ok, msg = push(e)
         e.update(state="pushed" if ok else "failed", why=f"{now()}: {msg}")
+        if ok:
+            e["pushed_at"] = datetime.now(timezone.utc).isoformat()
         print(f"[{now()}] {'pushed' if ok else 'FAILED'} {e['name']}: {msg}", flush=True)
     return waiting
+
+
+def watch(queue: list[dict]) -> bool:
+    """Follow the jobs pushed in the last WATCH_HOURS; retry those that error or are cancelled.
+    Returns True while any is still in flight."""
+    in_flight = False
+    for e in list(queue):
+        if e.get("state") != "pushed" or "outcome" in e or "pushed_at" not in e:
+            continue
+        age_h = (datetime.now(timezone.utc) - datetime.fromisoformat(e["pushed_at"])).total_seconds() / 3600
+        if age_h > WATCH_HOURS:
+            e["outcome"] = f"{now()}: no final status within {WATCH_HOURS} h"
+            continue
+        s = status(e["name"])
+        if s == "complete":
+            e["outcome"] = f"{now()}: complete"
+            continue
+        if s not in ("error", "cancel"):
+            in_flight = True  # running, queued or unknown
+            continue
+        root = e.get("retry_of", e["name"])
+        tries = sum(1 for x in queue if x.get("retry_of") == root)
+        if tries >= MAX_RETRIES:
+            e["outcome"] = f"{now()}: {s}; {MAX_RETRIES} retries used, giving up"
+            print(f"[{now()}] {e['name']} ended in {s}; no retries left", flush=True)
+            continue
+        new = f"{root}-r{tries + 1}"
+        retry = {k: e[k] for k in ("token_file", "plans", "input_job", "resume_of", "runner") if k in e}
+        retry.update(name=new, after=[], retry_of=root)
+        queue.append(retry)
+        for x in queue:  # queued jobs that waited on the failed one wait on its retry
+            if x.get("state") in DONE or x is retry:
+                continue
+            for key in ("after", "input_job"):
+                if e["name"] in x.get(key, []):
+                    x[key] = [new if a == e["name"] else a for a in x[key]]
+            if x.get("resume_of") == e["name"]:
+                x["resume_of"] = new
+        e["outcome"] = f"{now()}: {s}; retried as {new}"
+        print(f"[{now()}] {e['name']} ended in {s}: queued {new}", flush=True)
+        in_flight = True
+    return in_flight
 
 
 def main() -> None:
     p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     p.add_argument("queue", type=Path)
     p.add_argument("--every", type=int, default=300, help="seconds between passes")
+    p.add_argument("--watch", action="store_true", help="follow pushed jobs and retry failed ones")
     args = p.parse_args()
     while True:
         queue = json.loads(args.queue.read_text(encoding="utf-8"))
         waiting = step(queue)
+        if args.watch:
+            waiting = watch(queue) or waiting
+            waiting = step(queue) or waiting  # push a retry in this pass
         args.queue.write_text(json.dumps(queue, indent=1), encoding="utf-8")
         if not waiting:
             print(f"[{now()}] queue done: " + ", ".join(f"{e['name']}={e.get('state')}" for e in queue), flush=True)

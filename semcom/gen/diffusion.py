@@ -22,10 +22,14 @@ import torch
 
 class Diffusion:
     def __init__(self, num_timesteps: int = 1000, beta_start: float = 1e-4, beta_end: float = 0.02,
-                 prediction: str = "eps"):
+                 prediction: str = "eps", t_sampling: str = "uniform", t_ln_mean: float = 0.0,
+                 t_ln_std: float = 1.0):
         if prediction not in ("eps", "v"):
             raise ValueError(f"prediction must be 'eps' or 'v', got {prediction!r}")
+        if t_sampling not in ("uniform", "logit_normal"):
+            raise ValueError(f"t_sampling must be 'uniform' or 'logit_normal', got {t_sampling!r}")
         self.T, self.prediction = num_timesteps, prediction
+        self.t_sampling, self.t_ln_mean, self.t_ln_std = t_sampling, t_ln_mean, t_ln_std
         betas = torch.linspace(beta_start, beta_end, num_timesteps, dtype=torch.float64)
         self.alpha_bar = torch.cumprod(1.0 - betas, dim=0).float()
 
@@ -51,9 +55,16 @@ class Diffusion:
             return out, (x_t - (1 - ab).sqrt() * out) / ab.sqrt()
         return (1 - ab).sqrt() * x_t + ab.sqrt() * out, ab.sqrt() * x_t - (1 - ab).sqrt() * out
 
-    def training_targets(self, x0: torch.Tensor, generator: torch.Generator | None = None):
-        """(x_t, t, noise) for one training step: t uniform over all T steps."""
-        t = torch.randint(0, self.T, (x0.shape[0],), device=x0.device, generator=generator)
+    def training_targets(self, x0: torch.Tensor, generator: torch.Generator | None = None,
+                         uniform: bool = False):
+        """(x_t, t, noise) for one training step: t uniform over all T steps, or logit-normal
+        (t / T = sigmoid(u), u ~ N(t_ln_mean, t_ln_std^2), floored to a step; SD3's density).
+        `uniform` forces uniform steps (validation, so its loss compares across densities)."""
+        if self.t_sampling == "uniform" or uniform:
+            t = torch.randint(0, self.T, (x0.shape[0],), device=x0.device, generator=generator)
+        else:
+            u = torch.randn(x0.shape[0], device=x0.device, generator=generator) * self.t_ln_std + self.t_ln_mean
+            t = (torch.sigmoid(u) * self.T).long().clamp_(0, self.T - 1)
         noise = torch.randn(x0.shape, device=x0.device, generator=generator, dtype=x0.dtype)
         return self.q_sample(x0, t, noise), t, noise
 

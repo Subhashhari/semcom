@@ -1126,3 +1126,174 @@ def test_grad_checkpoint_changes_nothing_but_memory():
     for a, b in zip(plain.parameters(), ckpt.parameters()):
         if a.grad is not None:
             assert torch.allclose(a.grad, b.grad, atol=1e-7)
+
+
+# ------------------------------------------------------------------ E-P3 recipe levers (27 Nov)
+
+
+def test_recipe_levers_default_off_and_name_their_runs(tmp_path):
+    """Off by default: no new parameters, the old run name; each lever, when on, names the run."""
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank", repa_weight=0.5)
+    plain = GenJSCC(cfg, 768)
+    assert not any(k.endswith(("q_norm.weight", "k_norm.weight")) or k.startswith("repa_proj.conv")
+                   for k in plain.state_dict())
+    assert plain.dit.rope_cos is None and plain.diffusion.t_sampling == "uniform"
+    assert cfg.run_name == "dit-S-v_cbr48_blind-5to5_repa0.5_s0"
+    on = cfg.replace(repa_proj="irepa", repa_stop=40000, qk_norm=True, rope=True, t_sampling="logit_normal")
+    assert on.run_name == "dit-S-v_cbr48_blind-5to5_repa0.5_irepa_haste40k_qkn_rope_ln_s0"
+    assert cfg.replace(t_sampling="logit_normal", t_ln_mean=-0.5).run_name.endswith("_ln-0.5s1_s0")
+
+
+def test_recipe_levers_are_validated():
+    with pytest.raises(ValueError):
+        GenConfig(repa_proj="irepa")  # needs REPA on
+    with pytest.raises(ValueError):
+        GenConfig(repa_stop=1000)
+    with pytest.raises(ValueError):
+        GenConfig(repa_weight=0.5, repa_proj="conv")
+    with pytest.raises(ValueError):
+        GenConfig(t_sampling="cosine")
+    with pytest.raises(ValueError):
+        GenConfig(model="cnn", rope=True)
+
+
+def test_rope_2d_rotates_by_relative_position():
+    """Scores after RoPE depend on the offset between tokens only, and the rotation keeps norms."""
+    from semcom.gen.dit import apply_rope, rope_2d
+
+    side, d = 4, 16
+    cos, sin = rope_2d(side, d)
+    torch.manual_seed(0)
+    q, k = torch.randn(d), torch.randn(d)
+    rq = apply_rope(q.expand(side * side, d)[None, None], cos, sin)[0, 0]
+    rk = apply_rope(k.expand(side * side, d)[None, None], cos, sin)[0, 0]
+    assert torch.allclose(rq.norm(dim=-1), q.norm().expand(side * side), atol=1e-5)
+    idx = lambda r, c: r * side + c  # noqa: E731  (row-major, as patchify)
+    s1 = rq[idx(0, 0)] @ rk[idx(1, 2)]
+    s2 = rq[idx(2, 1)] @ rk[idx(3, 3)]  # same offset (1, 2)
+    s3 = rq[idx(0, 0)] @ rk[idx(2, 1)]  # another offset
+    assert torch.allclose(s1, s2, atol=1e-5) and not torch.allclose(s1, s3, atol=1e-3)
+    with pytest.raises(ValueError):
+        rope_2d(side, 18)
+
+
+def test_qk_norm_and_rope_train_and_checkpoint_identically():
+    torch.manual_seed(0)
+    kw = dict(latent_size=8, c_sem=4, c_det=6, depth=4, hidden=32, heads=4, cond_blocks_sem=1,
+              cond_blocks_det=1, qk_norm=True, rope=True)
+    plain, ckpt = ConditionalDiT(**kw), ConditionalDiT(**kw, grad_checkpoint=True)
+    for p in plain.parameters():
+        p.data.add_(0.1 * torch.randn_like(p))  # leave the zero init, and not uniformly
+    ckpt.load_state_dict(plain.state_dict())
+    assert "blocks.0.q_norm.weight" in plain.state_dict() and "rope_cos" not in plain.state_dict()
+    x, t = torch.randn(3, 4, 8, 8), torch.randint(0, 1000, (3,))
+    ys, yd = torch.randn(3, 4, 4, 4), torch.randn(3, 6, 4, 4)
+    res = []
+    for m in (plain, ckpt):
+        m.train()
+        out = m(x, t, ys, yd)
+        out.square().mean().backward()
+        res.append(out)
+    assert torch.isfinite(res[0]).all() and torch.allclose(res[0], res[1], atol=1e-6)
+    assert plain.blocks[0].q_norm.weight.grad.abs().sum() > 0
+    # RoPE changes the function: same weights without it give a different output.
+    other = ConditionalDiT(**{**kw, "rope": False})
+    other.load_state_dict(plain.state_dict())
+    assert not torch.allclose(other(x, t, ys, yd), res[0].detach(), atol=1e-4)
+
+
+def test_irepa_projector_and_spatial_normalisation(tmp_path):
+    from semcom.gen.model import TokenConv, spatial_normalise
+
+    torch.manual_seed(0)
+    x = torch.randn(2, 16, 5) + 3.0
+    y = spatial_normalise(x, 1.0)
+    assert torch.allclose(y.mean(dim=1), torch.zeros(2, 5), atol=1e-5)
+    assert torch.allclose(y.std(dim=1), torch.ones(2, 5), atol=1e-4)
+    assert spatial_normalise(x, 0.7).mean(dim=1).abs().min() > 0.5  # gamma < 1 keeps some mean
+    assert TokenConv(8, 5, 4)(torch.randn(2, 16, 8)).shape == (2, 16, 5)
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank", repa_weight=0.5, repa_proj="irepa")
+    model = GenJSCC(cfg, 768)
+    assert isinstance(model.repa_proj, TokenConv)
+    out, grads = _loss_grads(model, cfg, _w1_batch(cfg))
+    assert "repa" in out and grads["repa_proj.conv.weight"].abs().sum() > 0
+
+
+def test_haste_switches_repa_off_at_its_step(tmp_path):
+    from semcom.gen.model import repa_active
+
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank", repa_weight=0.5, repa_stop=3)
+    assert [repa_active(cfg, s) for s in range(5)] == [True, True, True, False, False]
+    assert all(repa_active(cfg.replace(repa_stop=0), s) for s in (0, 10**6))
+    assert not repa_active(cfg.replace(repa_weight=0.0, repa_stop=0), 0)
+    model = GenJSCC(cfg, 768)
+    batch = _w1_batch(cfg)
+    assert "repa" in _loss_grads(model, cfg, batch)[0]
+    model.zero_grad()
+    model.repa_on = False
+    out, grads = _loss_grads(model, cfg, batch)
+    assert "repa" not in out and grads["repa_proj.0.weight"] is None
+
+
+def test_logit_normal_timesteps_favour_mid_noise_levels():
+    torch.manual_seed(0)
+    x0 = torch.zeros(20000, 1)
+    uni = Diffusion(prediction="v").training_targets(x0)[1]
+    ln = Diffusion(prediction="v", t_sampling="logit_normal").training_targets(x0)[1]
+    assert ln.min() >= 0 and ln.max() <= 999 and ln.dtype == uni.dtype
+    mid = lambda t: ((t >= 250) & (t < 750)).float().mean().item()  # noqa: E731
+    assert mid(uni) == pytest.approx(0.5, abs=0.02)
+    assert mid(ln) == pytest.approx(0.728, abs=0.02)  # P(|N(0,1)| < logit(0.75) = 1.0986) = 0.728
+    forced = Diffusion(prediction="v", t_sampling="logit_normal").training_targets(x0, uniform=True)[1]
+    assert mid(forced) == pytest.approx(0.5, abs=0.02)  # validation: uniform, comparable across densities
+    with pytest.raises(ValueError):
+        Diffusion(t_sampling="cosine")
+
+
+def test_recipe_levers_reach_the_config_from_the_command_line(tmp_path, monkeypatch):
+    """run_gen.py passes the lever flags to DiT runs only (a mixed plan's CNN keeps the defaults)."""
+    import importlib.util
+    import sys
+
+    spec = importlib.util.spec_from_file_location("run_gen", "scripts/run_gen.py")
+    rg = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(rg)
+    base = tiny(tmp_path, prediction="v")
+    dit_only = {"repa_weight": 0.5, "repa_proj": "irepa", "repa_stop": 40000, "qk_norm": True, "rope": True,
+                "t_sampling": "logit_normal"}
+    d = rg.arm_config(base, "dit", "blind", 0, "", dit_only)
+    assert (d.repa_proj, d.repa_stop, d.qk_norm, d.rope, d.t_sampling) == ("irepa", 40000, True, True, "logit_normal")
+    c = rg.arm_config(base, "cnn", "blind", 0, "", dit_only)
+    assert (c.repa_weight, c.repa_proj, c.repa_stop, c.qk_norm, c.rope, c.t_sampling) == (0.0, "mlp", 0, False, False, "uniform")
+
+
+def test_a_run_with_every_recipe_lever_trains_resumes_and_evaluates(tmp_path):
+    """All levers on at once through the real loop: HASTE switches REPA off mid-run, a resume
+    restores the run, and the evaluation (guided sampling too) runs on the trained receiver."""
+    from semcom.gen.evaluate import evaluate_run
+    from semcom.gen.train import train
+
+    cfg = tiny(tmp_path, prediction="v", snr_mode="blank", repa_weight=0.5, repa_proj="irepa",
+               repa_stop=3, qk_norm=True, rope=True, t_sampling="logit_normal", sanity_steps=0)
+    assert train(cfg.replace(max_hours=0.0)) is None
+    summary = train(cfg)
+    assert summary["steps"] == cfg.steps
+    out = evaluate_run(cfg.run_dir, external=False)
+    assert all("dino_sim" in r for r in out["results"].values())
+    guided = evaluate_run(cfg.run_dir, external=False, cfg_scale=1.5, suffix="g")
+    assert all("dino_sim" in r for r in guided["results"].values())
+
+
+@pytest.mark.skipif(not hasattr(__import__("os"), "pread"), reason="pread: Linux only (the 5060 and Kaggle)")
+def test_pread_rows_match_the_array(tmp_path):
+    import numpy as np
+
+    from semcom.gen.data import Rows, open_rows
+
+    a = np.random.default_rng(0).standard_normal((7, 3, 4, 5)).astype(np.float16)
+    np.save(tmp_path / "x.npy", a)
+    r = Rows(tmp_path / "x.npy")
+    assert len(r) == 7 and all(np.array_equal(r[i], a[i]) for i in range(7))
+    assert isinstance(open_rows(tmp_path / "x.npy"), Rows)
+    with pytest.raises(IndexError):
+        r[7]

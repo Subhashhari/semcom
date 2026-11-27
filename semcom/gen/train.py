@@ -31,7 +31,7 @@ from ..train import init_wandb, log
 from .checks import SanityError, check_data, kv, overfit_check, symbol_stats, val_quality, vae_ceiling
 from .config import GenConfig
 from .data import cache_meta, loaders, prepare
-from .model import build_model, check_refiner_source, num_parameters
+from .model import build_model, check_refiner_source, num_parameters, repa_active
 
 
 def lr_at(cfg: GenConfig, step: int) -> float:
@@ -271,6 +271,8 @@ def train(cfg: GenConfig) -> dict | None:
         lr = lr_at(cfg, step)
         for g in opt.param_groups:
             g["lr"] = lr
+        if hasattr(model, "repa_on"):  # HASTE (cfg.repa_stop): the REPA term ends at that step
+            model.repa_on = repa_active(cfg, step)
         snr = sample_snr(cfg, batch["image"].shape[0], device)
         opt.zero_grad(set_to_none=True)
         n_chunks, chunk_out = cfg.grad_accum, []

@@ -46,6 +46,28 @@ def sincos_2d(dim: int, side: int) -> torch.Tensor:
     return torch.from_numpy(np.concatenate(parts, axis=1)).float()
 
 
+def rope_2d(side: int, head_dim: int, base: float = 10000.0) -> tuple[torch.Tensor, torch.Tensor]:
+    """Axial 2-D rotary embedding tables (cos, sin), each (side*side, head_dim), tokens in the
+    row-major order of patchify: the first half of each head's dimensions rotates with the
+    column (x), the second half with the row (y), in rotate-half layout within each half."""
+    if head_dim % 4:
+        raise ValueError(f"2-D RoPE needs a head dimension divisible by 4, got {head_dim}")
+    q = head_dim // 4
+    freqs = 1.0 / base ** (torch.arange(q, dtype=torch.float64) / q)
+    rows, cols = torch.meshgrid(torch.arange(side), torch.arange(side), indexing="ij")
+    ax = cols.flatten()[:, None].double() * freqs
+    ay = rows.flatten()[:, None].double() * freqs
+    ang = torch.cat([ax, ax, ay, ay], dim=1)
+    return ang.cos().float(), ang.sin().float()
+
+
+def apply_rope(x: torch.Tensor, cos: torch.Tensor, sin: torch.Tensor) -> torch.Tensor:
+    """Rotate queries or keys (B, heads, T, head_dim) by the tables of rope_2d."""
+    x1, x2, x3, x4 = x.chunk(4, dim=-1)
+    rot = torch.cat([-x2, x1, -x4, x3], dim=-1)
+    return x * cos.to(x.dtype) + rot * sin.to(x.dtype)
+
+
 class ScalarEmbedder(nn.Module):
     """Scalar (timestep, or normalised SNR) -> sinusoidal features -> MLP -> hidden."""
 
@@ -64,11 +86,18 @@ class ScalarEmbedder(nn.Module):
 class Block(nn.Module):
     """Transformer block with adaLN-Zero, and an optional zero-initialised fusion input."""
 
-    def __init__(self, hidden: int, heads: int, mlp_ratio: float = 4.0, fuse: bool = False):
+    def __init__(self, hidden: int, heads: int, mlp_ratio: float = 4.0, fuse: bool = False,
+                 qk_norm: bool = False):
         super().__init__()
         self.heads = heads
         self.norm1 = nn.LayerNorm(hidden, elementwise_affine=False, eps=1e-6)
         self.qkv = nn.Linear(hidden, 3 * hidden)
+        # Built only when on, so older state dicts load unchanged.
+        if qk_norm:
+            self.q_norm = nn.RMSNorm(hidden // heads, eps=1e-6)
+            self.k_norm = nn.RMSNorm(hidden // heads, eps=1e-6)
+        else:
+            self.q_norm = self.k_norm = None
         self.proj = nn.Linear(hidden, hidden)
         self.norm2 = nn.LayerNorm(hidden, elementwise_affine=False, eps=1e-6)
         h = int(hidden * mlp_ratio)
@@ -76,13 +105,18 @@ class Block(nn.Module):
         self.ada = nn.Sequential(nn.SiLU(), nn.Linear(hidden, 6 * hidden))
         self.fuse = nn.Linear(2 * hidden, hidden) if fuse else None
 
-    def forward(self, x: torch.Tensor, c: torch.Tensor, cond: torch.Tensor | None = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, c: torch.Tensor, cond: torch.Tensor | None = None,
+                rope_cos: torch.Tensor | None = None, rope_sin: torch.Tensor | None = None) -> torch.Tensor:
         if self.fuse is not None and cond is not None:
             x = x + self.fuse(torch.cat([x, cond], dim=-1))
         sh1, sc1, g1, sh2, sc2, g2 = self.ada(c).chunk(6, dim=1)
         b, n, d = x.shape
         qkv = self.qkv(modulate(self.norm1(x), sh1, sc1)).reshape(b, n, 3, self.heads, d // self.heads)
         q, k, v = qkv.permute(2, 0, 3, 1, 4)
+        if self.q_norm is not None:
+            q, k = self.q_norm(q).to(v.dtype), self.k_norm(k).to(v.dtype)
+        if rope_cos is not None:
+            q, k = apply_rope(q, rope_cos, rope_sin), apply_rope(k, rope_cos, rope_sin)
         attn = F.scaled_dot_product_attention(q, k, v).transpose(1, 2).reshape(b, n, d)
         x = x + g1.unsqueeze(1) * self.proj(attn)
         return x + g2.unsqueeze(1) * self.mlp(modulate(self.norm2(x), sh2, sc2))
@@ -137,6 +171,8 @@ class ConditionalDiT(nn.Module):
         snr_slot: bool = False,
         cond_side: int | None = None,
         grad_checkpoint: bool = False,
+        qk_norm: bool = False,
+        rope: bool = False,
     ):
         super().__init__()
         self.grad_checkpoint = grad_checkpoint  # activation checkpointing of the blocks while training
@@ -146,6 +182,12 @@ class ConditionalDiT(nn.Module):
 
         self.x_embed = nn.Conv2d(latent_channels, hidden, patch, stride=patch)
         self.register_buffer("pos", sincos_2d(hidden, self.side).unsqueeze(0), persistent=False)
+        if rope:  # recomputed from the grid size, so not saved in the state dict
+            cos, sin = rope_2d(self.side, hidden // heads)
+            self.register_buffer("rope_cos", cos, persistent=False)
+            self.register_buffer("rope_sin", sin, persistent=False)
+        else:
+            self.rope_cos = self.rope_sin = None
         self.t_embed = ScalarEmbedder(hidden)
         # SNR in dB is divided by 10 and fed through the same sinusoidal map as the timestep,
         # scaled up so a 1 dB step moves the features as much as ~10 diffusion steps.
@@ -158,7 +200,7 @@ class ConditionalDiT(nn.Module):
         self.null_det = nn.Parameter(torch.zeros(1, 1, hidden))
 
         n_cond = cond_blocks_sem + cond_blocks_det
-        self.blocks = nn.ModuleList([Block(hidden, heads, fuse=i < n_cond) for i in range(depth)])
+        self.blocks = nn.ModuleList([Block(hidden, heads, fuse=i < n_cond, qk_norm=qk_norm) for i in range(depth)])
         self.final_norm = nn.LayerNorm(hidden, elementwise_affine=False, eps=1e-6)
         self.final_ada = nn.Sequential(nn.SiLU(), nn.Linear(hidden, 2 * hidden))
         self.final = nn.Linear(hidden, patch * patch * latent_channels)
@@ -230,9 +272,10 @@ class ConditionalDiT(nn.Module):
         for i, blk in enumerate(self.blocks):
             cond = sem if i < self.n_sem else det if i < self.n_sem + self.n_det else None
             if ckpt:  # recompute the block's activations in the backward pass (memory for time)
-                x = torch.utils.checkpoint.checkpoint(blk, x, c, cond, use_reentrant=False)
+                x = torch.utils.checkpoint.checkpoint(blk, x, c, cond, self.rope_cos, self.rope_sin,
+                                                      use_reentrant=False)
             else:
-                x = blk(x, c, cond)
+                x = blk(x, c, cond, self.rope_cos, self.rope_sin)
             if hidden_at is not None and i + 1 == hidden_at:
                 h = x
         sh, sc = self.final_ada(c).chunk(2, dim=1)

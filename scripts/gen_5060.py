@@ -41,6 +41,7 @@ The Imagenette data (about 0.3 GB) downloads on first use; the cache needs about
 
 Bring back: copy results/gen/p128-conv/ (with best.pt, about 0.3 GB per generative run) into the
 same path on the development PC."""
+import os
 import subprocess
 import sys
 import time
@@ -151,6 +152,24 @@ STAGES.update({
                                  ["--eval-cfg-scale", "2.0", "--eval-suffix", "spread-cfg2"],
                                  ["--sample-steps", "20", "--eval-suffix", "spread-s20"],
                                  ["--sample-steps", "50", "--eval-suffix", "spread-s50"])],
+    # E-P1, second pass (27 Nov): guidance 1.5 won the first pass (2.0 worse at 0 / +5 dB) and 20 / 50
+    # steps were worse than 10, so bracket the guidance scale and try fewer steps.
+    "repa-sweep2": [DIT256 + ["--repa-weight", "0.5", "--repa-depth", "4"] + GEN_STEPS + ["--steps", "140000"]
+                    + ["--eval-subset", "spread", "--eval-snrs", "-5", "0", "5", "--evaluate"] + extra
+                    for extra in (["--eval-cfg-scale", "1.25", "--eval-suffix", "spread-cfg1p25"],
+                                  ["--eval-cfg-scale", "1.75", "--eval-suffix", "spread-cfg1p75"],
+                                  ["--sample-steps", "5", "--eval-suffix", "spread-s5"],
+                                  ["--sample-steps", "5", "--eval-cfg-scale", "1.5", "--eval-suffix",
+                                   "spread-s5-cfg1p5"])],
+    # The guidance-1.5 receiver on the pre-registered metric list (as repa_final.sh did for guidance
+    # 1.0 on 24 Nov): full dump on the same images and seeds, then semantic_metrics.py.
+    "repa-cfg15-metrics": [
+        ["scripts/gen_analysis/dump.py", "results/gen/dump/p256-repa-cfg15-full", "1000", "-5,0,5",
+         f"{CONV256}/dit-S-v_cbr48_qam16_blind-5to5_repa0.5_s0@1.5", "--base", "configs/gen/p256.yaml",
+         "--keep", "1", "--samples", "0"],
+        ["scripts/gen_analysis/semantic_metrics.py", "results/gen/dump/p256-repa-cfg15-full",
+         "results/gen/analysis/p256-repa-cfg15/metrics",
+         "repa15=dit-S-v_cbr48_qam16_blind-5to5_repa0.5_s0@g1.5", "--snrs", "-5,0,5", "--batch", "16"]],
     # E-B3: the converged CNN's LPIPS stage, capped at 36k on 22 Nov, continued from its checkpoint to
     # the patience rule (cap 150k) in a separate folder, so the 36k result stays as it was.
     "cnn256-conv-ft-long": [["continue", f"{CONV256}/cnn_cbr48_qam16_blind-5to5_lpips0.1_ft_s0", CONVLONG],
@@ -230,7 +249,10 @@ def main() -> None:
                 continue
             cmd = plan if plan[0].endswith(".py") else ["scripts/run_gen.py", *plan]  # a script, or a run_gen plan
             print(f"\n=== {n}: {' '.join(cmd)}", flush=True)
-            subprocess.run([sys.executable, *cmd], cwd=R, check=True)
+            env = None  # the metric packages live outside the training environment (semantic_metrics.py)
+            if cmd[0].endswith("semantic_metrics.py"):
+                env = {**os.environ, "PYTHONPATH": os.path.expanduser("~/evalpkgs"), "PYTHONUNBUFFERED": "1"}
+            subprocess.run([sys.executable, *cmd], cwd=R, check=True, env=env)
             print(f"=== {n} step done in {(time.time() - t0) / 3600:.2f} h", flush=True)
     print(f"\nall done: copy {OUT}/ back to the development PC")
 

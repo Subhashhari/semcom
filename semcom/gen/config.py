@@ -144,6 +144,28 @@ class GenConfig:
     # token); the loss is 1 - cosine similarity. Training only.
     repa_weight: float = 0.0
     repa_depth: int = 4
+
+    # --- recipe levers of the E-P3 screen (month plan, 26 Nov); all off by default, so every run
+    # and config saved before 27 Nov loads and behaves unchanged.
+    # iREPA (arXiv 2512.10794, Sec. 4 and Algorithm 1): the REPA projector is one 3x3 conv on the
+    # token grid instead of the 3-layer MLP, and the DINOv2 target is normalised over the tokens,
+    # per channel: (x - irepa_gamma * mean) / (std + 1e-6) (the paper gives gamma in [0.6, 0.8]).
+    repa_proj: str = "mlp"  # "mlp" (REPA) or "irepa"
+    irepa_gamma: float = 0.7
+    # HASTE (arXiv 2505.16792): REPA is a strong early-training aid that later limits the model;
+    # its term is switched off from this step on (0 = never).
+    repa_stop: int = 0
+    # Queries and keys RMS-normalised per head (learned scale) before attention, and/or a 2-D
+    # rotary position embedding on them (axial: half of each head's dimensions per axis), on top
+    # of the fixed sine-cosine embedding (the "modern DiT block" of SiT/LightningDiT-style recipes).
+    qk_norm: bool = False
+    rope: bool = False
+    # Training timesteps: "uniform" over the T steps, or "logit_normal" (SD3, Esser et al. 2024):
+    # t / T = sigmoid(u), u ~ N(t_ln_mean, t_ln_std^2), which puts more steps at mid noise levels.
+    # Sampling is unchanged.
+    t_sampling: str = "uniform"
+    t_ln_mean: float = 0.0
+    t_ln_std: float = 1.0
     # Refiner: the CNN run folder (best.pt) whose transmitter, channel and decoder are frozen.
     refine_from: str = ""
     batch_size: int = 64
@@ -218,6 +240,18 @@ class GenConfig:
             raise ValueError("reg_weight and repa_weight must be >= 0")
         if (self.reg_weight or self.repa_weight) and self.model != "dit":
             raise ValueError("reg_weight and repa_weight apply to the DiT model only")
+        if self.repa_proj not in ("mlp", "irepa"):
+            raise ValueError(f"repa_proj must be 'mlp' or 'irepa', got {self.repa_proj!r}")
+        if self.repa_stop < 0:
+            raise ValueError(f"repa_stop must be >= 0, got {self.repa_stop}")
+        if (self.repa_proj != "mlp" or self.repa_stop) and not self.repa_weight:
+            raise ValueError("repa_proj and repa_stop change REPA; they need repa_weight > 0")
+        if self.t_sampling not in ("uniform", "logit_normal"):
+            raise ValueError(f"t_sampling must be 'uniform' or 'logit_normal', got {self.t_sampling!r}")
+        if self.t_ln_std <= 0:
+            raise ValueError(f"t_ln_std must be > 0, got {self.t_ln_std}")
+        if (self.qk_norm or self.rope or self.t_sampling != "uniform") and self.model != "dit":
+            raise ValueError("qk_norm, rope and t_sampling apply to the DiT model only")
         if self.eval_checkpoint not in ("best", "final"):
             raise ValueError(f"eval_checkpoint must be 'best' or 'final', got {self.eval_checkpoint!r}")
         if self.prediction not in ("eps", "v"):
@@ -334,6 +368,17 @@ class GenConfig:
             parts.append(f"reg{self.reg_weight:g}")
         if self.repa_weight:
             parts.append(f"repa{self.repa_weight:g}" + (f"d{self.repa_depth}" if self.repa_depth != 4 else ""))
+        if self.repa_proj == "irepa":
+            parts.append("irepa" + (f"g{self.irepa_gamma:g}" if self.irepa_gamma != 0.7 else ""))
+        if self.repa_stop:
+            parts.append(f"haste{self.repa_stop // 1000}k" if self.repa_stop % 1000 == 0 else f"haste{self.repa_stop}")
+        if self.qk_norm:
+            parts.append("qkn")
+        if self.rope:
+            parts.append("rope")
+        if self.t_sampling == "logit_normal":
+            default = self.t_ln_mean == 0 and self.t_ln_std == 1
+            parts.append("ln" if default else f"ln{self.t_ln_mean:g}s{self.t_ln_std:g}")
         if self.cnn_lpips_weight:
             parts.append(f"lpips{self.cnn_lpips_weight:g}")
         if self.channel != "awgn":

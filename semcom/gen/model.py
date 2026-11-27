@@ -269,6 +269,41 @@ def snr_input(cfg: GenConfig, snr_db: torch.Tensor) -> torch.Tensor | None:
     return torch.zeros_like(snr_db)
 
 
+def make_diffusion(cfg: GenConfig) -> Diffusion:
+    return Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction,
+                     cfg.t_sampling, cfg.t_ln_mean, cfg.t_ln_std)
+
+
+class TokenConv(nn.Module):
+    """iREPA's projector (arXiv 2512.10794, Algorithm 1): one 3x3 conv (padding 1) on the token
+    grid, (B, T, hidden) -> (B, T, out), in place of REPA's 3-layer MLP."""
+
+    def __init__(self, hidden: int, out: int, side: int):
+        super().__init__()
+        self.side = side
+        self.conv = nn.Conv2d(hidden, out, 3, padding=1)
+
+    def forward(self, h: torch.Tensor) -> torch.Tensor:
+        b, n, d = h.shape
+        if n != self.side * self.side:
+            raise ValueError(f"TokenConv expects {self.side}x{self.side} tokens, got {n}")
+        g = h.transpose(1, 2).reshape(b, d, self.side, self.side)
+        return self.conv(g).flatten(2).transpose(1, 2)
+
+
+def spatial_normalise(x: torch.Tensor, gamma: float) -> torch.Tensor:
+    """iREPA's spatial normalisation of the target features (B, T, D), per channel over the
+    tokens: (x - gamma * mean) / (std + 1e-6) (Algorithm 1). It removes most of the global
+    component the tokens share, so the alignment rewards spatial structure."""
+    x = x - gamma * x.mean(dim=1, keepdim=True)
+    return x / (x.std(dim=1, keepdim=True) + 1e-6)
+
+
+def repa_active(cfg: GenConfig, step: int) -> bool:
+    """Whether the REPA term is on at this training step (HASTE: off from cfg.repa_stop)."""
+    return bool(cfg.repa_weight) and not (cfg.repa_stop and step >= cfg.repa_stop)
+
+
 class GenJSCC(EnergyReference, nn.Module):
     def __init__(self, cfg: GenConfig, dino_dim: int):
         super().__init__()
@@ -281,8 +316,9 @@ class GenJSCC(EnergyReference, nn.Module):
             depth=depth, hidden=hidden, heads=heads, patch=cfg.patch_size,
             cond_blocks_sem=cfg.cond_blocks_sem, cond_blocks_det=cfg.cond_blocks_det,
             snr_slot=cfg.snr_mode != "fixed", grad_checkpoint=cfg.grad_checkpoint,
+            qk_norm=cfg.qk_norm, rope=cfg.rope,
         )
-        self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction)
+        self.diffusion = make_diffusion(cfg)
         self.quantiser = make_quantiser(cfg)
         self._kl = None
         self._init_energy(cfg)
@@ -292,8 +328,12 @@ class GenJSCC(EnergyReference, nn.Module):
         if cfg.repa_weight:
             if not 1 <= cfg.repa_depth <= depth:
                 raise ValueError(f"repa_depth must be in [1, {depth}], got {cfg.repa_depth}")
-            self.repa_proj = nn.Sequential(nn.Linear(hidden, 2048), nn.SiLU(), nn.Linear(2048, 2048),
-                                           nn.SiLU(), nn.Linear(2048, dino_dim))
+            if cfg.repa_proj == "irepa":
+                self.repa_proj = TokenConv(hidden, dino_dim, cfg.image_size // 8 // cfg.patch_size)
+            else:
+                self.repa_proj = nn.Sequential(nn.Linear(hidden, 2048), nn.SiLU(), nn.Linear(2048, 2048),
+                                               nn.SiLU(), nn.Linear(2048, dino_dim))
+        self.repa_on = True  # HASTE: the training loop switches REPA off from cfg.repa_stop
 
     def transmit(self, batch: dict, snr_db: torch.Tensor | None = None) -> tuple[torch.Tensor, torch.Tensor]:
         """Channel inputs (z_sem, z_det), each (B, k, 2) at unit average power; exact M-QAM points
@@ -331,7 +371,7 @@ class GenJSCC(EnergyReference, nn.Module):
         image, which measures how much the receiver relies on the channel at all."""
         y_s, y_d, told = self.received_rx(batch, snr_db)
         x0 = batch["latent"]
-        x_t, t, noise = self.diffusion.training_targets(x0)
+        x_t, t, noise = self.diffusion.training_targets(x0, uniform=not self.training)
         b = x0.shape[0]
         if drop == "train":
             mask = torch.rand(b, device=x0.device) < self.cfg.cfg_dropout
@@ -339,7 +379,7 @@ class GenJSCC(EnergyReference, nn.Module):
             mask = torch.full((b,), drop == "all", device=x0.device)
         else:
             raise ValueError(f"drop must be 'train', 'none' or 'all', got {drop!r}")
-        repa = bool(self.cfg.repa_weight) and self.training
+        repa = bool(self.cfg.repa_weight) and self.training and self.repa_on
         out = self.dit(x_t, t, y_s, y_d, snr_input(self.cfg, told), mask,
                        hidden_at=self.cfg.repa_depth if repa else None)
         if repa:
@@ -356,6 +396,8 @@ class GenJSCC(EnergyReference, nn.Module):
             target = batch["dino"].float().flatten(2).transpose(1, 2)  # (B, T, D) on the token grid
             if target.shape[1] != hidden.shape[1]:
                 raise ValueError(f"REPA needs one DINOv2 feature per token: {target.shape[1]} vs {hidden.shape[1]}")
+            if self.cfg.repa_proj == "irepa":
+                target = spatial_normalise(target, self.cfg.irepa_gamma)
             cos = F.cosine_similarity(self.repa_proj(hidden).float(), target, dim=-1)
             align = 1 - cos.mean()
             res["loss"] = res["loss"] + self.cfg.repa_weight * align
@@ -545,7 +587,7 @@ class Refiner(nn.Module):
             patch=cfg.patch_size, cond_blocks_sem=cfg.cond_blocks_sem, cond_blocks_det=cfg.cond_blocks_det,
             snr_slot=cfg.snr_mode != "fixed", cond_side=lat,
         )
-        self.diffusion = Diffusion(cfg.num_timesteps, cfg.beta_start, cfg.beta_end, cfg.prediction)
+        self.diffusion = make_diffusion(cfg)
 
     def attach_frozen(self, vae) -> None:
         self.__dict__["_vae"] = vae
@@ -582,7 +624,7 @@ class Refiner(nn.Module):
     def loss(self, batch: dict, snr_db: torch.Tensor, drop: str = "train") -> dict:
         y_s, y_d = self.received(batch, snr_db)
         x0 = batch["latent"]
-        x_t, t, noise = self.diffusion.training_targets(x0)
+        x_t, t, noise = self.diffusion.training_targets(x0, uniform=not self.training)
         b = x0.shape[0]
         if drop == "train":
             mask = torch.rand(b, device=x0.device) < self.cfg.cfg_dropout
